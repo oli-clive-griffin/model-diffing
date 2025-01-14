@@ -5,7 +5,7 @@ import yaml
 from pydantic import BaseModel
 from torch import nn
 
-from mypkg.log import logger
+from model_diffing.log import logger
 
 
 def save_model_and_config(config: BaseModel, save_dir: Path, model: nn.Module, epoch: int) -> None:

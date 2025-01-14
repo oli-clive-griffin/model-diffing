@@ -1,7 +1,7 @@
 [project]
-name = "mypkg"
+name = "model-diffing"
 version = "0.0.1"
-description = "Sample repository using Apollo best engineering practices"
+description = "MARS Model Diffing project under Bilal Chughtai"
 requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
@@ -27,7 +27,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["mypkg"]
+packages = ["model_diffing"]
 
 [tool.ruff]
 line-length = 100
@@ -48,16 +48,14 @@ select = [
     # isort
     "I",
 ]
+isort.known-third-party = ["wandb"]
 
 [tool.ruff.format]
 # Enable reformatting of code snippets in docstrings.
 docstring-code-format = true
 
-[tool.ruff.isort]
-known-third-party = ["wandb"]
-
 [tool.pyright]
-include = ["mypkg", "tests"]
+include = ["model_diffing", "tests"]
 
 strictListInference = true
 strictDictionaryInference = true
