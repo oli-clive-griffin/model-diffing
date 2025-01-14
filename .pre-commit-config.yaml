@@ -5,8 +5,7 @@ repos:
   #   hooks:
   #     - id: no-commit-to-branch
   #       args: ["--branch=main"]
-  #       stages:
-  #         - commit
+  #       stages: [pre-commit]
   - repo: local
     hooks:
       - id: pyright
@@ -14,8 +13,7 @@ repos:
         entry: pyright
         language: system
         types: [python]
-        stages:
-          - commit
+        stages: [pre-commit]
 
       - id: ruff-lint
         name: Ruff lint
@@ -23,13 +21,11 @@ repos:
         args: ["--fix-only"]
         language: system
         types: [python]
-        stages:
-          - commit
+        stages: [pre-commit]
 
       - id: ruff-format
         name: Ruff format
         entry: ruff format
         language: system
         types: [python]
-        stages:
-          - commit
+        stages: [pre-commit]

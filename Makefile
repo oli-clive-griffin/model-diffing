@@ -1,10 +1,10 @@
 .PHONY: install
 install:
-	pip install -e .
+	uv pip install -e .
 
 .PHONY: install-dev
 install-dev:
-	pip install -e .[dev]
+	uv pip install -e .[dev]
 	pre-commit install
 
 .PHONY: type

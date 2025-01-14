@@ -1,8 +1,8 @@
 import pytest
 from torch import nn
 
-from mypkg.models import MLP
-from mypkg.models.mlp import Layer
+from model_diffing.models import MLP
+from model_diffing.models.mlp import Layer
 
 
 @pytest.mark.parametrize(
