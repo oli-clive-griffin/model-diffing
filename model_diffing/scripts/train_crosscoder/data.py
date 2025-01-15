@@ -6,7 +6,6 @@ from typing import Any, cast
 import torch
 from datasets import load_dataset
 from einops import rearrange
-from tqdm import tqdm
 from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 
@@ -51,7 +50,7 @@ class ActivationHarvester:
     def _sequence_iterator(self) -> Iterator[torch.Tensor]:
         dataset = load_dataset(self._hf_dataset, streaming=True, cache_dir=self._cache_dir)
 
-        for example in tqdm(cast(Any, dataset)["train"]):
+        for example in cast(Any, dataset)["train"]:
             seq_tokens_S = torch.tensor(self._tokenizer(example["text"])["input_ids"])
             assert len(seq_tokens_S.shape) == 1, (
                 f"seq_tokens_S.shape should be 1D but was {seq_tokens_S.shape}"
@@ -84,9 +83,14 @@ class ActivationHarvester:
                 self._get_model_activations_BsLD(model, sequence_BS) for model in self._models
             ]
             activations_BsMLD = torch.stack(activations, dim=1)
-            assert activations_BsMLD.shape == (self._batch_size, *self.activation_shape_MLD), (
-                f"activations_BsMLD.shape should be {(self._batch_size, *self.activation_shape_MLD)} but was {activations_BsMLD.shape}"
+
+            assert activations_BsMLD.shape == (
+                self._batch_size * self._sequence_length,
+                *self.activation_shape_MLD,
+            ), (
+                f"activations_BsMLD.shape should be {(self._batch_size * self._sequence_length, *self.activation_shape_MLD)} but was {activations_BsMLD.shape}"
             )
+
             yield from activations_BsMLD  # `yield from` so that we yield single activation samples
 
     def __iter__(self):
@@ -119,18 +123,13 @@ class ShuffledActivationLoader:
 
         iterator_MLD = iter(self._activation_harvester)
 
-        print("starting shuffled activations iterator")
         while True:
             # refill buffer
-            print(f"refilling buffer with {len(stale_indices)} activations")
-            for stale_idx, activation_MLD in tqdm(
-                zip(list(stale_indices), iterator_MLD, strict=False)
-            ):
+            for stale_idx, activation_MLD in zip(list(stale_indices), iterator_MLD, strict=False):
                 buffer_BMLD[stale_idx] = activation_MLD
                 available_indices.add(stale_idx)
                 stale_indices.remove(stale_idx)
 
-            print(f"buffer has {len(available_indices)} activations, yielding")
             # yield batches until buffer is half empty
             while len(available_indices) >= self._shuffle_buffer_size // 2:
                 batch_indices = random.sample(list(available_indices), self._batch_size)

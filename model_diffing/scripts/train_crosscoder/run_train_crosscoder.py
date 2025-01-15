@@ -6,6 +6,7 @@ Usage:
     python model_diffing/scripts/train_mnist/run_train_mnist.py <path/to/config.yaml>
 """
 
+from collections.abc import Iterator
 from functools import partial
 from pathlib import Path
 from typing import cast
@@ -16,6 +17,8 @@ import wandb
 import yaml
 from pydantic import BaseModel
 from torch.nn.utils import clip_grad_norm_
+
+# from tqdm import tqdm
 from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 
@@ -40,6 +43,7 @@ class TrainConfig(BaseModel):
     epochs: int
     save_dir: Path | None
     save_every_n_epochs: int | None
+    log_every_n_steps: int
 
 
 class CrosscoderConfig(BaseModel):
@@ -60,33 +64,41 @@ class WandbConfig(BaseModel):
     entity: str
 
 
+class ModelConfig(BaseModel):
+    name: str
+    revision: str | None
+
+
 class Config(BaseModel):
     seed: int
-    model_names: list[str]
+    models: list[ModelConfig]
     layer_indices_to_harvest: list[int]
     train: TrainConfig
     crosscoder: CrosscoderConfig
     dataset: DatasetConfig
     wandb: WandbConfig | None
-    dtype: torch.dtype = torch.float32
+    dtype: str = "float32"
 
 
 def train(cfg: Config):
     llms: list[HookedTransformer] = [
         cast(
             HookedTransformer,
-            HookedTransformer.from_pretrained(name, cache_dir=CACHE_DIR, dtype=str(cfg.dtype)).to(
-                DEVICE
-            ),
+            HookedTransformer.from_pretrained(
+                model.name,
+                revision=model.revision,
+                cache_dir=cfg.dataset.cache_dir,
+                dtype=str(cfg.dtype),
+            ).to(DEVICE),
         )
-        for name in cfg.model_names
+        for model in cfg.models
     ]
     assert len({llm.cfg.d_model for llm in llms}) == 1, "All models must have the same d_model"
     d_model = llms[0].cfg.d_model
 
-    assert all(llm.tokenizer == llms[0].tokenizer for llm in llms), (
-        "All models must have the same tokenizer"
-    )
+    # assert all(llm.tokenizer == llms[0].tokenizer for llm in llms), (
+    #     "All models must have the same tokenizer"
+    # )
     tokenizer = llms[0].tokenizer
     assert isinstance(tokenizer, PreTrainedTokenizerBase)
 
@@ -100,9 +112,66 @@ def train(cfg: Config):
 
     optimizer = torch.optim.Adam(crosscoder.parameters(), lr=cfg.train.lr)
 
+    lambda_step = partial(
+        lambda_scheduler,
+        lambda_max=cfg.train.lambda_max,
+        n_steps=cfg.train.lambda_n_steps,
+    )
+
+    if cfg.wandb:
+        wandb.init(
+            project=cfg.wandb.project,
+            entity=cfg.wandb.entity,
+            config=cfg.model_dump(),
+        )
+
+    for epoch in range(cfg.train.epochs):
+        dataloader = get_dataloader(cfg, llms, tokenizer)  # hacky - this resets the dataloader
+        # for step, batch_Ns_LD in tqdm(enumerate(dataloader)):
+        for step, batch_Ns_LD in enumerate(dataloader):
+            batch_Ns_LD = batch_Ns_LD.to(DEVICE)
+            optimizer.zero_grad()
+
+            _, losses = crosscoder.forward_train(batch_Ns_LD)
+
+            lambda_ = lambda_step(step=step)
+            loss = losses.reconstruction_loss + lambda_ * losses.sparsity_loss
+
+            if (step + 1) % cfg.train.log_every_n_steps == 0:
+                log_dict = {
+                    "train/epoch": epoch,
+                    "train/step": step,
+                    "train/loss": loss.item(),
+                    "train/reconstruction_loss": losses.reconstruction_loss.item(),
+                    "train/sparsity_loss": losses.sparsity_loss.item(),
+                    "train/lambda": lambda_,
+                }
+                print(log_dict)
+                if cfg.wandb:
+                    wandb.log(log_dict)
+
+            clip_grad_norm_(crosscoder.parameters(), 1.0)
+            loss.backward()
+            optimizer.step()
+
+        if (
+            cfg.train.save_dir
+            and cfg.train.save_every_n_epochs
+            and (epoch + 1) % cfg.train.save_every_n_epochs == 0
+        ):
+            save_model_and_config(
+                config=cfg, save_dir=cfg.train.save_dir, model=crosscoder, epoch=epoch
+            )
+
+
+def get_dataloader(
+    cfg: Config,
+    llms: list[HookedTransformer],
+    tokenizer: PreTrainedTokenizerBase,
+) -> Iterator[torch.Tensor]:
     activation_harvester = ActivationHarvester(
         hf_dataset=cfg.dataset.hf_dataset,
-        cache_dir=CACHE_DIR,
+        cache_dir=cfg.dataset.cache_dir,
         models=llms,
         tokenizer=tokenizer,
         sequence_length=cfg.dataset.sequence_length,
@@ -116,43 +185,7 @@ def train(cfg: Config):
         batch_size=cfg.train.batch_size,
     )
 
-    lambda_step = partial(
-        lambda_scheduler,
-        lambda_max=cfg.train.lambda_max,
-        n_steps=cfg.train.lambda_n_steps,
-    )
-
-    for step, batch_Ns_LD in enumerate(dataloader):
-        batch_Ns_LD = batch_Ns_LD.to(DEVICE)
-        optimizer.zero_grad()
-
-        _, losses = crosscoder.forward_train(batch_Ns_LD)
-
-        lambda_ = lambda_step(step=step)
-        loss = losses.reconstruction_loss + lambda_ * losses.sparsity_loss
-
-        print(
-            f"Step {step:05d}, loss: {loss.item():.4f}, "
-            f"lambda: {lambda_:.4f}, "
-            f"reconstruction_loss: {losses.reconstruction_loss.item():.4f}, "
-            f"sparsity_loss: {losses.sparsity_loss.item():.4f}"
-        )
-
-        if cfg.wandb:
-            wandb.log({"train/loss": loss.item(), "train/lambda": lambda_})
-
-        clip_grad_norm_(crosscoder.parameters(), 1.0)
-        loss.backward()
-        optimizer.step()
-
-        if (
-            cfg.train.save_dir
-            and cfg.train.save_every_n_epochs
-            and (step + 1) % cfg.train.save_every_n_epochs == 0
-        ):
-            save_model_and_config(
-                config=cfg, save_dir=cfg.train.save_dir, model=crosscoder, epoch=step
-            )
+    return iter(dataloader)
 
 
 def lambda_scheduler(lambda_max: float, n_steps: int, step: int):
@@ -172,9 +205,8 @@ def load_config(config_path: Path) -> Config:
     return config
 
 
-def main(config_path_str: str) -> None:
-    config_path = Path(config_path_str)
-    config = load_config(config_path)
+def main(config_path: str) -> None:
+    config = load_config(Path(config_path))
     train(config)
 
 

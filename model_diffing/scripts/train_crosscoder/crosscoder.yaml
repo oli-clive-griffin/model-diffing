@@ -1,29 +1,32 @@
-seed: 0
-model_names:
-  - google/gemma-2b
-  - google/gemma-2b-it
+seed: 42
+dtype: float32
+models:
+  - name: EleutherAI/pythia-160M
+    revision: step3000
+  - name: EleutherAI/pythia-160M
+    revision: step4000
 layer_indices_to_harvest:
   - 2
   - 6
   - 10
-  - 14
 dataset:
   hf_dataset: PleIAs/common_corpus
   sequence_length: 256
-  cache_dir: null
-  harvest_batch_size: 16
+  cache_dir: "./tmp/cache"
+  harvest_batch_size: 8
   shuffle_buffer_size: 1024
 crosscoder:
-  hidden_dim: 4096
+  hidden_dim: 16384
 train:
   lr: 5e-5
-  lambda_max: 5.0
+  lambda_max: 0.05
   lambda_n_steps: 1000
   batch_size: 128
   epochs: 15
   save_dir: './checkpoints/crosscoder'
   save_every_n_epochs: 1
+  log_every_n_steps: 50
 wandb:
-  project: model-diffing
-  entity: oliclive-griffin  # TODO: change this
+#   project: model-diffing
+#   entity: oliclive-griffin  # TODO: change this
 
