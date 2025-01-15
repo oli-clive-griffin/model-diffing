@@ -1,4 +1,6 @@
+from collections.abc import Iterator
 from pathlib import Path
+from typing import TypeVar
 
 import torch
 import yaml
@@ -26,3 +28,17 @@ def save_model_and_config(config: BaseModel, save_dir: Path, model: nn.Module, e
     model_file = save_dir / f"model_epoch_{epoch + 1}.pt"
     torch.save(model.state_dict(), model_file)
     logger.info("Saved model to %s", model_file)
+
+
+T = TypeVar("T")
+
+
+def chunk(iterable: Iterator[T], size: int) -> Iterator[list[T]]:
+    chunk: list[T] = []
+    for item in iterable:
+        chunk.append(item)
+        if len(chunk) == size:
+            yield chunk
+            chunk = []
+    if chunk:
+        yield chunk
