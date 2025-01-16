@@ -4,7 +4,7 @@ import torch as t
 from einops import einsum, rearrange, reduce
 from torch import nn
 
-from model_diffing.utils import l1_norm, l2_norm
+from model_diffing.utils import l2_norm
 
 """
 Dimensions:
@@ -96,11 +96,12 @@ class AcausalCrosscoder(nn.Module):
         assert (hidden_BH >= 0).all()
         # each latent has a separate norms for each (model, layer)
         W_dec_l2_norms_HML = reduce(self.W_dec_HMLD, "hidden model layer dim -> hidden model layer", l2_norm)
-        # a norm's weight is the sum of it's (model, layer) decoder vector norm
+        # to get the weighting factor for each latent, we sum it's decoder norms for each (model, layer)
         summed_norms_H = reduce(W_dec_l2_norms_HML, "hidden model layer -> hidden", t.sum)
+        # now we weight the latents by the sum of their norms
         weighted_hidden_BH = hidden_BH * summed_norms_H
-        l1_hidden_B = reduce(weighted_hidden_BH, "batch hidden -> batch", l1_norm)
-        return l1_hidden_B.mean()
+        summed_weighted_hidden_B = reduce(weighted_hidden_BH, "batch hidden -> batch", t.sum)
+        return summed_weighted_hidden_B.mean()
 
     def forward_train(self, activation_BMLD: t.Tensor) -> tuple[t.Tensor, Losses]:
         hidden_BH = self.encode(activation_BMLD)
