@@ -28,3 +28,21 @@ test:
 .PHONY: test-all
 test-all:
 	python -m pytest --runslow
+
+.PHONY: sync-up
+sync-up:
+	rsync -avzP \
+		--filter=':- .gitignore' \
+		--exclude='.git/' \
+		. $(LOCATION)
+
+# Default values
+LOCATION ?= user@10.10.10.10:/path/to/destination
+
+.PHONY: setup-machine
+setup-machine:
+	pip install uv && \
+	uv venv --python 3.11 && \
+	. .venv/bin/activate && \
+	uv pip install -e .
+	echo "setup complete, now run 'source .venv/bin/activate'"

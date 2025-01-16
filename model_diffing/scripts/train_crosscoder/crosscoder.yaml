@@ -12,7 +12,7 @@ layer_indices_to_harvest:
 dataset:
   hf_dataset: PleIAs/common_corpus
   sequence_length: 256
-  cache_dir: "./tmp/cache"
+  cache_dir: ".cache"
   harvest_batch_size: 8
   shuffle_buffer_size: 1024
 crosscoder:

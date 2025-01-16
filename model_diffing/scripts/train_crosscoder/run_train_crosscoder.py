@@ -32,7 +32,6 @@ from model_diffing.utils import save_model_and_config
 DEVICE = (
     "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 )
-CACHE_DIR = "tmp/cache"
 
 
 class TrainConfig(BaseModel):
