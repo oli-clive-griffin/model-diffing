@@ -14,6 +14,9 @@ dependencies = [
     "pytest",
     "ipykernel",
     "einops",
+    "transformer_lens",
+    "transformers",
+    "datasets",
 ]
 
 [project.optional-dependencies]

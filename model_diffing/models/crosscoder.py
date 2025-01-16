@@ -13,6 +13,8 @@ Dimensions:
 - H: Autoencoder hidden dimension
 """
 
+t.Tensor.d = lambda self: f"{self.shape}, dtype={self.dtype}, device={self.device}"  # type: ignore
+
 
 @dataclass
 class Losses:
@@ -32,6 +34,8 @@ class AcausalCrosscoder(nn.Module):
         dec_init_norm: float,
     ):
         super().__init__()
+        self.activations_shape = (n_models, n_layers, d_model)
+        self.hidden_dim = hidden_dim
 
         self.W_enc_MLDH = nn.Parameter(t.randn((n_models, n_layers, d_model, hidden_dim)))
         self.b_enc_H = nn.Parameter(t.zeros((hidden_dim,)))
@@ -67,10 +71,13 @@ class AcausalCrosscoder(nn.Module):
         activation_BMLD += self.b_dec_MLD
         return activation_BMLD
 
-    def forward(self, activation_BLD: t.Tensor) -> t.Tensor:
-        hidden_BH = self.encode(activation_BLD)
-        reconstructed_BLD = self.decode(hidden_BH)
-        return reconstructed_BLD
+    def forward(self, activation_BMLD: t.Tensor) -> t.Tensor:
+        assert activation_BMLD.shape[1:] == self.activations_shape
+        hidden_BH = self.encode(activation_BMLD)
+        assert hidden_BH.shape[1:] == (self.hidden_dim,)
+        reconstructed_BMLD = self.decode(hidden_BH)
+        assert reconstructed_BMLD.shape[1:] == self.activations_shape
+        return reconstructed_BMLD
 
     def sparsity_loss(self, hidden_BH: t.Tensor) -> t.Tensor:
         assert (hidden_BH >= 0).all()
@@ -85,10 +92,12 @@ class AcausalCrosscoder(nn.Module):
     def forward_train(self, activation_BLD: t.Tensor) -> tuple[t.Tensor, Losses]:
         hidden_BH = self.encode(activation_BLD)
         reconstructed_BLD = self.decode(hidden_BH)
+
         losses = Losses(
             reconstruction_loss=reconstruction_loss(reconstructed_BLD, activation_BLD),
             sparsity_loss=self.sparsity_loss(hidden_BH),
         )
+
         return reconstructed_BLD, losses
 
 
