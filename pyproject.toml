@@ -34,7 +34,7 @@ build-backend = "setuptools.build_meta"
 packages = ["model_diffing"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 fix = true
 
 [tool.ruff.lint]
