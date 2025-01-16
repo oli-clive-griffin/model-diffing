@@ -115,3 +115,7 @@ class AcausalCrosscoder(nn.Module):
         )
 
         return reconstructed_BMLD, losses
+
+    def forward(self, activation_BMLD: t.Tensor) -> t.Tensor:
+        hidden_BH = self.encode(activation_BMLD)
+        return self.decode(hidden_BH)
