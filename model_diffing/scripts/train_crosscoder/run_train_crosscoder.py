@@ -29,9 +29,7 @@ from model_diffing.scripts.train_crosscoder.data import (
 )
 from model_diffing.utils import save_model_and_config
 
-DEVICE = (
-    "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
-)
+DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
 
 class TrainConfig(BaseModel):
@@ -153,14 +151,8 @@ def train(cfg: Config):
             loss.backward()
             optimizer.step()
 
-        if (
-            cfg.train.save_dir
-            and cfg.train.save_every_n_epochs
-            and (epoch + 1) % cfg.train.save_every_n_epochs == 0
-        ):
-            save_model_and_config(
-                config=cfg, save_dir=cfg.train.save_dir, model=crosscoder, epoch=epoch
-            )
+        if cfg.train.save_dir and cfg.train.save_every_n_epochs and (epoch + 1) % cfg.train.save_every_n_epochs == 0:
+            save_model_and_config(config=cfg, save_dir=cfg.train.save_dir, model=crosscoder, epoch=epoch)
 
 
 def get_dataloader(

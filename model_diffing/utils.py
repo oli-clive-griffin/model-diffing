@@ -42,3 +42,23 @@ def chunk(iterable: Iterator[T], size: int) -> Iterator[list[T]]:
             chunk = []
     if chunk:
         yield chunk
+
+
+def l1_norm(
+    input: torch.Tensor,
+    dim: int | tuple[int, ...] | None = None,
+    keepdim: bool = False,
+    out: torch.Tensor | None = None,
+    dtype: torch.dtype | None = None,
+) -> torch.Tensor:
+    return torch.norm(input, p=1, dim=dim, keepdim=keepdim, out=out, dtype=dtype)
+
+
+def l2_norm(
+    input: torch.Tensor,
+    dim: int | tuple[int, ...] | None = None,
+    keepdim: bool = False,
+    out: torch.Tensor | None = None,
+    dtype: torch.dtype | None = None,
+) -> torch.Tensor:
+    return torch.norm(input, p=2, dim=dim, keepdim=keepdim, out=out, dtype=dtype)
