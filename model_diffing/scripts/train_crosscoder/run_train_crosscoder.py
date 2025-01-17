@@ -8,15 +8,19 @@ Usage:
 
 from collections.abc import Iterator
 from functools import partial
+from itertools import islice
 from pathlib import Path
 from typing import cast
 
 import fire
+import numpy as np
 import torch
 import wandb
 import yaml
+from einops import reduce
 from pydantic import BaseModel
 from torch.nn.utils import clip_grad_norm_
+from tqdm import tqdm
 
 # from tqdm import tqdm
 from transformer_lens import HookedTransformer
@@ -27,7 +31,7 @@ from model_diffing.scripts.train_crosscoder.data import (
     ActivationHarvester,
     ShuffledActivationLoader,
 )
-from model_diffing.utils import save_model_and_config
+from model_diffing.utils import l2_norm, save_model_and_config
 
 DEVICE = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -77,6 +81,26 @@ class Config(BaseModel):
     dtype: str = "float32"
 
 
+@torch.no_grad()
+def estimate_norm_scaling_factor(
+    activations_dataloader: Iterator[torch.Tensor],
+    d_model: int,
+    n_batches_for_norm_estimate: int = 100,
+) -> torch.Tensor:
+    # stolen from SAELens https://github.com/jbloomAus/SAELens/blob/6d6eaef343fd72add6e26d4c13307643a62c41bf/sae_lens/training/activations_store.py#L370
+    norms_per_batch = []
+    for batch_BMLD in tqdm(
+        islice(activations_dataloader, n_batches_for_norm_estimate),
+        desc="Estimating norm scaling factor",
+    ):
+        norms_BML = reduce(batch_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
+        norms_mean = norms_BML.mean().item()
+        norms_per_batch.append(norms_mean)
+    mean_norm = np.mean(norms_per_batch)
+    scaling_factor = np.sqrt(d_model) / mean_norm
+    return scaling_factor
+
+
 def train(cfg: Config):
     llms: list[HookedTransformer] = [
         cast(
@@ -122,14 +146,17 @@ def train(cfg: Config):
             config=cfg.model_dump(),
         )
 
+    norm_scaling_factor = estimate_norm_scaling_factor(get_dataloader(cfg, llms, tokenizer), d_model)
+
     for epoch in range(cfg.train.epochs):
         dataloader = get_dataloader(cfg, llms, tokenizer)  # hacky - this resets the dataloader
-        # for step, batch_Ns_LD in tqdm(enumerate(dataloader)):
-        for step, batch_Ns_LD in enumerate(dataloader):
-            batch_Ns_LD = batch_Ns_LD.to(DEVICE)
+        # for step, batch_BMLD in tqdm(enumerate(dataloader)):
+        for step, batch_BMLD in enumerate(dataloader):
             optimizer.zero_grad()
 
-            _, losses = crosscoder.forward_train(batch_Ns_LD)
+            batch_BMLD = batch_BMLD.to(DEVICE)
+            batch_BMLD = batch_BMLD * norm_scaling_factor
+            _, losses = crosscoder.forward_train(batch_BMLD)
 
             lambda_ = lambda_step(step=step)
             loss = losses.reconstruction_loss + lambda_ * losses.sparsity_loss
