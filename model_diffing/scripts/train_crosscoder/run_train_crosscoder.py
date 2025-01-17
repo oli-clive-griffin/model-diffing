@@ -29,7 +29,7 @@ from transformers import PreTrainedTokenizerBase
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_crosscoder.data import (
     ActivationHarvester,
-    ShuffledActivationLoader,
+    ShuffledTokensActivationsLoader,
 )
 from model_diffing.utils import l2_norm, save_model_and_config
 
@@ -81,6 +81,20 @@ class Config(BaseModel):
     dtype: str = "float32"
 
 
+def estimate_mean_norm(activations_dataloader_BMLD: Iterator[torch.Tensor], n_batches_for_norm_estimate: int) -> float:
+    norms_per_batch = []
+    for batch_BMLD in tqdm(
+        islice(activations_dataloader_BMLD, n_batches_for_norm_estimate),
+        desc="Estimating norm scaling factor",
+    ):
+        norms_BML = reduce(batch_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
+        norms_mean = norms_BML.mean().item()
+        print(f"- Norms mean: {norms_mean}")
+        norms_per_batch.append(norms_mean)
+    mean_norm = float(np.mean(norms_per_batch))
+    return mean_norm
+
+
 @torch.no_grad()
 def estimate_norm_scaling_factor(
     activations_dataloader: Iterator[torch.Tensor],
@@ -88,15 +102,7 @@ def estimate_norm_scaling_factor(
     n_batches_for_norm_estimate: int = 100,
 ) -> torch.Tensor:
     # stolen from SAELens https://github.com/jbloomAus/SAELens/blob/6d6eaef343fd72add6e26d4c13307643a62c41bf/sae_lens/training/activations_store.py#L370
-    norms_per_batch = []
-    for batch_BMLD in tqdm(
-        islice(activations_dataloader, n_batches_for_norm_estimate),
-        desc="Estimating norm scaling factor",
-    ):
-        norms_BML = reduce(batch_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
-        norms_mean = norms_BML.mean().item()
-        norms_per_batch.append(norms_mean)
-    mean_norm = np.mean(norms_per_batch)
+    mean_norm = estimate_mean_norm(activations_dataloader, n_batches_for_norm_estimate)
     scaling_factor = np.sqrt(d_model) / mean_norm
     return scaling_factor
 
@@ -146,20 +152,32 @@ def train(cfg: Config):
             config=cfg.model_dump(),
         )
 
-    norm_scaling_factor = estimate_norm_scaling_factor(get_dataloader(cfg, llms, tokenizer), d_model)
+    norm_scaling_factor = estimate_norm_scaling_factor(
+        get_shuffled_activations_iterator_BMLD(cfg, llms, tokenizer), d_model
+    )
+
+    expected_batch_shape = (cfg.train.batch_size, len(cfg.models), len(cfg.layer_indices_to_harvest), d_model)
 
     for epoch in range(cfg.train.epochs):
-        dataloader = get_dataloader(cfg, llms, tokenizer)  # hacky - this resets the dataloader
-        # for step, batch_BMLD in tqdm(enumerate(dataloader)):
-        for step, batch_BMLD in enumerate(dataloader):
-            optimizer.zero_grad()
+        # kinda hacky - calling this inside the epoch loop to reset the iterator for each epoch
+        iterator_BMLD = get_shuffled_activations_iterator_BMLD(cfg, llms, tokenizer)
 
+        # for step, batch_BMLD in tqdm(enumerate(dataloader)):
+        for step, batch_BMLD in enumerate(iterator_BMLD):
             batch_BMLD = batch_BMLD.to(DEVICE)
             batch_BMLD = batch_BMLD * norm_scaling_factor
+
+            assert batch_BMLD.shape == expected_batch_shape, (
+                f"Batch shape should be {expected_batch_shape} but was {batch_BMLD.shape}"
+            )
+
+            optimizer.zero_grad()
+
             _, losses = crosscoder.forward_train(batch_BMLD)
 
             lambda_ = lambda_step(step=step)
             loss = losses.reconstruction_loss + lambda_ * losses.sparsity_loss
+            loss.backward()
 
             if (step + 1) % cfg.train.log_every_n_steps == 0:
                 log_dict = {
@@ -175,14 +193,13 @@ def train(cfg: Config):
                     wandb.log(log_dict)
 
             clip_grad_norm_(crosscoder.parameters(), 1.0)
-            loss.backward()
             optimizer.step()
 
         if cfg.train.save_dir and cfg.train.save_every_n_epochs and (epoch + 1) % cfg.train.save_every_n_epochs == 0:
             save_model_and_config(config=cfg, save_dir=cfg.train.save_dir, model=crosscoder, epoch=epoch)
 
 
-def get_dataloader(
+def get_shuffled_activations_iterator_BMLD(
     cfg: Config,
     llms: list[HookedTransformer],
     tokenizer: PreTrainedTokenizerBase,
@@ -197,13 +214,13 @@ def get_dataloader(
         layer_indices_to_harvest=cfg.layer_indices_to_harvest,
     )
 
-    dataloader = ShuffledActivationLoader(
+    dataloader = ShuffledTokensActivationsLoader(
         activation_harvester=activation_harvester,
         shuffle_buffer_size=cfg.dataset.shuffle_buffer_size,
         batch_size=cfg.train.batch_size,
     )
 
-    return iter(dataloader)
+    return dataloader.get_shuffled_activations_iterator_BMLD()
 
 
 def lambda_scheduler(lambda_max: float, n_steps: int, step: int):
@@ -224,9 +241,12 @@ def load_config(config_path: Path) -> Config:
 
 
 def main(config_path: str) -> None:
+    print("Loading config...")
     config = load_config(Path(config_path))
+    print("Loaded config")
     train(config)
 
 
 if __name__ == "__main__":
+    print("Starting...")
     fire.Fire(main)

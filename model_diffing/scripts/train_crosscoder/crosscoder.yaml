@@ -14,15 +14,15 @@ dataset:
   sequence_length: 256
   cache_dir: ".cache"
   harvest_batch_size: 8
-  shuffle_buffer_size: 1024
+  shuffle_buffer_size: 16384
 crosscoder:
-  hidden_dim: 16384
+  hidden_dim: 6144
 train:
   lr: 5e-5
-  lambda_max: 0.05
+  lambda_max: 5
   lambda_n_steps: 1000
-  batch_size: 128
-  epochs: 15
+  batch_size: 4096
+  epochs: 1
   save_dir: './checkpoints/crosscoder'
   save_every_n_epochs: 1
   log_every_n_steps: 50

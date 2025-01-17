@@ -36,6 +36,13 @@ sync-up:
 		--exclude='.git/' \
 		. $(LOCATION)
 
+.PHONY: sync-down
+sync-down:
+	rsync -avzP \
+		--filter=':- .gitignore' \
+		--exclude='.git/' \
+		$(LOCATION) .
+
 # Default values
 LOCATION ?= user@10.10.10.10:/path/to/destination
 
