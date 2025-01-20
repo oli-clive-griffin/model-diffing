@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import torch
 import wandb
+from einops import einsum
 from torch.nn.utils import clip_grad_norm_
 from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
@@ -10,7 +11,7 @@ from wandb.sdk.wandb_run import Run
 from model_diffing.dataloader.data import ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.scripts.utils import estimate_norm_scaling_factor
+from model_diffing.scripts.utils import estimate_norm_scaling_factor_ML
 from model_diffing.utils import reconstruction_loss, save_model_and_config
 
 from .config import TrainConfig
@@ -37,7 +38,6 @@ class TopKTrainer:
     ):
         self.cfg = cfg
         self.llms = llms
-        self.d_model = self.llms[0].cfg.d_model
 
         # assert all(llm.tokenizer == llms[0].tokenizer for llm in llms), (
         #     "All models must have the same tokenizer"
@@ -51,16 +51,33 @@ class TopKTrainer:
         self.wandb_run = wandb_run
         self.expected_batch_shape = expected_batch_shape
         self.device = device
+
         self.step = 0
+        self.dataloader_iterator_BMLD = self.dataloader.get_shuffled_activations_iterator_BMLD()
 
-    def train(self):
-        dataloader_iterator_BMLD = self.dataloader.get_shuffled_activations_iterator_BMLD()
+    @property
+    def num_models(self) -> int:
+        return len(self.llms)
 
-        norm_scaling_factor = estimate_norm_scaling_factor(
-            dataloader_iterator_BMLD,
+    @property
+    def num_layers(self) -> int:
+        return self.llms[0].cfg.n_layers
+
+    @property
+    def d_model(self) -> int:
+        return self.llms[0].cfg.d_model
+
+    def _estimate_norm_scaling_factor_ML(self) -> torch.Tensor:
+        return estimate_norm_scaling_factor_ML(
+            self.dataloader_iterator_BMLD,
+            self.num_models,
+            self.num_layers,
             self.d_model,
             self.cfg.n_batches_for_norm_estimate,
         )
+
+    def train(self):
+        norm_scaling_factors_ML = self._estimate_norm_scaling_factor_ML()
 
         if self.wandb_run:
             wandb.init(
@@ -70,11 +87,17 @@ class TopKTrainer:
             )
 
         while self.step < self.cfg.num_steps:
-            batch_BMLD = next(dataloader_iterator_BMLD)
-            batch_BMLD = batch_BMLD.to(self.device)
-            batch_BMLD = batch_BMLD * norm_scaling_factor
+            batch_BMLD = self.next_batch_BMLD(norm_scaling_factors_ML)
             self.train_step(batch_BMLD)
             self.step += 1
+
+    def next_batch_BMLD(self, norm_scaling_factors_ML: torch.Tensor) -> torch.Tensor:
+        batch_BMLD = next(self.dataloader_iterator_BMLD)
+        batch_BMLD = batch_BMLD.to(self.device)
+        batch_BMLD = einsum(
+            batch_BMLD, norm_scaling_factors_ML, "batch model layer d_model, model layer -> batch model layer d_model"
+        )
+        return batch_BMLD
 
     def get_loss(self, activations_BMLD: torch.Tensor) -> tuple[torch.Tensor, TopKLossInfo]:
         train_res = self.crosscoder.forward_train(activations_BMLD)
