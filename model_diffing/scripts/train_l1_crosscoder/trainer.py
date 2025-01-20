@@ -69,23 +69,6 @@ class L1SaeTrainer:
     def d_model(self) -> int:
         return self.llms[0].cfg.d_model
 
-    def _estimate_norm_scaling_factor_ML(self) -> torch.Tensor:
-        return estimate_norm_scaling_factor_ML(
-            self.dataloader_iterator_BMLD,
-            self.num_models,
-            self.num_layers,
-            self.d_model,
-            self.cfg.n_batches_for_norm_estimate,
-        )
-
-    def next_batch_BMLD(self, norm_scaling_factors_ML: torch.Tensor) -> torch.Tensor:
-        batch_BMLD = next(self.dataloader_iterator_BMLD)
-        batch_BMLD = batch_BMLD.to(self.device)
-        batch_BMLD = einsum(
-            batch_BMLD, norm_scaling_factors_ML, "batch model layer d_model, model layer -> batch model layer d_model"
-        )
-        return batch_BMLD
-
     def train(self):
         norm_scaling_factors_ML = self._estimate_norm_scaling_factor_ML()
 
@@ -97,11 +80,48 @@ class L1SaeTrainer:
             )
 
         while self.step < self.cfg.num_steps:
-            batch_BMLD = self.next_batch_BMLD(norm_scaling_factors_ML)
-            self.train_step(batch_BMLD)
+            batch_BMLD = self._next_batch_BMLD(norm_scaling_factors_ML)
+
+            log_dict = self._train_step(batch_BMLD)
+
+            if (self.step + 1) % self.cfg.log_every_n_steps == 0:
+                logger.info(log_dict)
+                if self.wandb_run:
+                    self.wandb_run.log(log_dict)
+
+            if self.cfg.save_dir and self.cfg.save_every_n_steps and (self.step + 1) % self.cfg.save_every_n_steps == 0:
+                save_model_and_config(
+                    config=self.cfg,
+                    save_dir=self.cfg.save_dir,
+                    model=self.crosscoder,
+                    epoch=self.step,
+                )
+
             self.step += 1
 
-    def get_loss(self, activations_BMLD: torch.Tensor) -> tuple[torch.Tensor, "L1LossInfo"]:
+    def _train_step(self, batch_BMLD: torch.Tensor) -> dict[str, float]:
+        self.optimizer.zero_grad()
+
+        loss, loss_info = self._get_loss(batch_BMLD)
+
+        loss.backward()
+        clip_grad_norm_(self.crosscoder.parameters(), 1.0)
+        self.optimizer.step()
+
+        self.optimizer.param_groups[0]["lr"] = self._lr_scheduler()
+
+        log_dict = {
+            "train/step": self.step,
+            "train/lambda": loss_info.lambda_,
+            "train/l0": loss_info.l0,
+            "train/reconstruction_loss": loss_info.reconstruction_loss,
+            "train/sparsity_loss": loss_info.sparsity_loss,
+            "train/loss": loss.item(),
+        }
+
+        return log_dict
+
+    def _get_loss(self, activations_BMLD: torch.Tensor) -> tuple[torch.Tensor, "L1LossInfo"]:
         train_res = self.crosscoder.forward_train(activations_BMLD)
 
         reconstruction_loss_ = reconstruction_loss(activations_BMLD, train_res.reconstructed_acts_BMLD)
@@ -119,37 +139,22 @@ class L1SaeTrainer:
 
         return loss, loss_info
 
-    def train_step(self, batch_BMLD: torch.Tensor):
-        self.optimizer.zero_grad()
+    def _estimate_norm_scaling_factor_ML(self) -> torch.Tensor:
+        return estimate_norm_scaling_factor_ML(
+            self.dataloader_iterator_BMLD,
+            self.num_models,
+            self.num_layers,
+            self.d_model,
+            self.cfg.n_batches_for_norm_estimate,
+        )
 
-        loss, loss_info = self.get_loss(batch_BMLD)
-
-        loss.backward()
-
-        if (self.step + 1) % self.cfg.log_every_n_steps == 0:
-            log_dict = {
-                "train/step": self.step,
-                "train/lambda": loss_info.lambda_,
-                "train/l0": loss_info.l0,
-                "train/reconstruction_loss": loss_info.reconstruction_loss,
-                "train/sparsity_loss": loss_info.sparsity_loss,
-                "train/loss": loss.item(),
-            }
-            logger.info(log_dict)
-            if self.wandb_run:
-                self.wandb_run.log(log_dict)
-
-        clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-        self.optimizer.step()
-        self.optimizer.param_groups[0]["lr"] = self._lr_scheduler()
-
-        if self.cfg.save_dir and self.cfg.save_every_n_steps and (self.step + 1) % self.cfg.save_every_n_steps == 0:
-            save_model_and_config(
-                config=self.cfg,
-                save_dir=self.cfg.save_dir,
-                model=self.crosscoder,
-                epoch=self.step,
-            )
+    def _next_batch_BMLD(self, norm_scaling_factors_ML: torch.Tensor) -> torch.Tensor:
+        batch_BMLD = next(self.dataloader_iterator_BMLD)
+        batch_BMLD = batch_BMLD.to(self.device)
+        batch_BMLD = einsum(
+            batch_BMLD, norm_scaling_factors_ML, "batch model layer d_model, model layer -> batch model layer d_model"
+        )
+        return batch_BMLD
 
     def _l1_coef_scheduler(self) -> float:
         if self.step < self.cfg.lambda_n_steps:

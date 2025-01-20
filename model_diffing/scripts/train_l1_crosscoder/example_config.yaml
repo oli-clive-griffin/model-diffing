@@ -2,13 +2,11 @@ seed: 42
 dtype: float32
 models:
   - name: EleutherAI/pythia-160M
-    revision: step3000
+    revision: step142000
   - name: EleutherAI/pythia-160M
-    revision: step4000
+    revision: step143000 # last checkpoint
 layer_indices_to_harvest:
-  - 2
-  - 6
-  - 10
+  - 8
 dataset:
   hf_dataset: PleIAs/common_corpus
   cache_dir: ".cache"
