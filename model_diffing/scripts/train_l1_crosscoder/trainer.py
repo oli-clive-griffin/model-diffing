@@ -74,7 +74,6 @@ class L1SaeTrainer:
 
         while self.step < self.cfg.num_steps:
             batch_BMLD = self._next_batch_BMLD(norm_scaling_factors_ML)
-            print(batch_BMLD.shape)
 
             log_dict = self._train_step(batch_BMLD)
 
