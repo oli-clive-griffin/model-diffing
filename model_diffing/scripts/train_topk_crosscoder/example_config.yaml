@@ -1,33 +1,30 @@
 seed: 42
 dtype: float32
-models:
+llms:
   - name: EleutherAI/pythia-160M
     revision: step3000
   - name: EleutherAI/pythia-160M
     revision: step4000
-layer_indices_to_harvest:
-  - 2
-  - 6
-  - 10
+layer_indices_to_harvest: [2, 6, 10]
 dataset:
   hf_dataset: PleIAs/common_corpus
-  sequence_length: 256
   cache_dir: ".cache"
+  sequence_length: 256
   harvest_batch_size: 8
   shuffle_buffer_size: 16384
 crosscoder:
-  hidden_dim: 6144
+  hidden_dim: 4096
+  k: 10
 train:
   learning_rate:
     initial_learning_rate: 5e-5
     last_pct_of_steps: 0.2
-  lambda_max: 5
-  lambda_n_steps: 1000
   batch_size: 4096
   num_steps: 10_000
   save_dir: './checkpoints/topk_crosscoder'
   save_every_n_steps: 1000
   log_every_n_steps: 50
 wandb:
+  name: local
   project: model-diffing
   entity: mars-model-diffing

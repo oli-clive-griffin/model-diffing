@@ -13,13 +13,12 @@ from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_topk_crosscoder.config import TrainConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_ML
-from model_diffing.utils import mean_l0, reconstruction_loss, save_model_and_config
+from model_diffing.utils import reconstruction_loss, save_model_and_config
 
 
 @dataclass
 class TopKLossInfo:
     reconstruction_loss: float
-    l0: float
 
 
 class TopKTrainer:
@@ -72,10 +71,8 @@ class TopKTrainer:
 
             log_dict = self._train_step(batch_BMLD)
 
-            if (self.step + 1) % self.cfg.log_every_n_steps == 0:
-                logger.info(log_dict)
-                if self.wandb_run:
-                    self.wandb_run.log(log_dict)
+            if self.wandb_run and (self.step + 1) % self.cfg.log_every_n_steps == 0:
+                self.wandb_run.log(log_dict)
 
             if self.cfg.save_dir and self.cfg.save_every_n_steps and (self.step + 1) % self.cfg.save_every_n_steps == 0:
                 save_model_and_config(
@@ -99,7 +96,6 @@ class TopKTrainer:
 
         log_dict = {
             "train/step": self.step,
-            "train/l0": loss_info.l0,
             "train/reconstruction_loss": loss_info.reconstruction_loss,
             "train/loss": loss.item(),
         }
@@ -111,9 +107,10 @@ class TopKTrainer:
 
         reconstruction_loss_ = reconstruction_loss(activations_BMLD, train_res.reconstructed_acts_BMLD)
 
+        # loss_recovered = self._loss_recovered(train_res.reconstructed_acts_BMLD)
+
         loss_info = TopKLossInfo(
             reconstruction_loss=reconstruction_loss_.item(),
-            l0=mean_l0(train_res.hidden_BH),
         )
 
         return reconstruction_loss_, loss_info

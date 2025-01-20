@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import torch
 import wandb
-from einops import einsum
+from einops import einsum, reduce
 from torch.nn.utils import clip_grad_norm_
 from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
@@ -13,12 +13,7 @@ from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_l1_crosscoder.config import TrainConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_ML
-from model_diffing.utils import (
-    mean_l0,
-    reconstruction_loss,
-    save_model_and_config,
-    sparsity_loss_l1_of_norms,
-)
+from model_diffing.utils import l0_norm, reconstruction_loss, save_model_and_config, sparsity_loss_l1_of_norms
 
 
 @dataclass
@@ -120,15 +115,15 @@ class L1SaeTrainer:
 
         reconstruction_loss_ = reconstruction_loss(activations_BMLD, train_res.reconstructed_acts_BMLD)
         sparsity_loss_ = sparsity_loss_l1_of_norms(self.crosscoder.W_dec_HMLD, train_res.hidden_BH)
+        l0_norms_B = reduce(train_res.hidden_BH, "batch hidden -> batch", l0_norm)
         lambda_ = self._l1_coef_scheduler()
-
         loss = reconstruction_loss_ + lambda_ * sparsity_loss_
 
         loss_info = L1LossInfo(
             lambda_=lambda_,
             reconstruction_loss=reconstruction_loss_.item(),
             sparsity_loss=sparsity_loss_.item(),
-            mean_l0=mean_l0(train_res.hidden_BH),
+            mean_l0=l0_norms_B.mean().item(),
         )
 
         return loss, loss_info

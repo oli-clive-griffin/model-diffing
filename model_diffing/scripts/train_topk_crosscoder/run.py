@@ -64,6 +64,7 @@ def build_trainer(cfg: TopKConfig) -> TopKTrainer:
 
     wandb_run = (
         wandb.init(
+            name=cfg.wandb.name,
             project=cfg.wandb.project,
             entity=cfg.wandb.entity,
             config=cfg.model_dump(),

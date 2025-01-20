@@ -48,6 +48,21 @@ def chunk(iterable: Iterator[T], size: int) -> Iterator[list[T]]:
         yield chunk
 
 
+# It may seem weird to redefine these, but:
+# 1: this signature allows us to use these norms in einops.reduce
+# 2: I (oli) find `l2_norm(x, dim=-1)` more readable than `x.norm(p=2, dim=-1)`
+
+
+def l0_norm(
+    input: torch.Tensor,
+    dim: int | tuple[int, ...] | None = None,
+    keepdim: bool = False,
+    out: torch.Tensor | None = None,
+    dtype: torch.dtype | None = None,
+) -> torch.Tensor:
+    return torch.norm(input, p=0, dim=dim, keepdim=keepdim, out=out, dtype=dtype)
+
+
 def l1_norm(
     input: torch.Tensor,
     dim: int | tuple[int, ...] | None = None,
@@ -101,12 +116,6 @@ sparsity_loss_l1_of_norms = partial(
     layer_reduction=l1_norm,
     model_reduction=l1_norm,
 )
-
-
-def mean_l0(hidden_BH: torch.Tensor) -> float:
-    firing_BH = (hidden_BH > 0).float()
-    l0 = multi_reduce(firing_BH, "batch hidden", [("hidden", torch.sum), ("batch", torch.mean)])
-    return l0.item()
 
 
 def reconstruction_loss(activation_BMLD: torch.Tensor, target_BMLD: torch.Tensor) -> torch.Tensor:

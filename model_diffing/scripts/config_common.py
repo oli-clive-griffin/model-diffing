@@ -10,6 +10,7 @@ class DatasetConfig(BaseModel):
 
 
 class WandbConfig(BaseModel):
+    name: str | None = None
     project: str
     entity: str
 
