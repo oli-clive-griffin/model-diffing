@@ -1,20 +1,17 @@
-from collections.abc import Iterator
 from dataclasses import dataclass
-from itertools import islice
 
-import numpy as np
 import torch
 import wandb
-from einops import reduce
 from torch.nn.utils import clip_grad_norm_
-from tqdm import tqdm
 from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.dataloader.data import ShuffledTokensActivationsLoader
+from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.utils import l2_norm, reconstruction_loss, save_model_and_config, sparsity_loss_l1_of_norms
+from model_diffing.scripts.utils import estimate_norm_scaling_factor
+from model_diffing.utils import reconstruction_loss, save_model_and_config, sparsity_loss_l1_of_norms
 
 from .config import TrainConfig
 
@@ -60,7 +57,9 @@ class L1SaeTrainer:
 
     def train(self):
         dataloader_iterator_BMLD = self.dataloader.get_shuffled_activations_iterator_BMLD()
-        norm_scaling_factor = self._estimate_norm_scaling_factor(dataloader_iterator_BMLD)
+        norm_scaling_factor = estimate_norm_scaling_factor(
+            dataloader_iterator_BMLD, self.d_model, self.cfg.n_batches_for_norm_estimate
+        )
 
         if self.wandb_run:
             wandb.init(
@@ -110,7 +109,7 @@ class L1SaeTrainer:
                 "train/sparsity_loss": loss_info.sparsity_loss,
                 "train/loss": loss.item(),
             }
-            print(log_dict)
+            logger.info(log_dict)
             if self.wandb_run:
                 self.wandb_run.log(log_dict)
 
@@ -125,26 +124,6 @@ class L1SaeTrainer:
                 model=self.crosscoder,
                 epoch=self.step,
             )
-
-    @torch.no_grad()
-    def _estimate_norm_scaling_factor(self, dataloader_BMLD: Iterator[torch.Tensor]) -> torch.Tensor:
-        mean_norm = self._estimate_mean_norm(dataloader_BMLD)
-        scaling_factor = np.sqrt(self.d_model) / mean_norm
-        return scaling_factor
-
-    # adapted from SAELens https://github.com/jbloomAus/SAELens/blob/6d6eaef343fd72add6e26d4c13307643a62c41bf/sae_lens/training/activations_store.py#L370
-    def _estimate_mean_norm(self, dataloader_BMLD: Iterator[torch.Tensor]) -> float:
-        norms_per_batch = []
-        for batch_BMLD in tqdm(
-            islice(dataloader_BMLD, self.cfg.n_batches_for_norm_estimate),
-            desc="Estimating norm scaling factor",
-        ):
-            norms_BML = reduce(batch_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
-            norms_mean = norms_BML.mean().item()
-            print(f"- Norms mean: {norms_mean}")
-            norms_per_batch.append(norms_mean)
-        mean_norm = float(np.mean(norms_per_batch))
-        return mean_norm
 
     def _l1_coef_scheduler(self) -> float:
         if self.step < self.cfg.lambda_n_steps:

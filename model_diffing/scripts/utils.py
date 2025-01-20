@@ -28,7 +28,6 @@ def _estimate_mean_norm(dataloader_BMLD: Iterator[torch.Tensor], n_batches_for_n
     ):
         norms_BML = reduce(batch_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
         norms_mean = norms_BML.mean().item()
-        print(f"- Norms mean: {norms_mean}")
         norms_per_batch.append(norms_mean)
     mean_norm = float(np.mean(norms_per_batch))
     return mean_norm

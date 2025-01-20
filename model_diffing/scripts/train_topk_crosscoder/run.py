@@ -9,6 +9,7 @@ from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 
 from model_diffing.dataloader.data import ActivationHarvester, ShuffledTokensActivationsLoader
+from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.utils import get_device
 
@@ -102,13 +103,13 @@ def load_config(config_path: Path) -> TopKConfig:
 
 
 def main(config_path: str) -> None:
-    print("Loading config...")
+    logger.info("Loading config...")
     config = load_config(Path(config_path))
-    print("Loaded config")
+    logger.info("Loaded config")
     trainer = build_trainer(config)
     trainer.train()
 
 
 if __name__ == "__main__":
-    print("Starting...")
+    logger.info("Starting...")
     fire.Fire(main)

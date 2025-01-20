@@ -8,6 +8,7 @@ from transformers import PreTrainedTokenizerBase
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.dataloader.data import ShuffledTokensActivationsLoader
+from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.utils import estimate_norm_scaling_factor
 from model_diffing.utils import reconstruction_loss, save_model_and_config
@@ -101,7 +102,7 @@ class TopKTrainer:
                 "train/reconstruction_loss": loss_info.reconstruction_loss,
                 "train/loss": loss.item(),
             }
-            print(log_dict)
+            logger.info(log_dict)
             if self.wandb_run:
                 self.wandb_run.log(log_dict)
 
