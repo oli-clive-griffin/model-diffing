@@ -103,6 +103,12 @@ sparsity_loss_l1_of_norms = partial(
 )
 
 
+def mean_l0(hidden_BH: torch.Tensor) -> float:
+    firing_BH = (hidden_BH > 0).float()
+    l0 = multi_reduce(firing_BH, "batch hidden", [("hidden", torch.sum), ("batch", torch.mean)])
+    return l0.item()
+
+
 def reconstruction_loss(activation_BMLD: torch.Tensor, target_BMLD: torch.Tensor) -> torch.Tensor:
     """This is a little weird because we have both model and layer dimensions, so it's worth explaining deeply:
 

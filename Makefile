@@ -1,6 +1,6 @@
 .PHONY: install
 install:
-	uv pip install -e .
+	pip install -e .
 
 .PHONY: install-dev
 install-dev:

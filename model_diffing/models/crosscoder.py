@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import torch as t
-from einops import einsum, rearrange, reduce
+from einops import einsum, rearrange
 from torch import nn
 
 from model_diffing.utils import l2_norm
@@ -33,7 +33,7 @@ class AcausalCrosscoder(nn.Module):
         hidden_activation: Callable[[t.Tensor], t.Tensor],
     ):
         super().__init__()
-        self.activations_shape = (n_models, n_layers, d_model)
+        self.activations_shape_MLD = (n_models, n_layers, d_model)
         self.hidden_dim = hidden_dim
 
         self.W_enc_MLDH = nn.Parameter(t.randn((n_models, n_layers, d_model, hidden_dim)))
@@ -72,12 +72,6 @@ class AcausalCrosscoder(nn.Module):
         activation_BMLD += self.b_dec_MLD
         return activation_BMLD
 
-    def l0(self, hidden_BH: t.Tensor) -> t.Tensor:
-        """takes the mean across batch of the number of non-zero latents"""
-        new_var = (hidden_BH > 0).float()
-        l0_B = reduce(new_var, "batch hidden -> batch", t.sum)
-        return l0_B.mean()
-
     @dataclass
     class TrainResult:
         hidden_BH: t.Tensor
@@ -88,6 +82,10 @@ class AcausalCrosscoder(nn.Module):
         activation_BMLD: t.Tensor,
     ) -> TrainResult:
         """returns the activations, the hidden states, and the reconstructed activations"""
+        assert activation_BMLD.shape[1:] == self.activations_shape_MLD, (
+            f"activation_BMLD.shape[1:] {activation_BMLD.shape[1:]} != "
+            f"self.activations_shape_MLD {self.activations_shape_MLD}"
+        )
         hidden_BH = self.encode(activation_BMLD)
         reconstructed_BMLD = self.decode(hidden_BH)
         assert reconstructed_BMLD.shape == activation_BMLD.shape

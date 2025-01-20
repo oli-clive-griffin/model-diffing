@@ -11,10 +11,9 @@ from transformers import PreTrainedTokenizerBase
 from model_diffing.dataloader.data import ActivationHarvester, ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.train_topk_crosscoder.config import TopKConfig
+from model_diffing.scripts.train_topk_crosscoder.trainer import TopKTrainer
 from model_diffing.utils import get_device
-
-from .config import TopKConfig
-from .trainer import TopKTrainer
 
 
 def build_trainer(cfg: TopKConfig) -> TopKTrainer:
@@ -73,13 +72,6 @@ def build_trainer(cfg: TopKConfig) -> TopKTrainer:
         else None
     )
 
-    expected_batch_shape = (
-        cfg.train.batch_size,
-        len(llms),
-        len(cfg.layer_indices_to_harvest),
-        llms[0].cfg.d_model,
-    )
-
     return TopKTrainer(
         cfg=cfg.train,
         llms=llms,
@@ -88,7 +80,6 @@ def build_trainer(cfg: TopKConfig) -> TopKTrainer:
         crosscoder=crosscoder,
         wandb_run=wandb_run,
         device=device,
-        expected_batch_shape=expected_batch_shape,
     )
 
 

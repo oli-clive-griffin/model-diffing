@@ -128,7 +128,7 @@ class ShuffledTokensActivationsLoader:
 
     def _get_activations_iterator_MLD(self) -> Iterator[torch.Tensor]:
         for activations_BSMLD in self._activation_harvester.get_activations_iterator_BSMLD():
-            activations_BsMLD = rearrange(activations_BSMLD, "b s m l d -> (b s) ml d")
+            activations_BsMLD = rearrange(activations_BSMLD, "b s m l d -> (b s) m l d")
             yield from activations_BsMLD
             # If this "yield from" is hard to understand, it is equivalent to:
             # ```

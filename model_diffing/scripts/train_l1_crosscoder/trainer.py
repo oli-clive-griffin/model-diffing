@@ -11,10 +11,14 @@ from wandb.sdk.wandb_run import Run
 from model_diffing.dataloader.data import ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.train_l1_crosscoder.config import TrainConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_ML
-from model_diffing.utils import reconstruction_loss, save_model_and_config, sparsity_loss_l1_of_norms
-
-from .config import TrainConfig
+from model_diffing.utils import (
+    mean_l0,
+    reconstruction_loss,
+    save_model_and_config,
+    sparsity_loss_l1_of_norms,
+)
 
 
 @dataclass
@@ -35,8 +39,6 @@ class L1SaeTrainer:
         crosscoder: AcausalCrosscoder,
         wandb_run: Run | None,
         device: torch.device,
-        # hacky - remove:
-        expected_batch_shape: tuple[int, int, int, int],
     ):
         self.cfg = cfg
         self.llms = llms
@@ -51,19 +53,10 @@ class L1SaeTrainer:
         self.optimizer = optimizer
         self.dataloader = dataloader
         self.wandb_run = wandb_run
-        self.expected_batch_shape = expected_batch_shape
         self.device = device
 
         self.step = 0
         self.dataloader_iterator_BMLD = self.dataloader.get_shuffled_activations_iterator_BMLD()
-
-    @property
-    def num_models(self) -> int:
-        return len(self.llms)
-
-    @property
-    def num_layers(self) -> int:
-        return self.llms[0].cfg.n_layers
 
     @property
     def d_model(self) -> int:
@@ -81,6 +74,7 @@ class L1SaeTrainer:
 
         while self.step < self.cfg.num_steps:
             batch_BMLD = self._next_batch_BMLD(norm_scaling_factors_ML)
+            print(batch_BMLD.shape)
 
             log_dict = self._train_step(batch_BMLD)
 
@@ -134,7 +128,7 @@ class L1SaeTrainer:
             lambda_=lambda_,
             reconstruction_loss=reconstruction_loss_.item(),
             sparsity_loss=sparsity_loss_.item(),
-            l0=(train_res.hidden_BH > 0).float().sum().item(),
+            l0=mean_l0(train_res.hidden_BH),
         )
 
         return loss, loss_info
@@ -142,8 +136,7 @@ class L1SaeTrainer:
     def _estimate_norm_scaling_factor_ML(self) -> torch.Tensor:
         return estimate_norm_scaling_factor_ML(
             self.dataloader_iterator_BMLD,
-            self.num_models,
-            self.num_layers,
+            self.device,
             self.d_model,
             self.cfg.n_batches_for_norm_estimate,
         )

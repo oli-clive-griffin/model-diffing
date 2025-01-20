@@ -18,15 +18,16 @@ dataset:
 crosscoder:
   hidden_dim: 6144
 train:
-  lr: 5e-5
+  learning_rate:
+    initial_learning_rate: 5e-5
+    last_pct_of_steps: 0.2
   lambda_max: 5
   lambda_n_steps: 1000
   batch_size: 4096
-  steps: 10_000
-  save_dir: './checkpoints/crosscoder'
+  num_steps: 10_000
+  save_dir: './checkpoints/topk_crosscoder'
   save_every_n_steps: 1000
   log_every_n_steps: 50
 wandb:
-#   project: model-diffing
-#   entity: oliclive-griffin  # TODO: change this
-
+  project: model-diffing
+  entity: mars-model-diffing
