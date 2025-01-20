@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import torch as t
-from einops import einsum, rearrange
+from einops import einsum, rearrange, reduce
 from torch import nn
 
 from model_diffing.utils import l2_norm
@@ -35,24 +35,24 @@ class AcausalCrosscoder(nn.Module):
         super().__init__()
         self.activations_shape_MLD = (n_models, n_layers, d_model)
         self.hidden_dim = hidden_dim
+        self.hidden_activation_fn = hidden_activation
 
-        self.W_enc_MLDH = nn.Parameter(t.randn((n_models, n_layers, d_model, hidden_dim)))
-        self.b_enc_H = nn.Parameter(t.zeros((hidden_dim,)))
-
-        self.W_dec_HMLD = nn.Parameter(
-            rearrange(  # "transpose" of the encoder weights
-                self.W_enc_MLDH.clone(),
-                "model layer d_model hidden -> hidden model layer d_model",
-            )
-        )
-        self.b_dec_MLD = nn.Parameter(t.zeros((n_models, n_layers, d_model)))
+        self.W_dec_HMLD = nn.Parameter(t.randn((hidden_dim, n_models, n_layers, d_model)))
 
         with t.no_grad():
-            W_dec_norm_MLD1 = l2_norm(self.W_dec_HMLD, dim=-1, keepdim=True)
+            W_dec_norm_MLD1 = reduce(self.W_dec_HMLD, "hidden model layer d_model -> hidden model layer 1", l2_norm)
             self.W_dec_HMLD.div_(W_dec_norm_MLD1)
             self.W_dec_HMLD.mul_(dec_init_norm)
 
-        self.hidden_activation = hidden_activation
+            self.W_enc_MLDH = nn.Parameter(
+                rearrange(  # "transpose" of the encoder weights
+                    self.W_dec_HMLD.clone(),
+                    "hidden model layer d_model -> model layer d_model hidden",
+                )
+            )
+
+        self.b_dec_MLD = nn.Parameter(t.zeros((n_models, n_layers, d_model)))
+        self.b_enc_H = nn.Parameter(t.zeros((hidden_dim,)))
 
     def encode(self, activation_BMLD: t.Tensor) -> t.Tensor:
         hidden_BH = einsum(
@@ -61,7 +61,7 @@ class AcausalCrosscoder(nn.Module):
             "batch model layer d_model, model layer d_model hidden -> batch hidden",
         )
         hidden_BH = hidden_BH + self.b_enc_H
-        return self.hidden_activation(hidden_BH)
+        return self.hidden_activation_fn(hidden_BH)
 
     def decode(self, hidden_BH: t.Tensor) -> t.Tensor:
         activation_BMLD = einsum(

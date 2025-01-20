@@ -8,7 +8,7 @@ from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 from wandb.sdk.wandb_run import Run
 
-from model_diffing.dataloader.data import ShuffledTokensActivationsLoader
+from model_diffing.dataloader.activations import ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_topk_crosscoder.config import TrainConfig
@@ -56,7 +56,9 @@ class TopKTrainer:
         return self.llms[0].cfg.d_model
 
     def train(self):
+        logger.info("Estimating norm scaling factors (model, layer)")
         norm_scaling_factors_ML = self._estimate_norm_scaling_factor_ML()
+        logger.info(f"Norm scaling factors (model, layer): {norm_scaling_factors_ML}")
 
         if self.wandb_run:
             wandb.init(

@@ -11,8 +11,8 @@ dataset:
   hf_dataset: PleIAs/common_corpus
   cache_dir: ".cache"
   sequence_length: 256
-  harvest_batch_size: 8
-  shuffle_buffer_size: 16384
+  harvest_batch_size: 32
+  shuffle_buffer_size: 32_768
   n_batches_for_norm_estimate: 10
 crosscoder:
   hidden_dim: 6144
@@ -22,8 +22,8 @@ train:
     last_pct_of_steps: 0.2
   lambda_max: 5
   lambda_n_steps: 1000
-  batch_size: 4096
-  num_steps: 10_000
+  batch_size: 8_192
+  num_steps: 100_000
   save_dir: './checkpoints/l1_crosscoder'
   save_every_n_steps: 1000
   log_every_n_steps: 50

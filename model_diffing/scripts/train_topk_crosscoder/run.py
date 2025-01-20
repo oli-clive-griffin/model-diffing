@@ -8,7 +8,7 @@ import yaml
 from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 
-from model_diffing.dataloader.data import ActivationHarvester, ShuffledTokensActivationsLoader
+from model_diffing.dataloader.activations import ActivationHarvester, ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_topk_crosscoder.config import TopKConfig
@@ -97,6 +97,7 @@ def main(config_path: str) -> None:
     logger.info("Loading config...")
     config = load_config(Path(config_path))
     logger.info("Loaded config")
+    logger.info(f"Training with {config.model_dump_json()}")
     trainer = build_trainer(config)
     trainer.train()
 

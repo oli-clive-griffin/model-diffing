@@ -8,7 +8,7 @@ import yaml
 from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 
-from model_diffing.dataloader.data import ActivationHarvester, ShuffledTokensActivationsLoader
+from model_diffing.dataloader.activations import ActivationHarvester, ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import build_l1_crosscoder
 from model_diffing.scripts.train_l1_crosscoder.config import Config

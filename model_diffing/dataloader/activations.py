@@ -35,8 +35,12 @@ class ActivationHarvester:
         self._d_model = self._models[0].cfg.d_model
 
     @cached_property
-    def names(self) -> set[str]:
-        return {f"blocks.{num}.hook_resid_post" for num in self._layer_indices_to_harvest}
+    def names(self) -> list[str]:
+        return [f"blocks.{num}.hook_resid_post" for num in self._layer_indices_to_harvest]
+
+    @cached_property
+    def names_set(self) -> set[str]:
+        return set(self.names)
 
     @property
     def sequence_length(self) -> int:
@@ -65,7 +69,7 @@ class ActivationHarvester:
         )
 
     def _names_filter(self, name: str) -> bool:
-        return name in self.names
+        return name in self.names_set
 
     def _sequence_iterator(self) -> Iterator[torch.Tensor]:
         dataset = load_dataset(self._hf_dataset, streaming=True, cache_dir=self._cache_dir)
@@ -83,6 +87,7 @@ class ActivationHarvester:
     def _get_model_activations_BSLD(self, model: HookedTransformer, sequence_BS: torch.Tensor) -> torch.Tensor:
         _, cache = model.run_with_cache(sequence_BS, names_filter=self._names_filter)
         activations_BSLD = torch.stack([cache[name] for name in self.names], dim=2)  # add layer dim (L)
+        # cropped_activations_BSLD = activations_BSLD[:, 1:, :, :]  # remove BOS, need
         return activations_BSLD
 
     def get_activations_iterator_BSMLD(self) -> Iterator[torch.Tensor]:

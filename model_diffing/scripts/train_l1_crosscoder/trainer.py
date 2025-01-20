@@ -8,7 +8,7 @@ from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 from wandb.sdk.wandb_run import Run
 
-from model_diffing.dataloader.data import ShuffledTokensActivationsLoader
+from model_diffing.dataloader.activations import ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_l1_crosscoder.config import TrainConfig
@@ -26,7 +26,7 @@ class L1LossInfo:
     lambda_: float
     reconstruction_loss: float
     sparsity_loss: float
-    l0: float
+    mean_l0: float
 
 
 class L1SaeTrainer:
@@ -63,7 +63,9 @@ class L1SaeTrainer:
         return self.llms[0].cfg.d_model
 
     def train(self):
+        logger.info("Estimating norm scaling factors (model, layer)")
         norm_scaling_factors_ML = self._estimate_norm_scaling_factor_ML()
+        logger.info(f"Norm scaling factors (model, layer): {norm_scaling_factors_ML}")
 
         if self.wandb_run:
             wandb.init(
@@ -77,10 +79,8 @@ class L1SaeTrainer:
 
             log_dict = self._train_step(batch_BMLD)
 
-            if (self.step + 1) % self.cfg.log_every_n_steps == 0:
-                logger.info(log_dict)
-                if self.wandb_run:
-                    self.wandb_run.log(log_dict)
+            if self.wandb_run and (self.step + 1) % self.cfg.log_every_n_steps == 0:
+                self.wandb_run.log(log_dict)
 
             if self.cfg.save_dir and self.cfg.save_every_n_steps and (self.step + 1) % self.cfg.save_every_n_steps == 0:
                 save_model_and_config(
@@ -106,7 +106,8 @@ class L1SaeTrainer:
         log_dict = {
             "train/step": self.step,
             "train/lambda": loss_info.lambda_,
-            "train/l0": loss_info.l0,
+            "train/mean_l0": loss_info.mean_l0,
+            "train/mean_l0_pct": loss_info.mean_l0 / self.crosscoder.hidden_dim,
             "train/reconstruction_loss": loss_info.reconstruction_loss,
             "train/sparsity_loss": loss_info.sparsity_loss,
             "train/loss": loss.item(),
@@ -127,7 +128,7 @@ class L1SaeTrainer:
             lambda_=lambda_,
             reconstruction_loss=reconstruction_loss_.item(),
             sparsity_loss=sparsity_loss_.item(),
-            l0=mean_l0(train_res.hidden_BH),
+            mean_l0=mean_l0(train_res.hidden_BH),
         )
 
         return loss, loss_info
