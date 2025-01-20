@@ -17,6 +17,7 @@ dependencies = [
     "transformer_lens",
     "transformers",
     "datasets",
+    "plotly",
 ]
 
 [project.optional-dependencies]
