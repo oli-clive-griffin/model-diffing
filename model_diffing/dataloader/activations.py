@@ -48,6 +48,7 @@ class ActivationsHarvester:
 
         return activations_BSMLD
 
+    @torch.no_grad()
     def get_activations_iterator_BSMLD(self) -> Iterator[torch.Tensor]:
         for sequences_chunk in chunk(self._sequence_tokens_iterator, self._batch_size):
             sequence_tokens_BS = torch.stack(sequences_chunk)

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class LLMConfig(BaseModel):
     name: str
-    revision: str | None
+    revision: str | None = None
 
 
 class LLMsConfig(BaseModel):
