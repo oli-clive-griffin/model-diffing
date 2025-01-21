@@ -13,6 +13,7 @@ class LLMsConfig(BaseModel):
     inference_dtype: str = "float32"
 
 
+# there's a nicer way to do this with pydantic discriminators but I think it's over the top for now
 class SequenceTokensIteratorConfig(BaseModel):
     classname: str
     kwargs: dict[str, Any] | None = None

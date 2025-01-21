@@ -5,7 +5,7 @@ data:
     harvest_batch_size: 4
     sequence_tokens_iterator:
       classname: ToyOverfittingTokenSequenceIterator
-  shuffle_buffer_size: 32_768
+  shuffle_buffer_size: 128
   batch_size: 32
 llms:
   models:

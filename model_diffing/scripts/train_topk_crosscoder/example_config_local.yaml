@@ -7,7 +7,7 @@ data:
       classname: CommonCorpusTokenSequenceIterator
       kwargs:
         sequence_length: 256
-  shuffle_buffer_size: 32_768
+  shuffle_buffer_size: 128
   batch_size: 32
 llms:
   models:

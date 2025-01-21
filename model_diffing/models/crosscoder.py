@@ -1,9 +1,8 @@
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Literal
 
 import torch as t
 from einops import einsum, rearrange, reduce
-from huggingface_hub import PyTorchModelHubMixin
 from torch import nn
 
 from model_diffing.utils import l2_norm
@@ -21,7 +20,7 @@ Dimensions:
 t.Tensor.d = lambda self: f"{self.shape}, dtype={self.dtype}, device={self.device}"  # type: ignore
 
 
-class TopkActivation(nn.Module, PyTorchModelHubMixin):
+class TopkActivation(nn.Module):
     def __init__(self, k: int):
         super().__init__()
         self.k = k
@@ -33,18 +32,24 @@ class TopkActivation(nn.Module, PyTorchModelHubMixin):
         return hidden_BH
 
 
-class ReluActivation(nn.Module, PyTorchModelHubMixin):
+# ! this is not tested yet
+class BatchTopkActivation(nn.Module):
+    def __init__(self, k: int):
+        super().__init__()
+        self.k = k
+
     def forward(self, hidden_preactivation_BH: t.Tensor) -> t.Tensor:
-        return t.relu(hidden_preactivation_BH)
+        batch_size = hidden_preactivation_BH.shape[0]
+        batch_k = self.k * batch_size
+        hidden_preactivation_Bh = rearrange(hidden_preactivation_BH, "batch hidden -> (batch hidden)")
+        _topk_values_Bh, topk_indices_Bh = hidden_preactivation_Bh.topk(k=batch_k)
+        hidden_Bh = t.zeros_like(hidden_preactivation_Bh)
+        hidden_Bh.scatter_(-1, topk_indices_Bh, _topk_values_Bh)
+        hidden_BH = rearrange(hidden_Bh, "(batch hidden) -> batch hidden", batch=batch_size)
+        return hidden_BH
 
 
-ACTIVATION_FNS = {
-    "relu": ReluActivation,
-    "topk": TopkActivation,
-}
-
-
-class AcausalCrosscoder(nn.Module, PyTorchModelHubMixin):
+class AcausalCrosscoder(nn.Module):
     """crosscoder that autoencodes activations of a subset of a model's layers"""
 
     def __init__(
@@ -54,13 +59,12 @@ class AcausalCrosscoder(nn.Module, PyTorchModelHubMixin):
         d_model: int,
         hidden_dim: int,
         dec_init_norm: float,
-        hidden_activation: Literal["relu", "topk"],
-        hidden_activation_kwargs: dict[str, Any] | None = None,
+        hidden_activation: Callable[[t.Tensor], t.Tensor],
     ):
         super().__init__()
         self.activations_shape_MLD = (n_models, n_layers, d_model)
         self.hidden_dim = hidden_dim
-        self.hidden_activation_fn = ACTIVATION_FNS[hidden_activation](**(hidden_activation_kwargs or {}))
+        self.hidden_activation_fn = hidden_activation
 
         self.W_dec_HMLD = nn.Parameter(t.randn((hidden_dim, n_models, n_layers, d_model)))
 
@@ -138,7 +142,7 @@ def build_relu_crosscoder(
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         dec_init_norm=dec_init_norm,
-        hidden_activation="relu",
+        hidden_activation=t.relu,
     )
 
 
@@ -156,6 +160,28 @@ def build_topk_crosscoder(
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         dec_init_norm=dec_init_norm,
-        hidden_activation="topk",
-        hidden_activation_kwargs={"k": k},
+        hidden_activation=TopkActivation(k=k),
     )
+
+
+def build_batch_topk_crosscoder(
+    n_models: int,
+    n_layers: int,
+    d_model: int,
+    cc_hidden_dim: int,
+    k: int,
+    dec_init_norm: float,
+) -> AcausalCrosscoder:
+    return AcausalCrosscoder(
+        n_models=n_models,
+        n_layers=n_layers,
+        d_model=d_model,
+        hidden_dim=cc_hidden_dim,
+        dec_init_norm=dec_init_norm,
+        hidden_activation=BatchTopkActivation(k=k),
+    )
+
+
+# if __name__ == "__main__":
+#     model = build_batch_topk_crosscoder(n_models=2, n_layers=3, d_model=4, cc_hidden_dim=5, k=2, dec_init_norm=1.0)
+#     model.push_to_hub(repo_id="model-diffing/batch-topk-crosscoder", use_auth_token=True)

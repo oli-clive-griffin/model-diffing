@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from functools import partial
 from pathlib import Path
-from typing import Literal, TypeVar
+from typing import TypeVar
 
 import einops
 import torch
@@ -14,18 +14,18 @@ from torch import nn
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.log import logger
-from model_diffing.scripts.config_common import WandbConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig
 
 
-def build_wandb_run(wandb_cfg: WandbConfig | Literal["disabled"]) -> Run | None:
-    if wandb_cfg == "disabled":
+def build_wandb_run(cfg: BaseExperimentConfig) -> Run | None:
+    if cfg.wandb == "disabled":
         return None
     else:
         return wandb.init(
-            name=wandb_cfg.name,
-            project=wandb_cfg.project,
-            entity=wandb_cfg.entity,
-            config=wandb_cfg.model_dump(),
+            name=cfg.wandb.name,
+            project=cfg.wandb.project,
+            entity=cfg.wandb.entity,
+            config=cfg.model_dump(),
         )
 
 

@@ -88,9 +88,9 @@ class _ActivationsShuffler:
         activations_iterator = self._activations_reshaper(self._activations_iterator_BSMLD)
 
         # this does "waste" the first activation, but this is really not a big deal in the pursuit of simplicity
-        activation_shape = next(activations_iterator).shape
+        sample_activation = next(activations_iterator)
 
-        buffer = torch.empty((self._shuffle_buffer_size, *activation_shape))
+        buffer = torch.empty((self._shuffle_buffer_size, *sample_activation.shape), device=sample_activation.device)
 
         available_indices = set()
         stale_indices = set(range(self._shuffle_buffer_size))

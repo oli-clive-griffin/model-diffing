@@ -49,7 +49,7 @@ class ToyOverfittingTokenSequenceIterator(TokenSequenceLoader):
 
     def get_sequence_iterator(self) -> Iterator[torch.Tensor]:
         while True:
-            yield torch.tensor([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+            yield torch.randint(0, 1000, (100,))
 
 
 class ConnorGemma2TokenSequenceLoader(TokenSequenceLoader):
