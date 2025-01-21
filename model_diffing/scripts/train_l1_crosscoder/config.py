@@ -12,8 +12,8 @@ class DecayTo0LearningRateConfig(BaseModel):
 
 class TrainConfig(BaseModel):
     learning_rate: DecayTo0LearningRateConfig
-    lambda_max: float = 5.0
-    lambda_n_steps: int = 1000
+    l1_coef_max: float = 5.0
+    l1_coef_n_steps: int = 1000
     num_steps: int
     save_dir: Path | None
     save_every_n_steps: int | None

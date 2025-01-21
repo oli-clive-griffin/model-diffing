@@ -144,10 +144,10 @@ class L1CrosscoderTrainer:
         return batch_BMLD
 
     def _l1_coef_scheduler(self) -> float:
-        if self.step < self.cfg.lambda_n_steps:
-            return self.cfg.lambda_max * self.step / self.cfg.lambda_n_steps
+        if self.step < self.cfg.l1_coef_n_steps:
+            return self.cfg.l1_coef_max * self.step / self.cfg.l1_coef_n_steps
         else:
-            return self.cfg.lambda_max
+            return self.cfg.l1_coef_max
 
     def _lr_scheduler(self) -> float:
         pct_until_finished = 1 - (self.step / self.cfg.num_steps)

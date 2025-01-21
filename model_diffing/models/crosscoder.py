@@ -1,8 +1,9 @@
-from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any, Literal
 
 import torch as t
 from einops import einsum, rearrange, reduce
+from huggingface_hub import PyTorchModelHubMixin
 from torch import nn
 
 from model_diffing.utils import l2_norm
@@ -20,7 +21,30 @@ Dimensions:
 t.Tensor.d = lambda self: f"{self.shape}, dtype={self.dtype}, device={self.device}"  # type: ignore
 
 
-class AcausalCrosscoder(nn.Module):
+class TopkActivation(nn.Module, PyTorchModelHubMixin):
+    def __init__(self, k: int):
+        super().__init__()
+        self.k = k
+
+    def forward(self, hidden_preactivation_BH: t.Tensor) -> t.Tensor:
+        _topk_values_BH, topk_indices_BH = hidden_preactivation_BH.topk(self.k, dim=-1)
+        hidden_BH = t.zeros_like(hidden_preactivation_BH)
+        hidden_BH.scatter_(-1, topk_indices_BH, _topk_values_BH)
+        return hidden_BH
+
+
+class ReluActivation(nn.Module, PyTorchModelHubMixin):
+    def forward(self, hidden_preactivation_BH: t.Tensor) -> t.Tensor:
+        return t.relu(hidden_preactivation_BH)
+
+
+ACTIVATION_FNS = {
+    "relu": ReluActivation,
+    "topk": TopkActivation,
+}
+
+
+class AcausalCrosscoder(nn.Module, PyTorchModelHubMixin):
     """crosscoder that autoencodes activations of a subset of a model's layers"""
 
     def __init__(
@@ -30,12 +54,13 @@ class AcausalCrosscoder(nn.Module):
         d_model: int,
         hidden_dim: int,
         dec_init_norm: float,
-        hidden_activation: Callable[[t.Tensor], t.Tensor],
+        hidden_activation: Literal["relu", "topk"],
+        hidden_activation_kwargs: dict[str, Any] | None = None,
     ):
         super().__init__()
         self.activations_shape_MLD = (n_models, n_layers, d_model)
         self.hidden_dim = hidden_dim
-        self.hidden_activation_fn = hidden_activation
+        self.hidden_activation_fn = ACTIVATION_FNS[hidden_activation](**(hidden_activation_kwargs or {}))
 
         self.W_dec_HMLD = nn.Parameter(t.randn((hidden_dim, n_models, n_layers, d_model)))
 
@@ -100,23 +125,12 @@ class AcausalCrosscoder(nn.Module):
         return self.decode(hidden_BH)
 
 
-class TopkActivation(nn.Module):
-    def __init__(self, k: int):
-        self.k = k
-
-    def forward(self, hidden_preactivation_BH: t.Tensor) -> t.Tensor:
-        _topk_values_BH, topk_indices_BH = hidden_preactivation_BH.topk(self.k, dim=-1)
-        hidden_BH = t.zeros_like(hidden_preactivation_BH)
-        hidden_BH.scatter_(-1, topk_indices_BH, _topk_values_BH)
-        return hidden_BH
-
-
-def build_l1_crosscoder(
+def build_relu_crosscoder(
     n_models: int,
     n_layers: int,
     d_model: int,
     cc_hidden_dim: int,
-    dec_init_norm: float = 0.1,
+    dec_init_norm: float,
 ) -> AcausalCrosscoder:
     return AcausalCrosscoder(
         n_models=n_models,
@@ -124,7 +138,7 @@ def build_l1_crosscoder(
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         dec_init_norm=dec_init_norm,
-        hidden_activation=t.relu,
+        hidden_activation="relu",
     )
 
 
@@ -134,7 +148,7 @@ def build_topk_crosscoder(
     d_model: int,
     cc_hidden_dim: int,
     k: int,
-    dec_init_norm: float = 0.1,
+    dec_init_norm: float,
 ) -> AcausalCrosscoder:
     return AcausalCrosscoder(
         n_models=n_models,
@@ -142,5 +156,6 @@ def build_topk_crosscoder(
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         dec_init_norm=dec_init_norm,
-        hidden_activation=TopkActivation(k),
+        hidden_activation="topk",
+        hidden_activation_kwargs={"k": k},
     )

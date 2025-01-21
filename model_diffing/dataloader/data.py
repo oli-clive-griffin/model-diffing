@@ -13,6 +13,7 @@ from model_diffing.dataloader.token_loader import (
     CommonCorpusTokenSequenceIterator,
     ConnorGemma2TokenSequenceLoader,
     TokenSequenceLoader,
+    ToyOverfittingTokenSequenceIterator,
 )
 from model_diffing.scripts.config_common import (
     ActivationsIteratorConfig,
@@ -60,16 +61,18 @@ def _build_tokens_sequence_iterator(
     cache_dir: str,
     tokenizer: PreTrainedTokenizerBase,
 ) -> TokenSequenceLoader:
-    if cfg.name == "common_corpus":
-        if cfg.sequence_length is None:
+    if cfg.classname == "CommonCorpusTokenSequenceIterator":
+        if cfg.kwargs is None:
+            raise ValueError("kwargs must be provided for common_corpus")
+        if cfg.kwargs["sequence_length"] is None:
             raise ValueError("sequence_length must be provided for common_corpus")
         return CommonCorpusTokenSequenceIterator(
             cache_dir=cache_dir,
             tokenizer=tokenizer,
-            sequence_length=cfg.sequence_length,
+            sequence_length=cfg.kwargs["sequence_length"],
         )
-    elif cfg.name == "connor_gemma":
-        return ConnorGemma2TokenSequenceLoader(
-            cache_dir=cache_dir,
-        )
+    elif cfg.classname == "ConnorGemma2TokenSequenceLoader":
+        return ConnorGemma2TokenSequenceLoader(cache_dir=cache_dir)
+    elif cfg.classname == "ToyOverfittingTokenSequenceIterator":
+        return ToyOverfittingTokenSequenceIterator(tokenizer=tokenizer)
     raise ValueError(f"Unknown tokens sequence iterator config name: {cfg}")

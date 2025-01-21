@@ -6,7 +6,7 @@ import yaml
 
 from model_diffing.dataloader.data import build_dataloader_BMLD
 from model_diffing.log import logger
-from model_diffing.models.crosscoder import build_l1_crosscoder
+from model_diffing.models.crosscoder import build_relu_crosscoder
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.config import L1ExperimentConfig
 from model_diffing.scripts.train_l1_crosscoder.trainer import L1CrosscoderTrainer
@@ -20,7 +20,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
 
     dataloader_BMLD = build_dataloader_BMLD(cfg.data, llms, cfg.cache_dir)
 
-    crosscoder = build_l1_crosscoder(
+    crosscoder = build_relu_crosscoder(
         n_layers=len(cfg.data.activations_iterator.layer_indices_to_harvest),
         d_model=llms[0].cfg.d_model,
         cc_hidden_dim=cfg.crosscoder.hidden_dim,

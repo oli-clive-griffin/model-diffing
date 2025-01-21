@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -14,8 +14,8 @@ class LLMsConfig(BaseModel):
 
 
 class SequenceTokensIteratorConfig(BaseModel):
-    name: Literal["common_corpus", "connor_gemma"]
-    sequence_length: int | None
+    classname: str
+    kwargs: dict[str, Any] | None = None
 
 
 class ActivationsIteratorConfig(BaseModel):

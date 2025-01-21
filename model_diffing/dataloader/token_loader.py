@@ -43,6 +43,15 @@ class CommonCorpusTokenSequenceIterator(TokenSequenceLoader):
                 yield seq_tokens_S[i : i + self._sequence_length]
 
 
+class ToyOverfittingTokenSequenceIterator(TokenSequenceLoader):
+    def __init__(self, tokenizer: PreTrainedTokenizerBase):
+        self._tokenizer = tokenizer
+
+    def get_sequence_iterator(self) -> Iterator[torch.Tensor]:
+        while True:
+            yield torch.tensor([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+
 class ConnorGemma2TokenSequenceLoader(TokenSequenceLoader):
     HF_TOKENISED_DATASET = "ckkissane/pile-lmsys-mix-1m-tokenized-gemma-2"
 
