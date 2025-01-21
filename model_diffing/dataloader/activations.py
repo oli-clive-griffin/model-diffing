@@ -7,6 +7,7 @@ import torch
 from einops import rearrange
 from transformer_lens import HookedTransformer
 
+from model_diffing.log import logger
 from model_diffing.utils import chunk
 
 
@@ -65,6 +66,19 @@ class _ActivationsShuffler:
         activations_iterator_BSMLD: Iterator[torch.Tensor],
         batch_size: int,
     ):
+        if shuffle_buffer_size < batch_size:
+            raise ValueError("Shuffle buffer size must be greater than batch size.")
+        if shuffle_buffer_size < batch_size * 2:
+            raise ValueError(
+                "Shuffle buffer should be at least twice the batch size. "
+                f"Current size: {shuffle_buffer_size}, batch size: {batch_size}"
+            )
+        if shuffle_buffer_size < batch_size * 4:
+            logger.warning(
+                "Shuffle buffer size is less than four times the batch size. This may lead to "
+                f"suboptimal shuffling. Current size: {shuffle_buffer_size}, batch size: {batch_size}"
+            )
+
         self._shuffle_buffer_size = shuffle_buffer_size
         self._activations_reshaper = activations_reshaper
         self._activations_iterator_BSMLD = activations_iterator_BSMLD
@@ -87,6 +101,10 @@ class _ActivationsShuffler:
                 buffer[stale_idx] = activations
                 available_indices.add(stale_idx)
                 stale_indices.remove(stale_idx)
+
+            if len(available_indices) < self._shuffle_buffer_size // 2:
+                logger.info("Iterator exhausted")
+                break
 
             # yield batches until buffer is half empty
             while len(available_indices) >= self._shuffle_buffer_size // 2:
