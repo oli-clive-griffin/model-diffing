@@ -95,6 +95,12 @@ class _ActivationsShuffler:
         available_indices = set()
         stale_indices = set(range(self._shuffle_buffer_size))
 
+        def sample():
+            batch_indices = random.sample(list(available_indices), self._batch_size)
+            available_indices.difference_update(batch_indices)
+            stale_indices.update(batch_indices)
+            return buffer[batch_indices]
+
         while True:
             # refill buffer
             for stale_idx, activations in zip(list(stale_indices), activations_iterator, strict=False):
@@ -103,15 +109,15 @@ class _ActivationsShuffler:
                 stale_indices.remove(stale_idx)
 
             if len(available_indices) < self._shuffle_buffer_size // 2:
-                logger.info("Iterator exhausted")
+                # This means the buffer wasn't refilled above. therefore the iterator is exhausted
+                # so we yield the remaining activations
+                while len(available_indices) > self._batch_size:
+                    yield sample()
                 break
 
             # yield batches until buffer is half empty
             while len(available_indices) >= self._shuffle_buffer_size // 2:
-                batch_indices = random.sample(list(available_indices), self._batch_size)
-                yield buffer[batch_indices]
-                available_indices.difference_update(batch_indices)
-                stale_indices.update(batch_indices)
+                yield sample()
 
 
 # implements `ActivationsReshaper`
