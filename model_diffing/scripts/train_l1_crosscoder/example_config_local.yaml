@@ -4,8 +4,7 @@ data:
       - 8
     harvest_batch_size: 4
     sequence_tokens_iterator:
-      name: common_corpus
-      sequence_length: 256
+      classname: ToyOverfittingTokenSequenceIterator
   shuffle_buffer_size: 32_768
   batch_size: 32
 llms:
@@ -15,7 +14,7 @@ llms:
     - name: EleutherAI/pythia-160M
       revision: step143000 # last checkpoint
 wandb:
-  name: l1_crosscoder_pythia_160M
+  name: l1_crosscoder_pythia_160M_overfitting
 crosscoder:
   hidden_dim: 6144
 train:
@@ -23,8 +22,8 @@ train:
     initial_learning_rate: 5e-5
     last_pct_of_steps: 0.2
   num_steps: 100_000
-  save_dir: './checkpoints/l1_crosscoder_pythia_160M'
+  save_dir: './.checkpoints/l1_crosscoder_pythia_160M_overfitting'
   save_every_n_steps: 1000
-  log_every_n_steps: 5
-  lambda_max: 5
-  lambda_n_steps: 1000
+  log_every_n_steps: 50
+  l1_coef_max: 0
+  l1_coef_n_steps: 1

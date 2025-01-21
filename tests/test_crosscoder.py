@@ -1,6 +1,6 @@
 import torch as t
 
-from model_diffing.models.crosscoder import build_l1_crosscoder
+from model_diffing.models.crosscoder import build_relu_crosscoder
 
 
 def test_return_shapes():
@@ -9,12 +9,14 @@ def test_return_shapes():
     n_layers = 6
     d_model = 16
     cc_hidden_dim = 256
+    dec_init_norm = 1
 
-    crosscoder = build_l1_crosscoder(
+    crosscoder = build_relu_crosscoder(
         n_models=n_models,
         n_layers=n_layers,
         d_model=d_model,
         cc_hidden_dim=cc_hidden_dim,
+        dec_init_norm=dec_init_norm,
     )
 
     activations_BMLD = t.randn(batch_size, n_models, n_layers, d_model)

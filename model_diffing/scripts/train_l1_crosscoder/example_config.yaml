@@ -4,8 +4,9 @@ data:
       - 8
     harvest_batch_size: 4
     sequence_tokens_iterator:
-      name: common_corpus
-      sequence_length: 256
+      classname: CommonCorpusTokenSequenceIterator
+      kwargs:
+        sequence_length: 256
   shuffle_buffer_size: 32_768
   batch_size: 8_192
 llms:
@@ -22,9 +23,9 @@ train:
   learning_rate:
     initial_learning_rate: 5e-5
     last_pct_of_steps: 0.2
-  lambda_max: 5
-  lambda_n_steps: 1000
+  l1_coef_max: 5
+  l1_coef_n_steps: 1000
   num_steps: 100_000
-  save_dir: './checkpoints/l1_crosscoder_pythia_160M'
+  save_dir: './.checkpoints/l1_crosscoder_pythia_160M'
   save_every_n_steps: 1000
   log_every_n_steps: 50

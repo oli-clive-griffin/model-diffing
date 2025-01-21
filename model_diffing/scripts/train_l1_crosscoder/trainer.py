@@ -17,8 +17,8 @@ from model_diffing.utils import l0_norm, reconstruction_loss, save_model_and_con
 
 
 @dataclass
-class L1LossInfo:
-    lambda_: float
+class LossInfo:
+    l1_coef: float
     reconstruction_loss: float
     sparsity_loss: float
     mean_l0: float
@@ -99,7 +99,7 @@ class L1CrosscoderTrainer:
 
         log_dict = {
             "train/step": self.step,
-            "train/lambda": loss_info.lambda_,
+            "train/l1_coef": loss_info.l1_coef,
             "train/mean_l0": loss_info.mean_l0,
             "train/mean_l0_pct": loss_info.mean_l0 / self.crosscoder.hidden_dim,
             "train/reconstruction_loss": loss_info.reconstruction_loss,
@@ -109,17 +109,17 @@ class L1CrosscoderTrainer:
 
         return log_dict
 
-    def _get_loss(self, activations_BMLD: torch.Tensor) -> tuple[torch.Tensor, "L1LossInfo"]:
+    def _get_loss(self, activations_BMLD: torch.Tensor) -> tuple[torch.Tensor, "LossInfo"]:
         train_res = self.crosscoder.forward_train(activations_BMLD)
 
         reconstruction_loss_ = reconstruction_loss(activations_BMLD, train_res.reconstructed_acts_BMLD)
         sparsity_loss_ = sparsity_loss_l1_of_norms(self.crosscoder.W_dec_HMLD, train_res.hidden_BH)
         l0_norms_B = reduce(train_res.hidden_BH, "batch hidden -> batch", l0_norm)
-        lambda_ = self._l1_coef_scheduler()
-        loss = reconstruction_loss_ + lambda_ * sparsity_loss_
+        l1_coef = self._l1_coef_scheduler()
+        loss = reconstruction_loss_ + l1_coef * sparsity_loss_
 
-        loss_info = L1LossInfo(
-            lambda_=lambda_,
+        loss_info = LossInfo(
+            l1_coef=l1_coef,
             reconstruction_loss=reconstruction_loss_.item(),
             sparsity_loss=sparsity_loss_.item(),
             mean_l0=l0_norms_B.mean().item(),

@@ -1,5 +1,4 @@
 from collections.abc import Iterator
-from dataclasses import dataclass
 
 import torch
 import wandb
@@ -14,11 +13,6 @@ from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_topk_crosscoder.config import TrainConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_ML
 from model_diffing.utils import reconstruction_loss, save_model_and_config
-
-
-@dataclass
-class TopKLossInfo:
-    reconstruction_loss: float
 
 
 class TopKTrainer:
