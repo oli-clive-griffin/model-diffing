@@ -28,6 +28,13 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         n_models=len(llms),
     )
 
+    # initalise weights indentically for each model
+    with torch.no_grad():
+        crosscoder.W_enc_MLDH[1] = crosscoder.W_enc_MLDH[0]
+        crosscoder.W_dec_HMLD[:, 1] = crosscoder.W_dec_HMLD[:, 0]
+        crosscoder.b_dec_MLD[1] = crosscoder.b_dec_MLD[0]
+        # no_need to alter b_enc, it's not model-specific
+
     crosscoder = crosscoder.to(device)
 
     initial_lr = cfg.train.learning_rate.initial_learning_rate
