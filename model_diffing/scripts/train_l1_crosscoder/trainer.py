@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import torch
@@ -8,7 +9,6 @@ from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 from wandb.sdk.wandb_run import Run
 
-from model_diffing.dataloader.activations import ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_l1_crosscoder.config import TrainConfig
@@ -24,13 +24,13 @@ class L1LossInfo:
     mean_l0: float
 
 
-class L1SaeTrainer:
+class L1CrosscoderTrainer:
     def __init__(
         self,
         cfg: TrainConfig,
         llms: list[HookedTransformer],
         optimizer: torch.optim.Optimizer,
-        dataloader: ShuffledTokensActivationsLoader,
+        dataloader_BMLD: Iterator[torch.Tensor],
         crosscoder: AcausalCrosscoder,
         wandb_run: Run | None,
         device: torch.device,
@@ -46,12 +46,11 @@ class L1SaeTrainer:
         self.tokenizer = tokenizer
         self.crosscoder = crosscoder
         self.optimizer = optimizer
-        self.dataloader = dataloader
         self.wandb_run = wandb_run
         self.device = device
 
         self.step = 0
-        self.dataloader_iterator_BMLD = self.dataloader.get_shuffled_activations_iterator_BMLD()
+        self.dataloader_BMLD = dataloader_BMLD
 
     @property
     def d_model(self) -> int:
@@ -130,14 +129,14 @@ class L1SaeTrainer:
 
     def _estimate_norm_scaling_factor_ML(self) -> torch.Tensor:
         return estimate_norm_scaling_factor_ML(
-            self.dataloader_iterator_BMLD,
+            self.dataloader_BMLD,
             self.device,
             self.d_model,
             self.cfg.n_batches_for_norm_estimate,
         )
 
     def _next_batch_BMLD(self, norm_scaling_factors_ML: torch.Tensor) -> torch.Tensor:
-        batch_BMLD = next(self.dataloader_iterator_BMLD)
+        batch_BMLD = next(self.dataloader_BMLD)
         batch_BMLD = batch_BMLD.to(self.device)
         batch_BMLD = einsum(
             batch_BMLD, norm_scaling_factors_ML, "batch model layer d_model, model layer -> batch model layer d_model"

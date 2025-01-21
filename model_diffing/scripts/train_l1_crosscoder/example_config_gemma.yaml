@@ -4,20 +4,17 @@ data:
       - 8
     harvest_batch_size: 4
     sequence_tokens_iterator:
-      name: common_corpus
-      sequence_length: 256
+      name: connors_gemma
   shuffle_buffer_size: 32_768
-  batch_size: 8_192
+  batch_size: 4096
 llms:
   models:
-    - name: EleutherAI/pythia-160M
-      revision: step142000
-    - name: EleutherAI/pythia-160M
-      revision: step143000 # last checkpoint
+    - name: google/gemma-2b
+    - name: google/gemma-2b-it
 wandb:
-  name: l1_crosscoder_pythia_160M
+  name: l1_crosscoder_gemma_2b
 crosscoder:
-  hidden_dim: 6144
+  hidden_dim: 16_384
 train:
   learning_rate:
     initial_learning_rate: 5e-5
@@ -25,6 +22,6 @@ train:
   lambda_max: 5
   lambda_n_steps: 1000
   num_steps: 100_000
-  save_dir: './checkpoints/l1_crosscoder_pythia_160M'
+  save_dir: './checkpoints/l1_crosscoder_gemma_2b'
   save_every_n_steps: 1000
   log_every_n_steps: 50

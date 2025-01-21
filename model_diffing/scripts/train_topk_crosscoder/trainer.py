@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import torch
@@ -8,7 +9,6 @@ from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 from wandb.sdk.wandb_run import Run
 
-from model_diffing.dataloader.activations import ShuffledTokensActivationsLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_topk_crosscoder.config import TrainConfig
@@ -27,7 +27,7 @@ class TopKTrainer:
         cfg: TrainConfig,
         llms: list[HookedTransformer],
         optimizer: torch.optim.Optimizer,
-        dataloader: ShuffledTokensActivationsLoader,
+        dataloader_BMLD: Iterator[torch.Tensor],
         crosscoder: AcausalCrosscoder,
         wandb_run: Run | None,
         device: torch.device,
@@ -43,12 +43,11 @@ class TopKTrainer:
         self.tokenizer = tokenizer
         self.crosscoder = crosscoder
         self.optimizer = optimizer
-        self.dataloader = dataloader
+        self.dataloader_BMLD = dataloader_BMLD
         self.wandb_run = wandb_run
         self.device = device
 
         self.step = 0
-        self.dataloader_iterator_BMLD = self.dataloader.get_shuffled_activations_iterator_BMLD()
 
     @property
     def d_model(self) -> int:
@@ -87,7 +86,8 @@ class TopKTrainer:
     def _train_step(self, batch_BMLD: torch.Tensor) -> dict[str, float]:
         self.optimizer.zero_grad()
 
-        loss, loss_info = self._get_loss(batch_BMLD)
+        train_res = self.crosscoder.forward_train(batch_BMLD)
+        loss = reconstruction_loss(batch_BMLD, train_res.reconstructed_acts_BMLD)
 
         loss.backward()
         clip_grad_norm_(self.crosscoder.parameters(), 1.0)
@@ -96,35 +96,21 @@ class TopKTrainer:
 
         log_dict = {
             "train/step": self.step,
-            "train/reconstruction_loss": loss_info.reconstruction_loss,
-            "train/loss": loss.item(),
+            "train/reconstruction_loss": loss.item(),
         }
 
         return log_dict
 
-    def _get_loss(self, activations_BMLD: torch.Tensor) -> tuple[torch.Tensor, TopKLossInfo]:
-        train_res = self.crosscoder.forward_train(activations_BMLD)
-
-        reconstruction_loss_ = reconstruction_loss(activations_BMLD, train_res.reconstructed_acts_BMLD)
-
-        # loss_recovered = self._loss_recovered(train_res.reconstructed_acts_BMLD)
-
-        loss_info = TopKLossInfo(
-            reconstruction_loss=reconstruction_loss_.item(),
-        )
-
-        return reconstruction_loss_, loss_info
-
     def _estimate_norm_scaling_factor_ML(self) -> torch.Tensor:
         return estimate_norm_scaling_factor_ML(
-            self.dataloader_iterator_BMLD,
+            self.dataloader_BMLD,
             self.device,
             self.d_model,
             self.cfg.n_batches_for_norm_estimate,
         )
 
     def _next_batch_BMLD(self, norm_scaling_factors_ML: torch.Tensor) -> torch.Tensor:
-        batch_BMLD = next(self.dataloader_iterator_BMLD)
+        batch_BMLD = next(self.dataloader_BMLD)
         batch_BMLD = batch_BMLD.to(self.device)
         batch_BMLD = einsum(
             batch_BMLD, norm_scaling_factors_ML, "batch model layer d_model, model layer -> batch model layer d_model"

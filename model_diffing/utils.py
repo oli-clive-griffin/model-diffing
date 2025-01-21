@@ -1,17 +1,32 @@
 from collections.abc import Iterator
 from functools import partial
 from pathlib import Path
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 import einops
 import torch
+import wandb
 import yaml
 from einops import reduce
 from einops.einops import Reduction
 from pydantic import BaseModel
 from torch import nn
+from wandb.sdk.wandb_run import Run
 
 from model_diffing.log import logger
+from model_diffing.scripts.config_common import WandbConfig
+
+
+def build_wandb_run(wandb_cfg: WandbConfig | Literal["disabled"]) -> Run | None:
+    if wandb_cfg == "disabled":
+        return None
+    else:
+        return wandb.init(
+            name=wandb_cfg.name,
+            project=wandb_cfg.project,
+            entity=wandb_cfg.entity,
+            config=wandb_cfg.model_dump(),
+        )
 
 
 def save_model_and_config(config: BaseModel, save_dir: Path, model: nn.Module, epoch: int) -> None:
