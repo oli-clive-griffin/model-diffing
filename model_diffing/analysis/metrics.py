@@ -18,3 +18,11 @@ def get_shared_latent_mask(
 ) -> torch.Tensor:
     """Create mask for shared latents based on relative norms."""
     return torch.logical_and(relative_norms > min_thresh, relative_norms < max_thresh)
+
+
+def get_IQR_outliers_mask(norms: torch.Tensor, k_iqr: float = 1.5) -> torch.Tensor:
+    """Create mask for outliers based on IQR."""
+    Q1 = norms.quantile(0.25)
+    Q3 = norms.quantile(0.75)
+    IQR = Q3 - Q1
+    return (norms < (Q1 - k_iqr * IQR)) | (norms > (Q3 + k_iqr * IQR))

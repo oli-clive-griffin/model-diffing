@@ -1,6 +1,8 @@
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 import torch
+from plotly.subplots import make_subplots
 
 from model_diffing.analysis import metrics
 
@@ -53,3 +55,117 @@ def plot_cosine_sim(cosine_sims: torch.Tensor, title: str | None = None) -> go.F
     fig.update_layout(showlegend=False)
     fig.update_yaxes(title_text="Number of Latents (log scale)")
     return fig
+
+
+def _build_df(
+    values_NML: torch.Tensor,
+    model_names: list[str] | None = None,
+    layer_names: list[int] | list[str] | None = None,
+    k_iqr: float | None = None,
+) -> pd.DataFrame:
+    df_list = []
+
+    for model_idx in range(values_NML.shape[1]):
+        for layer_idx in range(values_NML.shape[2]):
+            values = values_NML[:, model_idx, layer_idx]
+
+            if k_iqr:
+                outliers = metrics.get_IQR_outliers_mask(values.unsqueeze(1), k_iqr=k_iqr).squeeze()
+                values = values[~outliers]
+
+            df_list.append(
+                pd.DataFrame(
+                    {
+                        "Values": values.cpu().numpy(),
+                        "Layer": layer_idx,
+                        "Model": model_idx,
+                    }
+                )
+            )
+
+    df = pd.concat(df_list, ignore_index=True)
+
+    # Map model and layer indices to the provided names
+    if model_names:
+        df["Model"] = df["Model"].replace(dict(enumerate(model_names)))
+    if layer_names:
+        df["Layer"] = df["Layer"].replace(dict(enumerate(layer_names)))
+
+    return df
+
+
+def _plot_grid_hist(
+    df_NL: pd.DataFrame,
+    nbins: int | None = None,
+) -> go.Figure:
+    layers = df_NL["Layer"].unique()
+
+    fig = make_subplots(rows=1, cols=len(layers))
+
+    for layer_idx, layer in enumerate(layers):
+        df_N = df_NL[df_NL["Layer"] == layer]
+
+        hist = go.Histogram(
+            x=df_N["Values"],
+            histnorm="percent",
+            nbinsx=nbins,
+            name=f"{layer}",
+        )
+        fig.add_trace(hist, row=1, col=layer_idx + 1)
+
+    return fig
+
+
+def _plot_overlay_hist(
+    df_NL: pd.DataFrame,
+    nbins: int | None = None,
+) -> go.Figure:
+    fig = px.histogram(
+        df_NL,
+        x="Values",
+        color="Layer",
+        marginal="rug",
+        histnorm="percent",
+        nbins=nbins,
+        opacity=0.5,
+        barmode="overlay",
+    )
+
+    return fig
+
+
+def plot_norms_hists(
+    norms_NML: torch.Tensor,
+    model_names: list[str] | None = None,
+    layer_names: list[int] | list[str] | None = None,
+    k_iqr: float | None = None,
+    overlay: bool = True,
+    log: bool = True,
+    nbins: int | None = None,
+    title: str = "Residual Stream Magnitude",
+    xaxis_title: str = "Norm",
+    yaxis_title: str = "Percentage",
+) -> list[go.Figure]:
+    df = _build_df(norms_NML, model_names=model_names, layer_names=layer_names, k_iqr=k_iqr)
+
+    if log:
+        df["Values"] = torch.log10(torch.tensor(df["Values"]))
+
+    fig_list = []
+    n_models = norms_NML.shape[1]
+
+    for model_name in model_names if model_names else range(n_models):
+        model_df = df.loc[df["Model"] == model_name]
+
+        fig = _plot_overlay_hist(model_df, nbins=nbins) if overlay else _plot_grid_hist(model_df, nbins=nbins)
+
+        fig.update_layout(
+            legend_title_text="Layer",
+            title=f"{title} ({model_name})" if model_names else title,
+            xaxis_title=f"{xaxis_title} (log10)" if log else xaxis_title,
+            yaxis_title=yaxis_title,
+        )
+
+        fig_list.append(fig)
+
+    return fig_list

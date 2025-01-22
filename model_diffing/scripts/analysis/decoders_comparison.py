@@ -30,3 +30,5 @@ print(cosine_sims.shape)
 shared_features_cosine_sims = cosine_sims[shared_latent_mask]
 fig = visualization.plot_cosine_sim(shared_features_cosine_sims)
 fig.show()
+
+# %%

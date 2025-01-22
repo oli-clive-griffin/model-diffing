@@ -43,3 +43,24 @@ def _estimate_mean_norms_ML(
     norm_samples_NML = torch.stack(norm_samples, dim=0)
     mean_norms_ML = reduce(norm_samples_NML, "batch model layer -> model layer", torch.mean)
     return mean_norms_ML
+
+
+@torch.no_grad()
+def collect_norms(
+    dataloader_BMLD: Iterator[torch.Tensor],
+    device: torch.device,
+    n_batches: int,
+) -> torch.Tensor:
+    norm_samples = []
+
+    for batch_BMLD in tqdm(
+        islice(dataloader_BMLD, n_batches),
+        desc="Collecting norms",
+        total=n_batches,
+    ):
+        batch_BMLD = batch_BMLD.to(device)
+        norms_BML = reduce(batch_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
+        norm_samples.append(norms_BML)
+
+    norm_samples_NML = torch.cat(norm_samples, dim=0)
+    return norm_samples_NML
