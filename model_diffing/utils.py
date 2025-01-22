@@ -59,8 +59,6 @@ def chunk(iterable: Iterator[T], size: int) -> Iterator[list[T]]:
         if len(chunk) == size:
             yield chunk
             chunk = []
-    if chunk:
-        yield chunk
 
 
 # It may seem weird to redefine these, but:
