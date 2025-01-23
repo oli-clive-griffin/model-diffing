@@ -1,20 +1,41 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from itertools import islice
 
 import torch
 from einops import reduce
 from tqdm import tqdm
 
+from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig
 from model_diffing.utils import l2_norm, multi_reduce
+
+
+def build_optimizer(cfg: AdamDecayTo0LearningRateConfig, params: Iterator[torch.nn.Parameter]) -> torch.optim.Optimizer:
+    initial_lr = cfg.initial_learning_rate
+    optimizer = torch.optim.Adam(params, lr=initial_lr)
+    return optimizer
+
+
+def build_lr_scheduler(cfg: AdamDecayTo0LearningRateConfig, num_steps: int) -> Callable[[int], float]:
+    def _lr_scheduler(step: int) -> float:
+        pct_until_finished = 1 - (step / num_steps)
+        if pct_until_finished < cfg.last_pct_of_steps:
+            # 1 at the last step of constant learning rate period
+            # 0 at the end of training
+            scale = pct_until_finished / cfg.last_pct_of_steps
+            return cfg.initial_learning_rate * scale
+        else:
+            return cfg.initial_learning_rate
+
+    return _lr_scheduler
 
 
 @torch.no_grad()
 def estimate_norm_scaling_factor_ML(
     dataloader_BMLD: Iterator[torch.Tensor],
     device: torch.device,
-    d_model: int,
     n_batches_for_norm_estimate: int,
 ) -> torch.Tensor:
+    d_model = next(dataloader_BMLD).shape[-1]
     mean_norms_ML = _estimate_mean_norms_ML(dataloader_BMLD, device, n_batches_for_norm_estimate)
     scaling_factors_ML = torch.sqrt(torch.tensor(d_model)) / mean_norms_ML
     return scaling_factors_ML
@@ -36,7 +57,10 @@ def _estimate_mean_norms_ML(
     ):
         batch_BMLD = batch_BMLD.to(device)
         norms_means_ML = multi_reduce(
-            batch_BMLD, "batch model layer d_model", [("d_model", l2_norm), ("batch", torch.mean)]
+            batch_BMLD,
+            "batch model layer d_model",
+            ("d_model", l2_norm),
+            ("batch", torch.mean),
         )
         norm_samples.append(norms_means_ML)
 

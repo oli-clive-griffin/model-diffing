@@ -1,17 +1,13 @@
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 
-from model_diffing.scripts.config_common import BaseExperimentConfig
-
-
-class DecayTo0LearningRateConfig(BaseModel):
-    initial_learning_rate: float
-    last_pct_of_steps: float = 0.2
+from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, DataConfig, LLMsConfig, WandbConfig
 
 
 class TrainConfig(BaseModel):
-    learning_rate: DecayTo0LearningRateConfig
+    optimizer: AdamDecayTo0LearningRateConfig
     l1_coef_max: float = 5.0
     l1_coef_n_steps: int = 1000
     num_steps: int
@@ -26,6 +22,11 @@ class L1CrosscoderConfig(BaseModel):
     dec_init_norm: float = 0.1
 
 
-class L1ExperimentConfig(BaseExperimentConfig):
+class L1ExperimentConfig(BaseModel):
+    seed: int = 42
+    cache_dir: str = ".cache"
+    data: DataConfig
+    llms: LLMsConfig
+    wandb: WandbConfig | Literal["disabled"] = WandbConfig()
     crosscoder: L1CrosscoderConfig
     train: TrainConfig

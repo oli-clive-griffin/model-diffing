@@ -1,14 +1,15 @@
 data:
-  activations_iterator:
+  sequence_iterator:
+    classname: CommonCorpusTokenSequenceIterator
+    kwargs:
+      sequence_length: 256
+  sequence_shuffle_buffer_size: 16_384
+  activations_harvester:
     layer_indices_to_harvest:
       - 8
     harvest_batch_size: 4
-    sequence_tokens_iterator:
-      classname: CommonCorpusTokenSequenceIterator
-      kwargs:
-        sequence_length: 256
-  shuffle_buffer_size: 32_768
-  batch_size: 8_192
+  activations_shuffle_buffer_size: 8_192
+  cc_training_batch_size: 512
 llms:
   models:
     - name: EleutherAI/pythia-160M
@@ -21,7 +22,7 @@ crosscoder:
   hidden_dim: 6144
   k: 20
 train:
-  learning_rate:
+  optimizer:
     initial_learning_rate: 5e-5
     last_pct_of_steps: 0.2
   num_steps: 100_000

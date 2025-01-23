@@ -17,9 +17,9 @@ class CommonCorpusTokenSequenceIterator(TokenSequenceLoader):
 
     def __init__(
         self,
-        cache_dir: str,
         tokenizer: PreTrainedTokenizerBase,
         sequence_length: int,
+        cache_dir: str | None = None,
     ):
         self._cache_dir = cache_dir
         self._tokenizer = tokenizer
@@ -60,9 +60,15 @@ class ConnorGemma2TokenSequenceLoader(TokenSequenceLoader):
         self._cache_dir = cache_dir
 
     def get_sequence_iterator(self) -> Iterator[torch.Tensor]:
+        printed = 0
         dataset = load_dataset(self.HF_TOKENISED_DATASET, streaming=True, cache_dir=self._cache_dir, split="train")
         for example in dataset:
             tokens = example["input_ids"]  # type: ignore
+
+            if printed < 10:
+                print(f"{tokens.shape=}")
+                printed += 1
+
             yield torch.tensor(tokens)
 
 

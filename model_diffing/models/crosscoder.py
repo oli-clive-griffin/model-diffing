@@ -119,6 +119,7 @@ class AcausalCrosscoder(nn.Module):
         reconstructed_BMLD = self.decode(hidden_BH)
         assert reconstructed_BMLD.shape == activation_BMLD.shape
         assert len(reconstructed_BMLD.shape) == 4
+
         return self.TrainResult(
             hidden_BH=hidden_BH,
             reconstructed_acts_BMLD=reconstructed_BMLD,

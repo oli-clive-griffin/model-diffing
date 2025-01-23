@@ -1,29 +1,21 @@
-import random
 from collections.abc import Iterator
-from functools import cached_property, partial
-from typing import Protocol
+from functools import cached_property
 
 import torch
 from einops import rearrange
 from transformer_lens import HookedTransformer
 
-from model_diffing.log import logger
-from model_diffing.utils import chunk
 
-
-# make me a function?:
 class ActivationsHarvester:
     def __init__(
         self,
         llms: list[HookedTransformer],
         layer_indices_to_harvest: list[int],
-        batch_size: int,
-        sequence_tokens_iterator: Iterator[torch.Tensor],
+        token_sequence_iterator_BS: Iterator[torch.Tensor],
     ):
         self._llms = llms
         self._layer_indices_to_harvest = layer_indices_to_harvest
-        self._batch_size = batch_size
-        self._sequence_tokens_iterator = sequence_tokens_iterator
+        self._token_sequence_iterator_BS = token_sequence_iterator_BS
 
     @cached_property
     def names(self) -> list[str]:
@@ -45,93 +37,11 @@ class ActivationsHarvester:
     def _get_activations_BSMLD(self, sequence_BS: torch.Tensor) -> torch.Tensor:
         activations = [self._get_model_activations_BSLD(model, sequence_BS) for model in self._llms]
         activations_BSMLD = torch.stack(activations, dim=2)
-
         return activations_BSMLD
 
     @torch.no_grad()
-    def get_activations_iterator_BSMLD(self) -> Iterator[torch.Tensor]:
-        for sequences_chunk in chunk(self._sequence_tokens_iterator, self._batch_size):
-            sequence_tokens_BS = torch.stack(sequences_chunk)
-            yield self._get_activations_BSMLD(sequence_tokens_BS)
-
-
-class ActivationsReshaper(Protocol):
-    def __call__(self, activations_iterator_BSMLD: Iterator[torch.Tensor]) -> Iterator[torch.Tensor]: ...
-
-
-class _ActivationsShuffler:
-    def __init__(
-        self,
-        shuffle_buffer_size: int,
-        activations_reshaper: ActivationsReshaper,
-        activations_iterator_BSMLD: Iterator[torch.Tensor],
-        batch_size: int,
-    ):
-        if shuffle_buffer_size < batch_size:
-            raise ValueError("Shuffle buffer size must be greater than batch size.")
-        if shuffle_buffer_size < batch_size * 2:
-            raise ValueError(
-                "Shuffle buffer should be at least twice the batch size. "
-                f"Current size: {shuffle_buffer_size}, batch size: {batch_size}"
-            )
-        if shuffle_buffer_size < batch_size * 4:
-            logger.warning(
-                "Shuffle buffer size is less than four times the batch size. This may lead to "
-                f"suboptimal shuffling. Current size: {shuffle_buffer_size}, batch size: {batch_size}"
-            )
-
-        self._shuffle_buffer_size = shuffle_buffer_size
-        self._activations_reshaper = activations_reshaper
-        self._activations_iterator_BSMLD = activations_iterator_BSMLD
-        self._batch_size = batch_size
-
-    def get_shuffled_activations_iterator(self) -> Iterator[torch.Tensor]:
-        activations_iterator = self._activations_reshaper(self._activations_iterator_BSMLD)
-
-        # this does "waste" the first activation, but this is really not a big deal in the pursuit of simplicity
-        sample_activation = next(activations_iterator)
-
-        buffer = torch.empty((self._shuffle_buffer_size, *sample_activation.shape), device=sample_activation.device)
-
-        available_indices = set()
-        stale_indices = set(range(self._shuffle_buffer_size))
-
-        def sample():
-            batch_indices = random.sample(list(available_indices), self._batch_size)
-            available_indices.difference_update(batch_indices)
-            stale_indices.update(batch_indices)
-            return buffer[batch_indices]
-
-        while True:
-            # refill buffer
-            for stale_idx, activations in zip(list(stale_indices), activations_iterator, strict=False):
-                buffer[stale_idx] = activations
-                available_indices.add(stale_idx)
-                stale_indices.remove(stale_idx)
-
-            if len(available_indices) < self._shuffle_buffer_size // 2:
-                # This means the buffer wasn't refilled above. therefore the iterator is exhausted
-                # so we yield the remaining activations
-                while len(available_indices) > self._batch_size:
-                    yield sample()
-                break
-
-            # yield batches until buffer is half empty
-            while len(available_indices) >= self._shuffle_buffer_size // 2:
-                yield sample()
-
-
-# implements `ActivationsReshaper`
-def iterate_over_tokens(activations_iterator_BSMLD: Iterator[torch.Tensor]) -> Iterator[torch.Tensor]:
-    for activations_BSMLD in activations_iterator_BSMLD:
-        activations_BsMLD = rearrange(activations_BSMLD, "b s m l d -> (b s) m l d")
-        yield from activations_BsMLD
-
-
-# implements `ActivationsReshaper`
-def iterate_over_sequences(activations_iterator_BSMLD: Iterator[torch.Tensor]) -> Iterator[torch.Tensor]:
-    for activations_BSMLD in activations_iterator_BSMLD:
-        yield from activations_BSMLD
-
-
-TokensActivationsShuffler = partial(_ActivationsShuffler, activations_reshaper=iterate_over_tokens)
+    def get_token_activations_iterator_MLD(self) -> Iterator[torch.Tensor]:
+        for sequences_chunk_BS in self._token_sequence_iterator_BS:
+            activations_BSMLD = self._get_activations_BSMLD(sequences_chunk_BS)
+            activations_BsMLD = rearrange(activations_BSMLD, "b s m l d -> (b s) m l d")
+            yield from activations_BsMLD

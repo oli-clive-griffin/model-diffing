@@ -13,7 +13,7 @@ from model_diffing.utils import get_device
 torch.set_grad_enabled(False)
 
 # %%
-llm_configs = config_common.LLMsConfig(
+llms_config = config_common.LLMsConfig(
     models=[
         config_common.LLMConfig(
             name="gpt2",
@@ -21,24 +21,32 @@ llm_configs = config_common.LLMsConfig(
     ]
 )
 
-sequence_iterator_config = config_common.SequenceTokensIteratorConfig(
-    classname="CommonCorpusTokenSequenceIterator", kwargs={"sequence_length": 258}
+sequence_iterator_config = config_common.SequenceIteratorConfig(
+    classname="CommonCorpusTokenSequenceIterator",
+    kwargs={"sequence_length": 258},
 )
 
-activations_config = config_common.ActivationsIteratorConfig(
-    layer_indices_to_harvest=[0, 3, 7, 9, 11], harvest_batch_size=16, sequence_tokens_iterator=sequence_iterator_config
+activations_harvester_config = config_common.ActivationsHarvesterConfig(
+    layer_indices_to_harvest=[0, 3, 7, 9, 11],
+    harvest_batch_size=16,
 )
 
-data_config = config_common.DataConfig(activations_iterator=activations_config, shuffle_buffer_size=1000, batch_size=16)
+data_config = config_common.DataConfig(
+    sequence_iterator=sequence_iterator_config,
+    sequence_shuffle_buffer_size=1000,
+    activations_harvester=activations_harvester_config,
+    activations_shuffle_buffer_size=1000,
+    cc_training_batch_size=16,
+)
 
-cfg = config_common.BaseExperimentConfig(data=data_config, llms=llm_configs, wandb="disabled")
+cache_dir = "./.cache/norms"
 
 # %%
 device = get_device()
-llms = build_llms(cfg.llms, cfg.cache_dir, device)
+llms = build_llms(llms_config, cache_dir, device)
 
 # %%
-dataloader_BMLD = build_dataloader_BMLD(cfg.data, llms, cfg.cache_dir)
+dataloader_BMLD = build_dataloader_BMLD(data_config, llms, cache_dir)
 
 # %%
 sample_BMLD = next(dataloader_BMLD)
@@ -65,8 +73,8 @@ fig.show()
 # %%
 fig_list = visualization.plot_norms_hists(
     norms_NML,
-    model_names=[model.name for model in cfg.llms.models],
-    layer_names=cfg.data.activations_iterator.layer_indices_to_harvest,
+    model_names=[model.name for model in llms_config.models],
+    layer_names=data_config.activations_harvester.layer_indices_to_harvest,
     k_iqr=3.0,
     overlay=False,
     log=False,
@@ -79,8 +87,8 @@ fig.show()
 # %%
 fig_list = visualization.plot_norms_hists(
     norms_NML,
-    model_names=[model.name for model in cfg.llms.models],
-    layer_names=cfg.data.activations_iterator.layer_indices_to_harvest,
+    model_names=[model.name for model in llms_config.models],
+    layer_names=data_config.activations_harvester.layer_indices_to_harvest,
     k_iqr=3.0,
     overlay=True,
     log=True,

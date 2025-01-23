@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import fire
-import torch
 import yaml
 
 from model_diffing.dataloader.data import build_dataloader_BMLD
@@ -21,7 +20,7 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
     dataloader_BMLD = build_dataloader_BMLD(cfg.data, llms, cfg.cache_dir)
 
     crosscoder = build_topk_crosscoder(
-        n_layers=len(cfg.data.activations_iterator.layer_indices_to_harvest),
+        n_layers=len(cfg.data.activations_harvester.layer_indices_to_harvest),
         d_model=llms[0].cfg.d_model,
         cc_hidden_dim=cfg.crosscoder.hidden_dim,
         dec_init_norm=cfg.crosscoder.dec_init_norm,
@@ -30,19 +29,15 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
     )
     crosscoder = crosscoder.to(device)
 
-    initial_lr = cfg.train.learning_rate.initial_learning_rate
-    optimizer = torch.optim.Adam(crosscoder.parameters(), lr=initial_lr)
-
-    wandb_run = build_wandb_run(cfg)
+    wandb_run = build_wandb_run(cfg.wandb, cfg) if cfg.wandb != "disabled" else None
 
     return TopKTrainer(
         cfg=cfg.train,
-        llms=llms,
-        optimizer=optimizer,
         dataloader_BMLD=dataloader_BMLD,
         crosscoder=crosscoder,
         wandb_run=wandb_run,
         device=device,
+        layers_to_harvest=cfg.data.activations_harvester.layer_indices_to_harvest,
     )
 
 
