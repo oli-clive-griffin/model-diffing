@@ -4,7 +4,7 @@ data:
   sequence_shuffle_buffer_size: 16_384
   activations_harvester:
     layer_indices_to_harvest: [12, 15, 17, 18]
-    harvest_batch_size: 32
+    harvest_batch_size: 1
   activations_shuffle_buffer_size: 4_096
   cc_training_batch_size: 1024
 llms:

@@ -176,9 +176,9 @@ def calculate_explained_variance_ML(
 def get_explained_var_dict(explained_variance_ML: torch.Tensor, layers_to_harvest: list[int]) -> dict[str, float]:
     num_models, _n_layers = explained_variance_ML.shape
     explained_variances_dict = {
-        f"train/explained_variance/M{model_idx}_L{layer_idx}": explained_variance_ML[model_idx, layer_idx].item()
+        f"train/explained_variance/M{model_idx}_L{layer_number}": explained_variance_ML[model_idx, layer_idx].item()
         for model_idx in range(num_models)
-        for layer_idx in layers_to_harvest
+        for layer_idx, layer_number in enumerate(layers_to_harvest)
     }
 
     return explained_variances_dict
