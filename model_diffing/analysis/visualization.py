@@ -7,6 +7,28 @@ from plotly.subplots import make_subplots
 from model_diffing.analysis import metrics
 
 
+def create_visualizations(W_dec_HMLD: torch.Tensor, layers: list[int]) -> dict[str, go.Figure]:
+    H, M, L, D = W_dec_HMLD.shape
+    assert M == 2, "only two models are supported currently"
+
+    plots = {}
+
+    for layer_idx in range(L):
+        layer_name = layers[layer_idx]  # layer_idx is the index into the list of layers we're collecting
+        a_HD = W_dec_HMLD[:, 0, layer_idx]
+        b_HD = W_dec_HMLD[:, 1, layer_idx]
+
+        relative_norms_fig = plot_relative_norms(a_HD, b_HD, title=f"Relative Norms. Layer {layer_name}")
+        plots[f"relative_decoder_norms_layer_{layer_name}"] = relative_norms_fig
+
+        cosine_sim_fig = plot_cosine_sim(
+            metrics.compute_cosine_similarities_N(a_HD, b_HD), title=f"Cosine Similarity. Layer {layer_name}"
+        )
+        plots[f"cosine_sim_layer_{layer_name}"] = cosine_sim_fig
+
+    return plots
+
+
 def plot_relative_norms(vectors_a: torch.Tensor, vectors_b: torch.Tensor, title: str | None = None) -> go.Figure:
     """Plot histogram of relative norms (norm_b / (norm_a + norm_b)).
 
@@ -18,13 +40,18 @@ def plot_relative_norms(vectors_a: torch.Tensor, vectors_b: torch.Tensor, title:
     Returns:
         Plotly figure object
     """
-    relative_norms = metrics.compute_relative_norms(vectors_a, vectors_b)
+    relative_norms = metrics.compute_relative_norms_N(vectors_a, vectors_b)
 
+    return relative_norms_hist(relative_norms, title=title)
+
+
+def relative_norms_hist(relative_norms_N: torch.Tensor, title: str | None = None) -> go.Figure:
     fig = px.histogram(
-        relative_norms.detach().cpu().numpy(),
+        relative_norms_N.detach().cpu().numpy(),
         nbins=200,
         labels={"value": "Relative norm"},
         title=title,
+        range_x=[0, 1],
     )
 
     fig.update_layout(showlegend=False)
@@ -33,7 +60,7 @@ def plot_relative_norms(vectors_a: torch.Tensor, vectors_b: torch.Tensor, title:
     return fig
 
 
-def plot_cosine_sim(cosine_sims: torch.Tensor, title: str | None = None) -> go.Figure:
+def plot_cosine_sim(cosine_sims_N: torch.Tensor, title: str | None = None) -> go.Figure:
     """Plot histogram of cosine similarities.
 
     Args:
@@ -44,7 +71,7 @@ def plot_cosine_sim(cosine_sims: torch.Tensor, title: str | None = None) -> go.F
         Plotly figure object
     """
     fig = px.histogram(
-        cosine_sims.detach().cpu().numpy(),
+        cosine_sims_N.detach().cpu().numpy(),
         log_y=True,
         range_x=[-1, 1],
         nbins=100,

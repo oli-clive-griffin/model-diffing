@@ -6,7 +6,6 @@ import yaml
 from model_diffing.dataloader.data import build_dataloader_BMLD
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import build_topk_crosscoder
-from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_topk_crosscoder.config import TopKExperimentConfig
 from model_diffing.scripts.train_topk_crosscoder.trainer import TopKTrainer
 from model_diffing.utils import build_wandb_run, get_device
@@ -15,16 +14,14 @@ from model_diffing.utils import build_wandb_run, get_device
 def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
     device = get_device()
 
-    llms = build_llms(cfg.llms, cfg.cache_dir, device)
-
-    dataloader_BMLD = build_dataloader_BMLD(cfg.data, llms, cfg.cache_dir)
+    dataloader_BMLD, (_, n_layers, n_models, d_model) = build_dataloader_BMLD(cfg.data, cfg.cache_dir, device)
 
     crosscoder = build_topk_crosscoder(
-        n_layers=len(cfg.data.activations_harvester.layer_indices_to_harvest),
-        d_model=llms[0].cfg.d_model,
+        n_layers=n_layers,
+        d_model=d_model,
         cc_hidden_dim=cfg.crosscoder.hidden_dim,
         dec_init_norm=cfg.crosscoder.dec_init_norm,
-        n_models=len(llms),
+        n_models=n_models,
         k=cfg.crosscoder.k,
     )
     crosscoder = crosscoder.to(device)

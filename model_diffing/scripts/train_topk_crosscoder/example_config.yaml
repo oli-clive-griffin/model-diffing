@@ -5,17 +5,17 @@ data:
       sequence_length: 256
   sequence_shuffle_buffer_size: 16_384
   activations_harvester:
+    llms:
+      models:
+        - name: EleutherAI/pythia-160M
+          revision: step142000
+        - name: EleutherAI/pythia-160M
+          revision: step143000 # last checkpoint
     layer_indices_to_harvest:
       - 8
     harvest_batch_size: 4
   activations_shuffle_buffer_size: 8_192
   cc_training_batch_size: 512
-llms:
-  models:
-    - name: EleutherAI/pythia-160M
-      revision: step142000
-    - name: EleutherAI/pythia-160M
-      revision: step143000 # last checkpoint
 wandb:
   name: topk_crosscoder_pythia_160M
 crosscoder:

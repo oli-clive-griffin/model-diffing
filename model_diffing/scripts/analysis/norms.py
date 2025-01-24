@@ -27,6 +27,7 @@ sequence_iterator_config = config_common.SequenceIteratorConfig(
 )
 
 activations_harvester_config = config_common.ActivationsHarvesterConfig(
+    llms=llms_config,
     layer_indices_to_harvest=[0, 3, 7, 9, 11],
     harvest_batch_size=16,
 )
@@ -46,7 +47,7 @@ device = get_device()
 llms = build_llms(llms_config, cache_dir, device)
 
 # %%
-dataloader_BMLD = build_dataloader_BMLD(data_config, llms, cache_dir)
+dataloader_BMLD, _ = build_dataloader_BMLD(data_config, cache_dir, device)
 
 # %%
 sample_BMLD = next(dataloader_BMLD)

@@ -1,17 +1,16 @@
-import torch
-
 from model_diffing.dataloader.activations import ActivationsHarvester
 from model_diffing.dataloader.shuffle import batch_shuffle_tensor_iterator_BX
 from model_diffing.dataloader.token_loader import ToyOverfittingTokenSequenceIterator
 from model_diffing.scripts.config_common import LLMConfig, LLMsConfig
 from model_diffing.scripts.llms import build_llms
+from model_diffing.utils import get_device
 
 
 def test():
     llms = build_llms(
         LLMsConfig(models=[LLMConfig(name="EleutherAI/pythia-160M", revision="step142000")]),
         cache_dir=".cache",
-        device=torch.device("mps"),
+        device=get_device(),
     )
 
     sequence_len = 10

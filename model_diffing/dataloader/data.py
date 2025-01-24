@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 
 import torch
-from transformer_lens import HookedTransformer
 from transformers import PreTrainedTokenizerBase
 
 from model_diffing.dataloader.activations import ActivationsHarvester
@@ -13,13 +12,16 @@ from model_diffing.dataloader.token_loader import (
     ToyOverfittingTokenSequenceIterator,
 )
 from model_diffing.scripts.config_common import DataConfig, SequenceIteratorConfig
+from model_diffing.scripts.llms import build_llms
 
 
 def build_dataloader_BMLD(
     cfg: DataConfig,
-    llms: list[HookedTransformer],
     cache_dir: str,
-) -> Iterator[torch.Tensor]:
+    device: torch.device,
+) -> tuple[Iterator[torch.Tensor], tuple[int, int, int, int]]:
+    llms = build_llms(cfg.activations_harvester.llms, cache_dir, device)
+
     tokenizer = llms[0].tokenizer
     if not isinstance(tokenizer, PreTrainedTokenizerBase):
         raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")
@@ -54,7 +56,13 @@ def build_dataloader_BMLD(
         yield_batch_size=cfg.cc_training_batch_size,
     )
 
-    return shuffled_activations_iterator_BMLD
+    batch_size = cfg.cc_training_batch_size
+    num_layers = len(cfg.activations_harvester.layer_indices_to_harvest)
+    num_models = len(llms)
+    d_model = llms[0].cfg.d_model
+    shape = (batch_size, num_layers, num_models, d_model)
+
+    return shuffled_activations_iterator_BMLD, shape
 
 
 def _build_tokens_sequence_iterator(

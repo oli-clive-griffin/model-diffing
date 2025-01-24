@@ -1,16 +1,17 @@
 import torch
 
 
-def compute_relative_norms(vectors_a: torch.Tensor, vectors_b: torch.Tensor) -> torch.Tensor:
+# N = num_vectors, F = feature dim
+def compute_relative_norms_N(vectors_a_NF: torch.Tensor, vectors_b_NF: torch.Tensor) -> torch.Tensor:
     """Compute relative norms between two sets of vectors."""
-    norm_a = torch.norm(vectors_a, dim=-1)
-    norm_b = torch.norm(vectors_b, dim=-1)
-    return norm_b / (norm_a + norm_b)
+    norm_a_N = torch.norm(vectors_a_NF, dim=-1)
+    norm_b_N = torch.norm(vectors_b_NF, dim=-1)
+    return norm_b_N / (norm_a_N + norm_b_N)
 
 
-def compute_cosine_similarities(vectors_a: torch.Tensor, vectors_b: torch.Tensor) -> torch.Tensor:
+def compute_cosine_similarities_N(vectors_a_NF: torch.Tensor, vectors_b_NF: torch.Tensor) -> torch.Tensor:
     """Compute cosine similarities between corresponding vectors."""
-    return torch.nn.functional.cosine_similarity(vectors_a, vectors_b, dim=-1)
+    return torch.nn.functional.cosine_similarity(vectors_a_NF, vectors_b_NF, dim=-1)
 
 
 def get_shared_latent_mask(

@@ -1,4 +1,5 @@
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -25,6 +26,7 @@ class SequenceIteratorConfig(BaseModel):
 
 
 class ActivationsHarvesterConfig(BaseModel):
+    llms: LLMsConfig
     layer_indices_to_harvest: list[int]
     harvest_batch_size: int
 
@@ -41,3 +43,20 @@ class WandbConfig(BaseModel):
     name: str | None = None
     project: str = "model-diffing"
     entity: str = "mars-model-diffing"
+
+
+class BaseTrainConfig(BaseModel):
+    optimizer: AdamDecayTo0LearningRateConfig
+    num_steps: int
+    save_dir: Path | None
+    save_every_n_steps: int | None
+    log_every_n_steps: int
+    log_visualizations_every_n_steps: int
+    n_batches_for_norm_estimate: int = 100
+
+
+class BaseExperimentConfig(BaseModel):
+    seed: int = 42
+    cache_dir: str = ".cache"
+    data: DataConfig
+    wandb: WandbConfig | Literal["disabled"] = WandbConfig()
