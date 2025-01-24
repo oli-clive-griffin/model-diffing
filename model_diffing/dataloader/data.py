@@ -75,5 +75,9 @@ def _build_tokens_sequence_iterator(
     elif cfg.classname == "ConnorGemma2TokenSequenceLoader":
         return ConnorGemma2TokenSequenceLoader(cache_dir=cache_dir)
     elif cfg.classname == "ToyOverfittingTokenSequenceIterator":
-        return ToyOverfittingTokenSequenceIterator(tokenizer=tokenizer)
+        if cfg.kwargs is None:
+            raise ValueError("kwargs must be provided for common_corpus")
+        if cfg.kwargs["sequence_length"] is None:
+            raise ValueError("sequence_length must be provided for common_corpus")
+        return ToyOverfittingTokenSequenceIterator(sequence_length=cfg.kwargs["sequence_length"])
     raise ValueError(f"Unknown tokens sequence iterator config name: {cfg}")

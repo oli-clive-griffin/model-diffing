@@ -44,12 +44,12 @@ class CommonCorpusTokenSequenceIterator(TokenSequenceLoader):
 
 
 class ToyOverfittingTokenSequenceIterator(TokenSequenceLoader):
-    def __init__(self, tokenizer: PreTrainedTokenizerBase):
-        self._tokenizer = tokenizer
+    def __init__(self, sequence_length: int):
+        self._sequence_length = sequence_length
 
     def get_sequence_iterator(self) -> Iterator[torch.Tensor]:
         while True:
-            yield torch.randint(0, 1000, (100,))
+            yield torch.randint(0, 1000, (self._sequence_length,))
 
 
 class ConnorGemma2TokenSequenceLoader(TokenSequenceLoader):
