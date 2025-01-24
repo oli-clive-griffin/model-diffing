@@ -10,7 +10,7 @@ data:
 llms:
   models:
     - name: google/gemma-2-2b
-    - name: google/gemma-2-2b-t
+    - name: google/gemma-2-2b-it
 wandb:
   name: l1_gemma_base_it_4_layers
 crosscoder:

@@ -63,13 +63,13 @@ class ConnorGemma2TokenSequenceLoader(TokenSequenceLoader):
         printed = 0
         dataset = load_dataset(self.HF_TOKENISED_DATASET, streaming=True, cache_dir=self._cache_dir, split="train")
         for example in dataset:
-            tokens = example["input_ids"]  # type: ignore
+            tokens = torch.tensor(example["input_ids"])  # type: ignore
 
             if printed < 10:
                 print(f"{tokens.shape=}")
                 printed += 1
 
-            yield torch.tensor(tokens)
+            yield tokens
 
 
 # For example, we could do:
@@ -85,3 +85,23 @@ class ConnorGemma2TokenSequenceLoader(TokenSequenceLoader):
 
 #     def __iter__(self) -> Iterator[torch.Tensor]:
 #         return iter(self.tokens_AS)
+
+# from itertools import islice
+
+# class ThePileTokenSequenceIterator(TokenSequenceLoader):
+#     HF_TOKENISED_DATASET = "EleutherAI/pile"
+
+#     def __init__(self, cache_dir: str):
+#         self._cache_dir = cache_dir
+
+#     def get_sequence_iterator(self) -> Iterator[torch.Tensor]:
+#         dataset = load_dataset(self.HF_TOKENISED_DATASET, streaming=True, cache_dir=self._cache_dir, split="train")
+#         for example in dataset:
+#             tokens = torch.tensor(example["input_ids"])  # type: ignore
+#             yield tokens
+
+
+# if __name__ == "__main__":
+#     token_loader = ThePileTokenSequenceIterator("~/data/hf_cache")
+#     for tokens in islice(token_loader.get_sequence_iterator(), 10):
+#         print(tokens.shape)
