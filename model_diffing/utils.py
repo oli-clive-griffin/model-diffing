@@ -4,27 +4,26 @@ from pathlib import Path
 import einops
 import torch
 import wandb
-import yaml
+import yaml  # type: ignore
 from einops import reduce
 from einops.einops import Reduction
-from pydantic import BaseModel
 from torch import nn
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.log import logger
-from model_diffing.scripts.config_common import WandbConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
 
 
-def build_wandb_run(wandb_config: WandbConfig, config: BaseModel) -> Run | None:
+def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
     return wandb.init(
-        name=wandb_config.name,
-        project=wandb_config.project,
-        entity=wandb_config.entity,
+        name=config.experiment_name,
+        project="model-diffing",
+        entity="mars-model-diffing",
         config=config.model_dump(),
     )
 
 
-def save_model_and_config(config: BaseModel, save_dir: Path, model: nn.Module, epoch: int) -> None:
+def save_model_and_config(config: BaseTrainConfig, save_dir: Path, model: nn.Module, epoch: int) -> None:
     """Save the model to disk. Also save the config file if it doesn't exist.
 
     Args:
@@ -39,7 +38,7 @@ def save_model_and_config(config: BaseModel, save_dir: Path, model: nn.Module, e
             yaml.dump(config, f)
         logger.info("Saved config to %s", save_dir / "config.yaml")
 
-    model_file = save_dir / f"model_epoch_{epoch + 1}.pt"
+    model_file = save_dir / f"model_epoch_{epoch}.pt"
     torch.save(model.state_dict(), model_file)
     logger.info("Saved model to %s", model_file)
 

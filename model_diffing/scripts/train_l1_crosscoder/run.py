@@ -1,9 +1,9 @@
 from pathlib import Path
 
-import fire
-import yaml
+import fire  # type: ignore
+import yaml  # type: ignore
 
-from model_diffing.dataloader.data import build_dataloader_BMLD
+from model_diffing.dataloader.data import build_dataloader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import build_relu_crosscoder
 from model_diffing.scripts.train_l1_crosscoder.config import L1ExperimentConfig
@@ -14,7 +14,8 @@ from model_diffing.utils import build_wandb_run, get_device
 def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
     device = get_device()
 
-    dataloader_BMLD, (_, n_layers, n_models, d_model) = build_dataloader_BMLD(cfg.data, cfg.cache_dir, device)
+    dataloader = build_dataloader(cfg.data, cfg.cache_dir, device)
+    (_, n_layers, n_models, d_model) = dataloader.batch_shape_BMLD()
 
     crosscoder = build_relu_crosscoder(
         n_layers=n_layers,
@@ -26,15 +27,16 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
 
     crosscoder = crosscoder.to(device)
 
-    wandb_run = build_wandb_run(cfg.wandb, cfg) if cfg.wandb != "disabled" else None
+    wandb_run = build_wandb_run(cfg) if cfg.wandb else None
 
     return L1CrosscoderTrainer(
         cfg=cfg.train,
-        dataloader_BMLD=dataloader_BMLD,
+        activations_dataloader=dataloader,
         crosscoder=crosscoder,
         wandb_run=wandb_run,
         device=device,
         layers_to_harvest=cfg.data.activations_harvester.layer_indices_to_harvest,
+        experiment_name=cfg.experiment_name,
     )
 
 

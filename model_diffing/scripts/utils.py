@@ -3,7 +3,7 @@ from itertools import islice
 
 import torch
 from einops import reduce
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 
 from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig
 from model_diffing.utils import l2_norm, multi_reduce

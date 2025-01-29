@@ -19,7 +19,6 @@ class L1CrosscoderTrainer(BaseTrainer[L1TrainConfig]):
 
         # fwd
         train_res = self.crosscoder.forward_train(batch_BMLD)
-        self.tokens_trained += batch_BMLD.shape[0]
 
         # losses
         reconstruction_loss = calculate_reconstruction_loss(batch_BMLD, train_res.reconstructed_acts_BMLD)
@@ -44,7 +43,6 @@ class L1CrosscoderTrainer(BaseTrainer[L1TrainConfig]):
             "train/reconstruction_loss": reconstruction_loss.item(),
             "train/sparsity_loss": sparsity_loss.item(),
             "train/loss": loss.item(),
-            "train/tokens_trained": self.tokens_trained,
             **get_explained_var_dict(explained_variance_ML, self.layers_to_harvest),
         }
 

@@ -1,12 +1,17 @@
 from typing import cast
 
 import torch
-from transformer_lens import HookedTransformer
+from transformer_lens import HookedTransformer  # type: ignore
 
-from model_diffing.scripts.config_common import LLMsConfig
+from model_diffing.scripts.config_common import LLMConfig
 
 
-def build_llms(llms: LLMsConfig, cache_dir: str, device: torch.device) -> list[HookedTransformer]:
+def build_llms(
+    llms: list[LLMConfig],
+    cache_dir: str,
+    device: torch.device,
+    dtype: str,
+) -> list[HookedTransformer]:
     return [
         cast(
             HookedTransformer,  # for some reason, the type checker thinks this is simply an nn.Module
@@ -14,8 +19,8 @@ def build_llms(llms: LLMsConfig, cache_dir: str, device: torch.device) -> list[H
                 llm.name,
                 revision=llm.revision,
                 cache_dir=cache_dir,
-                dtype=llms.inference_dtype,
+                dtype=dtype,
             ).to(device),
         )
-        for llm in llms.models
+        for llm in llms
     ]
