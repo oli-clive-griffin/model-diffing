@@ -13,7 +13,7 @@ from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, estimate_norm_scaling_factor_ML
-from model_diffing.utils import save_model_and_config
+from model_diffing.utils import save_model_and_config, save_model_to_wandb
 
 
 class BaseTrainer[TConfig: BaseTrainConfig]:
@@ -54,7 +54,7 @@ class BaseTrainer[TConfig: BaseTrainConfig]:
         self.device = device
         self.layers_to_harvest = layers_to_harvest
 
-        self.save_dir = Path(cfg.base_save_dir) / experiment_name if cfg.base_save_dir is not None else None
+        self.save_dir = Path(cfg.base_save_dir) / experiment_name
 
         self.step = 0
         self.epoch = 0
@@ -113,11 +113,15 @@ class BaseTrainer[TConfig: BaseTrainConfig]:
                             step=self.step,
                         )
 
-                if (
-                    self.save_dir is not None
-                    and self.cfg.save_every_n_steps is not None
-                    and self.step % self.cfg.save_every_n_steps == 0
-                ):
+                    if (
+                        self.cfg.upload_checkpoint_to_wandb_every_n_steps is not None
+                        and self.step % self.cfg.upload_checkpoint_to_wandb_every_n_steps == 0
+                    ):
+                        logger.info("Uploading checkpoint to W&B")
+                        with self.crosscoder.temporary_fold(norm_scaling_factors_ML):
+                            save_model_to_wandb(self.wandb_run, self.crosscoder, self.step)
+
+                if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     with self.crosscoder.temporary_fold(norm_scaling_factors_ML):
                         save_model_and_config(
                             config=self.cfg,

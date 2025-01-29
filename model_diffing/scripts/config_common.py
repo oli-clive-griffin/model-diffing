@@ -38,10 +38,11 @@ class BaseTrainConfig(BaseModel):
     epochs: int | None = None
     num_steps_per_epoch: int | None = None
     num_steps: int | None = None
-    base_save_dir: str | None = ".checkpoints"
+    base_save_dir: str = ".checkpoints"
     save_every_n_steps: int | None = None
     log_every_n_steps: int | None = None
     log_visualizations_every_n_steps: int | None = None
+    upload_checkpoint_to_wandb_every_n_steps: int | None = None
     n_batches_for_norm_estimate: int = 100
 
     def __post_init__(self):
@@ -64,7 +65,7 @@ class BaseExperimentConfig(BaseModel):
     seed: int = 42
     cache_dir: str = ".cache"
     data: DataConfig
-    wandb: bool = False
+    wandb: bool
     experiment_name: str
 
 

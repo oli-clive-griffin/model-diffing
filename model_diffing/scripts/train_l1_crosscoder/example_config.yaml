@@ -17,7 +17,6 @@ data:
 crosscoder:
   hidden_dim: 6144
 train:
-  wandb: True
   optimizer:
     initial_learning_rate: 5e-5
     last_pct_of_steps: 0.2
@@ -27,4 +26,6 @@ train:
   save_every_n_steps: 1000
   log_every_n_steps: 20
   log_visualizations_every_n_steps: 1000
+  upload_checkpoint_to_wandb_every_n_steps: 100
 experiment_name: l1_crosscoder_pythia_160M_layer_2
+wandb: True

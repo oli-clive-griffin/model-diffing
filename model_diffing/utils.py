@@ -1,3 +1,4 @@
+import tempfile
 from functools import partial
 from pathlib import Path
 
@@ -43,7 +44,20 @@ def save_model_and_config(config: BaseTrainConfig, save_dir: Path, model: nn.Mod
     logger.info("Saved model to %s", model_file)
 
 
-# It may seem weird to redefine these, but:
+@staticmethod
+def save_model_to_wandb(
+    wandb_run: Run,
+    model: torch.nn.Module,
+    step: int,
+):
+    with tempfile.NamedTemporaryFile() as temp_file:
+        torch.save(model.state_dict(), temp_file)
+        temp_file.seek(0)
+        artifact = wandb.Artifact(name="model-checkpoint", type="model", metadata={"step": step})
+        artifact.add_file(temp_file.name)
+        wandb_run.log_artifact(artifact, aliases=["latest"])
+
+
 # 1: this signature allows us to use these norms in einops.reduce
 # 2: I (oli) find `l2_norm(x, dim=-1)` more readable than `x.norm(p=2, dim=-1)`
 

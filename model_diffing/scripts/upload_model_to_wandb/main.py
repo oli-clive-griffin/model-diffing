@@ -6,9 +6,7 @@ import wandb
 from model_diffing.log import logger
 
 # usage:
-# python model_diffing/scripts/upload_model_to_wandb/main.py
-#     --model_checkpoint .checkpoints/path/to/checkpoint.pt
-#     --previous_run_id flimsy-cow-385 # or whatever the run id is
+# python model_diffing/scripts/upload_model_to_wandb/main.py --model_checkpoint .checkpoints/path/to/checkpoint.pt --previous_run_id <your run id> (something something like 6mj8s5oy, not the run name)
 
 
 def main(model_checkpoint: str, previous_run_id: str) -> None:
