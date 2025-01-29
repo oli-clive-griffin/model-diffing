@@ -1,5 +1,7 @@
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import cast
 
 import torch as t
 from einops import einsum, rearrange, reduce
@@ -51,6 +53,10 @@ class BatchTopkActivation(nn.Module):
 class AcausalCrosscoder(nn.Module):
     """crosscoder that autoencodes activations of a subset of a model's layers"""
 
+    folded_scaling_factors_ML: t.Tensor | None
+    """Scaling factors that have been folded into the weights, if any"""
+
+    #
     def __init__(
         self,
         n_models: int,
@@ -82,6 +88,8 @@ class AcausalCrosscoder(nn.Module):
         self.b_dec_MLD = nn.Parameter(t.zeros((n_models, n_layers, d_model)))
         self.b_enc_H = nn.Parameter(t.zeros((hidden_dim,)))
 
+        self.register_buffer("folded_scaling_factors_ML", None, persistent=True)
+
     def encode(self, activation_BMLD: t.Tensor) -> t.Tensor:
         hidden_BH = einsum(
             activation_BMLD,
@@ -110,23 +118,79 @@ class AcausalCrosscoder(nn.Module):
         activation_BMLD: t.Tensor,
     ) -> TrainResult:
         """returns the activations, the hidden states, and the reconstructed activations"""
-        assert activation_BMLD.shape[1:] == self.activations_shape_MLD, (
-            f"activation_BMLD.shape[1:] {activation_BMLD.shape[1:]} != "
-            f"self.activations_shape_MLD {self.activations_shape_MLD}"
-        )
+        self._validate_acts_shape(activation_BMLD)
+
         hidden_BH = self.encode(activation_BMLD)
         reconstructed_BMLD = self.decode(hidden_BH)
-        assert reconstructed_BMLD.shape == activation_BMLD.shape
-        assert len(reconstructed_BMLD.shape) == 4
+
+        if reconstructed_BMLD.shape != activation_BMLD.shape:
+            raise ValueError(
+                f"reconstructed_BMLD.shape {reconstructed_BMLD.shape} != activation_BMLD.shape {activation_BMLD.shape}"
+            )
 
         return self.TrainResult(
             hidden_BH=hidden_BH,
             reconstructed_acts_BMLD=reconstructed_BMLD,
         )
 
+    def _validate_acts_shape(self, activation_BMLD: t.Tensor) -> None:
+        if activation_BMLD.shape[1:] != self.activations_shape_MLD:
+            raise ValueError(
+                f"activation_BMLD.shape[1:] {activation_BMLD.shape[1:]} != "
+                f"self.activations_shape_MLD {self.activations_shape_MLD}"
+            )
+
     def forward(self, activation_BMLD: t.Tensor) -> t.Tensor:
         hidden_BH = self.encode(activation_BMLD)
         return self.decode(hidden_BH)
+
+    @property
+    def is_folded(self) -> bool:
+        return self.folded_scaling_factors_ML is not None
+
+    def fold_activation_scaling_into_weights_(self, activation_scaling_factors_ML: t.Tensor) -> None:
+        """scales the crosscoder weights by the activation scaling factors, so that the model can be run on raw llm activations."""
+        if self.is_folded:
+            raise ValueError("Scaling factors already folded into weights")
+
+        self._validate_scaling_factors(activation_scaling_factors_ML)
+        activation_scaling_factors_ML = activation_scaling_factors_ML.to(self.W_enc_MLDH.device)
+        self._scale_weights(activation_scaling_factors_ML)
+        # set buffer to prevent double-folding
+        self.folded_scaling_factors_ML = activation_scaling_factors_ML
+
+    def unfold_activation_scaling_from_weights_(self) -> t.Tensor:
+        if not self.is_folded:
+            raise ValueError("No folded scaling factors found")
+
+        folded_scaling_factors_ML = cast(t.Tensor, self.folded_scaling_factors_ML).clone()
+        # Clear the buffer before operations to prevent double-unfolding
+        self.folded_scaling_factors_ML = None
+        self._scale_weights(1 / folded_scaling_factors_ML)
+        return folded_scaling_factors_ML
+
+    @t.no_grad()
+    def _scale_weights(self, scaling_factors_ML: t.Tensor) -> None:
+        self.W_enc_MLDH.mul_(scaling_factors_ML[..., None, None])
+        self.W_dec_HMLD.div_(scaling_factors_ML[..., None])
+        self.b_dec_MLD.div_(scaling_factors_ML[..., None])
+
+    def _validate_scaling_factors(self, scaling_factors_ML: t.Tensor) -> None:
+        if t.any(scaling_factors_ML == 0):
+            raise ValueError("Scaling factors contain zeros, which would lead to division by zero")
+        if t.any(t.isnan(scaling_factors_ML)) or t.any(t.isinf(scaling_factors_ML)):
+            raise ValueError("Scaling factors contain NaN or Inf values")
+
+        expected_shape = (self.activations_shape_MLD[0], self.activations_shape_MLD[1])
+        if scaling_factors_ML.shape != expected_shape:
+            raise ValueError(f"Expected shape {expected_shape}, got {scaling_factors_ML.shape}")
+
+    @contextmanager
+    def temporary_fold(self, scaling_factors: t.Tensor):
+        """Temporarily fold scaling factors into weights."""
+        self.fold_activation_scaling_into_weights_(scaling_factors)
+        yield
+        _ = self.unfold_activation_scaling_from_weights_()
 
 
 def build_relu_crosscoder(

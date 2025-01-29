@@ -118,12 +118,13 @@ class BaseTrainer[TConfig: BaseTrainConfig]:
                     and self.cfg.save_every_n_steps is not None
                     and self.step % self.cfg.save_every_n_steps == 0
                 ):
-                    save_model_and_config(
-                        config=self.cfg,
-                        save_dir=self.save_dir,
-                        model=self.crosscoder,
-                        epoch=self.step,
-                    )
+                    with self.crosscoder.temporary_fold(norm_scaling_factors_ML):
+                        save_model_and_config(
+                            config=self.cfg,
+                            save_dir=self.save_dir,
+                            model=self.crosscoder,
+                            epoch=self.step,
+                        )
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BMLD.shape[0]
