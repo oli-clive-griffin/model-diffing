@@ -34,13 +34,13 @@ class TopkActivation(nn.Module):
 
 # ! this is not tested yet
 class BatchTopkActivation(nn.Module):
-    def __init__(self, k: int):
+    def __init__(self, k_per_example: int):
         super().__init__()
-        self.k = k
+        self.k_per_example = k_per_example
 
     def forward(self, hidden_preactivation_BH: t.Tensor) -> t.Tensor:
         batch_size = hidden_preactivation_BH.shape[0]
-        batch_k = self.k * batch_size
+        batch_k = self.k_per_example * batch_size
         hidden_preactivation_Bh = rearrange(hidden_preactivation_BH, "batch hidden -> (batch hidden)")
         _topk_values_Bh, topk_indices_Bh = hidden_preactivation_Bh.topk(k=batch_k)
         hidden_Bh = t.zeros_like(hidden_preactivation_Bh)
@@ -170,7 +170,7 @@ def build_batch_topk_crosscoder(
     n_layers: int,
     d_model: int,
     cc_hidden_dim: int,
-    k: int,
+    k_per_example: int,
     dec_init_norm: float,
 ) -> AcausalCrosscoder:
     return AcausalCrosscoder(
@@ -179,7 +179,7 @@ def build_batch_topk_crosscoder(
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         dec_init_norm=dec_init_norm,
-        hidden_activation=BatchTopkActivation(k=k),
+        hidden_activation=BatchTopkActivation(k_per_example=k_per_example),
     )
 
 

@@ -1,6 +1,6 @@
 import torch as t
 
-from model_diffing.models.crosscoder import build_relu_crosscoder
+from model_diffing.models.crosscoder import BatchTopkActivation, build_relu_crosscoder
 
 
 def test_return_shapes():
@@ -25,3 +25,10 @@ def test_return_shapes():
     train_res = crosscoder.forward_train(activations_BMLD)
     assert train_res.reconstructed_acts_BMLD.shape == activations_BMLD.shape
     assert train_res.hidden_BH.shape == (batch_size, cc_hidden_dim)
+
+def test_batch_topk_activation():
+    batch_topk_activation = BatchTopkActivation(k_per_example=2)
+    hidden_preactivation_BH = t.tensor([[1, 2, 3, 4, 10], [1, 2, 11, 12, 13]])
+    hidden_BH = batch_topk_activation.forward(hidden_preactivation_BH)
+    assert hidden_BH.shape == hidden_preactivation_BH.shape
+    assert t.all(hidden_BH == t.tensor([[0, 0, 0, 0, 10], [0, 0, 11, 12, 13]]))
