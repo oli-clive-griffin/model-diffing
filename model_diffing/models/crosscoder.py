@@ -1,13 +1,12 @@
-from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 import torch as t
 from einops import einsum, rearrange, reduce
 from torch import nn
 
-from model_diffing.utils import l2_norm
+from model_diffing.utils import SaveableModule, l2_norm
 
 """
 Dimensions:
@@ -22,7 +21,7 @@ Dimensions:
 t.Tensor.d = lambda self: f"{self.shape}, dtype={self.dtype}, device={self.device}"  # type: ignore
 
 
-class TopkActivation(nn.Module):
+class TopkActivation(SaveableModule):
     def __init__(self, k: int):
         super().__init__()
         self.k = k
@@ -33,8 +32,15 @@ class TopkActivation(nn.Module):
         hidden_BH.scatter_(-1, topk_indices_BH, _topk_values_BH)
         return hidden_BH
 
+    def dump_cfg(self) -> dict[str, int | str]:
+        return {"k": self.k}
 
-class BatchTopkActivation(nn.Module):
+    @classmethod
+    def from_cfg(cls, cfg: dict[str, Any]) -> "TopkActivation":
+        return cls(cfg["k"])
+
+
+class BatchTopkActivation(SaveableModule):
     def __init__(self, k_per_example: int):
         super().__init__()
         self.k_per_example = k_per_example
@@ -49,14 +55,42 @@ class BatchTopkActivation(nn.Module):
         hidden_BH = rearrange(hidden_Bh, "(batch hidden) -> batch hidden", batch=batch_size)
         return hidden_BH
 
+    def dump_cfg(self) -> dict[str, int | str]:
+        return {"k_per_example": self.k_per_example}
 
-class AcausalCrosscoder(nn.Module):
+    @classmethod
+    def from_cfg(cls, cfg: dict[str, Any]) -> "BatchTopkActivation":
+        return cls(cfg["k_per_example"])
+
+
+class ReLUActivation(SaveableModule):
+    def forward(self, x: t.Tensor) -> t.Tensor:
+        return t.relu(x)
+
+    def dump_cfg(self) -> dict[str, int | str]:
+        return {}
+
+    @classmethod
+    def from_cfg(cls, cfg: dict[str, Any]) -> "ReLUActivation":
+        return cls()
+
+
+ACTIVATIONS = {
+    "TopkActivation": TopkActivation,
+    "BatchTopkActivation": BatchTopkActivation,
+    "ReLU": ReLUActivation,
+}
+
+
+# class JumpReluActivation(nn.Module):
+
+
+class AcausalCrosscoder(SaveableModule):
     """crosscoder that autoencodes activations of a subset of a model's layers"""
 
     folded_scaling_factors_ML: t.Tensor | None
     """Scaling factors that have been folded into the weights, if any"""
 
-    #
     def __init__(
         self,
         n_models: int,
@@ -64,12 +98,14 @@ class AcausalCrosscoder(nn.Module):
         d_model: int,
         hidden_dim: int,
         dec_init_norm: float,
-        hidden_activation: Callable[[t.Tensor], t.Tensor],
+        hidden_activation: SaveableModule,
     ):
         super().__init__()
-        self.activations_shape_MLD = (n_models, n_layers, d_model)
+        self.n_models = n_models
+        self.n_layers = n_layers
+        self.d_model = d_model
         self.hidden_dim = hidden_dim
-        self.hidden_activation_fn = hidden_activation
+        self.hidden_activation = hidden_activation
 
         self.W_dec_HMLD = nn.Parameter(t.randn((hidden_dim, n_models, n_layers, d_model)))
 
@@ -97,7 +133,7 @@ class AcausalCrosscoder(nn.Module):
             "batch model layer d_model, model layer d_model hidden -> batch hidden",
         )
         hidden_BH = hidden_BH + self.b_enc_H
-        return self.hidden_activation_fn(hidden_BH)
+        return self.hidden_activation(hidden_BH)
 
     def decode(self, hidden_BH: t.Tensor) -> t.Tensor:
         activation_BMLD = einsum(
@@ -134,10 +170,10 @@ class AcausalCrosscoder(nn.Module):
         )
 
     def _validate_acts_shape(self, activation_BMLD: t.Tensor) -> None:
-        if activation_BMLD.shape[1:] != self.activations_shape_MLD:
+        expected_shape = (self.n_models, self.n_layers, self.d_model)
+        if activation_BMLD.shape[1:] != expected_shape:
             raise ValueError(
-                f"activation_BMLD.shape[1:] {activation_BMLD.shape[1:]} != "
-                f"self.activations_shape_MLD {self.activations_shape_MLD}"
+                f"activation_BMLD.shape[1:] {activation_BMLD.shape[1:]} != expected_shape {expected_shape}"
             )
 
     def forward(self, activation_BMLD: t.Tensor) -> t.Tensor:
@@ -181,7 +217,7 @@ class AcausalCrosscoder(nn.Module):
         if t.any(t.isnan(scaling_factors_ML)) or t.any(t.isinf(scaling_factors_ML)):
             raise ValueError("Scaling factors contain NaN or Inf values")
 
-        expected_shape = (self.activations_shape_MLD[0], self.activations_shape_MLD[1])
+        expected_shape = (self.n_models, self.n_layers)
         if scaling_factors_ML.shape != expected_shape:
             raise ValueError(f"Expected shape {expected_shape}, got {scaling_factors_ML.shape}")
 
@@ -191,6 +227,34 @@ class AcausalCrosscoder(nn.Module):
         self.fold_activation_scaling_into_weights_(scaling_factors)
         yield
         _ = self.unfold_activation_scaling_from_weights_()
+
+    def dump_cfg(self) -> dict[str, Any]:
+        return {
+            "n_models": self.n_models,
+            "n_layers": self.n_layers,
+            "d_model": self.d_model,
+            "hidden_dim": self.hidden_dim,
+            "hidden_activation_classname": self.hidden_activation.__class__.__name__,
+            "hidden_activation_cfg": self.hidden_activation.dump_cfg(),
+        }
+
+    @classmethod
+    def from_cfg(cls, cfg: dict[str, Any]) -> "AcausalCrosscoder":
+        hidden_activation_cfg = cfg["hidden_activation_cfg"]
+        hidden_activation_classname = cfg["hidden_activation_classname"]
+
+        hidden_activation = ACTIVATIONS[hidden_activation_classname].from_cfg(hidden_activation_cfg)
+
+        cfg = {
+            "n_models": cfg["n_models"],
+            "n_layers": cfg["n_layers"],
+            "d_model": cfg["d_model"],
+            "hidden_dim": cfg["hidden_dim"],
+            "dec_init_norm": 0,  # dec_init_norm doesn't matter here as we're loading weights
+            "hidden_activation": hidden_activation,
+        }
+
+        return cls(**cfg)
 
 
 def build_relu_crosscoder(
@@ -206,7 +270,7 @@ def build_relu_crosscoder(
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         dec_init_norm=dec_init_norm,
-        hidden_activation=t.relu,
+        hidden_activation=ReLUActivation(),
     )
 
 

@@ -1,6 +1,8 @@
 import tempfile
+from abc import ABC, abstractmethod
 from functools import partial
 from pathlib import Path
+from typing import Any, cast
 
 import einops
 import torch
@@ -9,10 +11,21 @@ import yaml  # type: ignore
 from einops import reduce
 from einops.einops import Reduction
 from torch import nn
+from wandb.apis.public.files import File
+from wandb.apis.public.runs import Run as FinishedRun
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
+
+
+class SaveableModule(nn.Module, ABC):
+    @abstractmethod
+    def dump_cfg(self) -> dict[str, Any]: ...
+
+    @classmethod
+    @abstractmethod
+    def from_cfg(cls, cfg: dict[str, Any]) -> "SaveableModule": ...
 
 
 def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
@@ -24,14 +37,14 @@ def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
     )
 
 
-def save_model_and_config(config: BaseTrainConfig, save_dir: Path, model: nn.Module, epoch: int) -> None:
+def save_model_and_config(config: BaseTrainConfig, save_dir: Path, model: nn.Module, step: int) -> None:
     """Save the model to disk. Also save the config file if it doesn't exist.
 
     Args:
         config: The config object. Saved if save_dir / "config.yaml" doesn't already exist.
         save_dir: The directory to save the model and config to.
         model: The model to save.
-        epoch: The current epoch (used in the model filename).
+        step: The current step (used in the model filename).
     """
     save_dir.mkdir(parents=True, exist_ok=True)
     if not (save_dir / "config.yaml").exists():
@@ -39,23 +52,36 @@ def save_model_and_config(config: BaseTrainConfig, save_dir: Path, model: nn.Mod
             yaml.dump(config, f)
         logger.info("Saved config to %s", save_dir / "config.yaml")
 
-    model_file = save_dir / f"model_epoch_{epoch}.pt"
+    model_file = save_dir / f"model_step_{step}.pt"
     torch.save(model.state_dict(), model_file)
     logger.info("Saved model to %s", model_file)
 
 
-@staticmethod
-def save_model_to_wandb(
-    wandb_run: Run,
-    model: torch.nn.Module,
-    step: int,
-):
-    with tempfile.NamedTemporaryFile() as temp_file:
-        torch.save(model.state_dict(), temp_file)
-        temp_file.seek(0)
-        artifact = wandb.Artifact(name="model-checkpoint", type="model", metadata={"step": step})
-        artifact.add_file(temp_file.name)
-        wandb_run.log_artifact(artifact, aliases=["latest"])
+MODEL_CHECKPOINT_ARTIFACT_NAME = "model-checkpoint"
+CONFIG_FILE_NAME = "config.yaml"
+MODEL_FILE_NAME = "model.pt"
+
+
+def load_checkpoint_from_wandb[T: SaveableModule](
+    entity: str,
+    project: str,
+    run_id: str,
+    cc: type[T],
+) -> T:
+    api = wandb.Api()
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        run: FinishedRun = api.run(f"{entity}/{project}/{run_id}")
+        model_file: File = cast(File, run.file(MODEL_FILE_NAME))
+        cfg_file: File = cast(File, run.file(CONFIG_FILE_NAME))
+        model_file.download(root=temp_dir)
+        cfg_file.download(root=temp_dir)
+        with open(Path(temp_dir) / CONFIG_FILE_NAME) as f:
+            cfg_dict = yaml.safe_load(f)
+        model = cc.from_cfg(cfg_dict)
+        model.load_state_dict(torch.load(Path(temp_dir) / MODEL_FILE_NAME, weights_only=True))
+
+    return model
 
 
 # 1: this signature allows us to use these norms in einops.reduce

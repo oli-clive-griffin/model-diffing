@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 import wandb
+import yaml
 from einops import rearrange
 from wandb.sdk.wandb_run import Run
 
@@ -13,7 +14,7 @@ from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, estimate_norm_scaling_factor_ML
-from model_diffing.utils import save_model_and_config, save_model_to_wandb
+from model_diffing.utils import CONFIG_FILE_NAME, MODEL_FILE_NAME, save_model_and_config
 
 
 class BaseTrainer[TConfig: BaseTrainConfig]:
@@ -54,7 +55,13 @@ class BaseTrainer[TConfig: BaseTrainConfig]:
         self.device = device
         self.layers_to_harvest = layers_to_harvest
 
-        self.save_dir = Path(cfg.base_save_dir) / experiment_name
+        self.base_save_dir = Path(cfg.base_save_dir) / experiment_name
+
+        self.local_save_dir = self.base_save_dir / "local_checkpoints"
+        self.local_save_dir.mkdir(parents=True, exist_ok=True)
+
+        self.wandb_checkpoint_dir = self.base_save_dir / "wandb_checkpoints"
+        self.wandb_checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         self.step = 0
         self.epoch = 0
@@ -74,10 +81,10 @@ class BaseTrainer[TConfig: BaseTrainConfig]:
         logger.info(f"Norm scaling factors (model, layer): {norm_scaling_factors_ML}")
 
         if self.wandb_run:
-            wandb.init(
-                project=self.wandb_run.project,
-                entity=self.wandb_run.entity,
-                config=self.cfg.model_dump(),
+            self.wandb_run.save(
+                f"{self.wandb_checkpoint_dir}/*",
+                base_path=self.base_save_dir,
+                policy="end",
             )
 
         for _ in range(self.epochs or 1):
@@ -117,17 +124,25 @@ class BaseTrainer[TConfig: BaseTrainConfig]:
                         self.cfg.upload_checkpoint_to_wandb_every_n_steps is not None
                         and self.step % self.cfg.upload_checkpoint_to_wandb_every_n_steps == 0
                     ):
-                        logger.info("Uploading checkpoint to W&B")
                         with self.crosscoder.temporary_fold(norm_scaling_factors_ML):
-                            save_model_to_wandb(self.wandb_run, self.crosscoder, self.step)
+                            cfg_dict = self.crosscoder.dump_cfg()
+                            state_dict = self.crosscoder.state_dict()
+
+                            cfg_path = self.wandb_checkpoint_dir / CONFIG_FILE_NAME
+                            model_path = self.wandb_checkpoint_dir / MODEL_FILE_NAME
+
+                            with open(cfg_path, "w") as f:
+                                yaml.dump(cfg_dict, f)
+
+                            torch.save(state_dict, model_path)
 
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     with self.crosscoder.temporary_fold(norm_scaling_factors_ML):
                         save_model_and_config(
                             config=self.cfg,
-                            save_dir=self.save_dir,
+                            save_dir=self.local_save_dir,
                             model=self.crosscoder,
-                            epoch=self.step,
+                            step=self.step,
                         )
 
                 if self.epoch == 0:
