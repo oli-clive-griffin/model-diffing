@@ -5,7 +5,7 @@ import torch
 import yaml  # type: ignore
 from einops import rearrange
 
-from model_diffing.dataloader.activations import ScaledActivationsDataloader
+from model_diffing.dataloader.activations import BaseActivationsDataloader
 from model_diffing.dataloader.data import build_dataloader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import (
@@ -24,7 +24,7 @@ def build_jan_update_crosscoder(
     d_model: int,
     cc_hidden_dim: int,
     jumprelu: JumpReLUConfig,
-    data_loader: ScaledActivationsDataloader,
+    data_loader: BaseActivationsDataloader,
     device: torch.device,  # for computing b_enc
 ) -> AcausalCrosscoder[JumpReLUActivation]:
     cc = build_jumprelu_crosscoder(
@@ -67,7 +67,7 @@ def build_jan_update_crosscoder(
 
 
 def _compute_b_enc_H(
-    data_loader: ScaledActivationsDataloader,
+    data_loader: BaseActivationsDataloader,
     W_enc_MLDH: torch.Tensor,
     initial_threshold_H: torch.Tensor,
     device: torch.device,
@@ -84,7 +84,7 @@ def _compute_b_enc_H(
 
 
 def harvest_pre_pre_bias_acts(
-    data_loader: ScaledActivationsDataloader,
+    data_loader: BaseActivationsDataloader,
     W_enc_MLDH: torch.Tensor,
     device: torch.device,
     n_examples_to_sample: int = 100_000,
@@ -143,6 +143,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         cc_hidden_dim=cfg.crosscoder.hidden_dim,
         jumprelu=cfg.crosscoder.jumprelu,
         data_loader=dataloader,
+        device=device,
     )
     crosscoder = crosscoder.to(device)
 

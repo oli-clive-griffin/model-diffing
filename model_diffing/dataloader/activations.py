@@ -61,6 +61,9 @@ class BaseActivationsDataloader(ABC):
     @abstractmethod
     def num_batches(self) -> int | None: ...
 
+    @abstractmethod
+    def get_norm_scaling_factors_ML(self) -> torch.Tensor: ...
+
 
 class ScaledActivationsDataloader(BaseActivationsDataloader):
     def __init__(
@@ -77,11 +80,14 @@ class ScaledActivationsDataloader(BaseActivationsDataloader):
         self._activations_shuffle_buffer_size = activations_shuffle_buffer_size
         self._yield_batch_size = yield_batch_size
 
-        self.norm_scaling_factors_ML = estimate_norm_scaling_factor_ML(
+        self._norm_scaling_factors_ML = estimate_norm_scaling_factor_ML(
             self._get_shuffled_raw_activations_iterator_BMLD(),
             device,
             n_batches_for_norm_estimate,
         )
+
+    def get_norm_scaling_factors_ML(self) -> torch.Tensor:
+        return self._norm_scaling_factors_ML
 
     @torch.no_grad()
     def _activations_iterator_MLD(self) -> Iterator[torch.Tensor]:

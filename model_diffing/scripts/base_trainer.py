@@ -7,7 +7,7 @@ import wandb
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.analysis.visualization import create_visualizations
-from model_diffing.dataloader.activations import ScaledActivationsDataloader
+from model_diffing.dataloader.activations import BaseActivationsDataloader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.config_common import BaseTrainConfig
@@ -29,7 +29,7 @@ class BaseTrainer[TConfig: BaseTrainConfig, TAct: SaveableModule]:
     def __init__(
         self,
         cfg: TConfig,
-        activations_dataloader: ScaledActivationsDataloader,
+        activations_dataloader: BaseActivationsDataloader,
         crosscoder: AcausalCrosscoder[TAct],
         wandb_run: Run | None,
         device: torch.device,
@@ -129,7 +129,7 @@ class BaseTrainer[TConfig: BaseTrainConfig, TAct: SaveableModule]:
 
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     with self.crosscoder.temporarily_fold_activation_scaling(
-                        self.activations_dataloader.norm_scaling_factors_ML
+                        self.activations_dataloader.get_norm_scaling_factors_ML()
                     ):
                         save_model_and_config(
                             config=self.cfg,
@@ -152,7 +152,7 @@ def validate_num_steps_per_epoch(
     epochs: int | None,
     num_steps_per_epoch: int | None,
     num_steps: int | None,
-    activations_dataloader: ScaledActivationsDataloader,
+    activations_dataloader: BaseActivationsDataloader,
 ) -> int:
     if epochs is not None:
         if num_steps is not None:

@@ -1,12 +1,11 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, cast, overload
+from typing import Any, Literal, cast, overload
 
 import torch as t
 from einops import einsum, rearrange, reduce
 from torch import nn
 
-from model_diffing.dataloader.activations import ScaledActivationsDataloader
 from model_diffing.scripts.train_jan_update_crosscoder.config import JumpReLUConfig
 from model_diffing.utils import SaveableModule, l2_norm
 

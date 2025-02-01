@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch import Tensor
 
-from model_diffing.dataloader.activations import ScaledActivationsDataloader
+from model_diffing.dataloader.activations import BaseActivationsDataloader
 from model_diffing.models.crosscoder import build_relu_crosscoder
 from model_diffing.scripts.base_trainer import BaseTrainer, validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseTrainConfig
@@ -21,7 +21,7 @@ class TestTrainer(BaseTrainer[BaseTrainConfig, Any]):
         }
 
 
-class FakeActivationsDataloader(ScaledActivationsDataloader):
+class FakeActivationsDataloader(BaseActivationsDataloader):
     __test__ = False
 
     def __init__(
@@ -52,6 +52,9 @@ class FakeActivationsDataloader(ScaledActivationsDataloader):
 
     def num_batches(self) -> int | None:
         return self._num_batches
+
+    def get_norm_scaling_factors_ML(self) -> torch.Tensor:
+        return torch.ones(self._n_models, self._d_model)
 
 
 def opt():
