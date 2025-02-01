@@ -1,8 +1,7 @@
-import tempfile
 from abc import ABC, abstractmethod
 from functools import partial
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import einops
 import torch
@@ -11,8 +10,6 @@ import yaml  # type: ignore
 from einops import reduce
 from einops.einops import Reduction
 from torch import nn
-from wandb.apis.public.files import File
-from wandb.apis.public.runs import Run as FinishedRun
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.log import logger
@@ -62,26 +59,61 @@ CONFIG_FILE_NAME = "config.yaml"
 MODEL_FILE_NAME = "model.pt"
 
 
-def load_checkpoint_from_wandb[T: SaveableModule](
-    entity: str,
-    project: str,
-    run_id: str,
-    cc: type[T],
-) -> T:
-    api = wandb.Api()
+# def load_model_from_wandb[T: SaveableModule](
+#     run_path: str,
+#     model_class: type[T],
+#     model_params: dict[str, Any] | None = None,
+#     version: str = "latest",
+#     device: torch.device | None = None,
+# ) -> T:
+#     """Load a model checkpoint from Weights & Biases.
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        run: FinishedRun = api.run(f"{entity}/{project}/{run_id}")
-        model_file: File = cast(File, run.file(MODEL_FILE_NAME))
-        cfg_file: File = cast(File, run.file(CONFIG_FILE_NAME))
-        model_file.download(root=temp_dir)
-        cfg_file.download(root=temp_dir)
-        with open(Path(temp_dir) / CONFIG_FILE_NAME) as f:
-            cfg_dict = yaml.safe_load(f)
-        model = cc.from_cfg(cfg_dict)
-        model.load_state_dict(torch.load(Path(temp_dir) / MODEL_FILE_NAME, weights_only=True))
+#     This function supports two loading modes:
+#     1. Loading a SaveableModule using its config file (when model_params is None)
+#     2. Loading an AcausalCrosscoder with explicit parameters (when model_params is provided)
 
-    return model
+#     Args:
+#         run_path: The path to the run in format "entity/project/run_id"
+#         model_class: The class of the model to load
+#         model_params: Optional dictionary of model parameters. If None, will load from config.yaml
+#         version: Version of the artifact to load. Defaults to "latest"
+#         device: Device to load the model to. Defaults to auto-detection
+
+#     Returns:
+#         The loaded model of type T.
+#     """
+#     if device is None:
+#         device = get_device()
+
+#     api = wandb.Api()
+#     entity, project, run_id = run_path.split("/")
+#     run = api.run(f"{entity}/{project}/{run_id}")
+
+#     with tempfile.TemporaryDirectory() as temp_dir:
+#         temp_dir_path = Path(temp_dir)
+
+#         if model_params is None:
+#             # Load using config file (SaveableModule approach)
+#             cfg_file = cast(File, run.file(CONFIG_FILE_NAME))
+#             cfg_file.download(root=temp_dir)
+#             with open(temp_dir_path / CONFIG_FILE_NAME) as f:
+#                 cfg_dict = yaml.safe_load(f)
+#             model = model_class.from_cfg(cfg_dict)
+#             checkpoint_name = MODEL_FILE_NAME
+#         else:
+#             # Load using explicit parameters (AcausalCrosscoder approach)
+#             model = model_class(**model_params)
+#             artifact = api.artifact(f"{run_path}/model-checkpoint:{version}")
+#             artifact_dir = artifact.download(root=temp_dir)
+#             checkpoint_name = Path(artifact.file()).name
+
+#         # Load state dict
+#         checkpoint_path = temp_dir_path / checkpoint_name
+#         state_dict = torch.load(checkpoint_path, map_location=device)
+#         model.load_state_dict(state_dict)
+#         model.to(device)
+
+#         return model
 
 
 # 1: this signature allows us to use these norms in einops.reduce
@@ -118,7 +150,7 @@ def l2_norm(
     return torch.norm(input, p=2, dim=dim, keepdim=keepdim, out=out, dtype=dtype)
 
 
-def weighted_l1_sparsity_loss(
+def _weighted_l1_sparsity_loss(
     W_dec_HMLD: torch.Tensor,
     hidden_BH: torch.Tensor,
     layer_reduction: Reduction,  # type: ignore
@@ -144,13 +176,13 @@ def weighted_l1_sparsity_loss(
 
 
 sparsity_loss_l2_of_norms = partial(
-    weighted_l1_sparsity_loss,
+    _weighted_l1_sparsity_loss,
     layer_reduction=l2_norm,
     model_reduction=l2_norm,
 )
 
 sparsity_loss_l1_of_norms = partial(
-    weighted_l1_sparsity_loss,
+    _weighted_l1_sparsity_loss,
     layer_reduction=l1_norm,
     model_reduction=l1_norm,
 )
@@ -221,3 +253,13 @@ def get_explained_var_dict(explained_variance_ML: torch.Tensor, layers_to_harves
     }
 
     return explained_variances_dict
+
+
+def get_decoder_norms_H(W_dec_HMLD: torch.Tensor) -> torch.Tensor:
+    W_dec_l2_norms_HML = reduce(W_dec_HMLD, "hidden model layer dim -> hidden model layer", l2_norm)
+    norms_H = reduce(W_dec_l2_norms_HML, "hidden model layer -> hidden", torch.sum)
+    return norms_H
+
+
+def size_GB(tensor: torch.Tensor) -> float:
+    return tensor.numel() * tensor.element_size() / (1024**3)

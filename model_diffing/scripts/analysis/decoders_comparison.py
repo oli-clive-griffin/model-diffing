@@ -21,7 +21,7 @@ cc = crosscoder.AcausalCrosscoder(
     d_model=768,
     hidden_dim=6_144,
     dec_init_norm=0.1,
-    hidden_activation=torch.relu,
+    hidden_activation=crosscoder.ReLUActivation(),
 )
 cc.load_state_dict(state_dict)
 

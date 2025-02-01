@@ -4,6 +4,7 @@ from collections.abc import Iterator
 import torch
 
 from model_diffing.log import logger
+from model_diffing.utils import size_GB
 
 
 # B = "batch"
@@ -28,8 +29,7 @@ def batch_shuffle_tensor_iterator_BX(
         device=first_tensor_X.device,
         dtype=first_tensor_X.dtype,
     )
-    buffer_size_bytes = buffer_BfX.numel() * buffer_BfX.element_size()
-    logger.info(f"shuffle buffer size: {buffer_size_bytes / 1e9:.2f} GB")
+    logger.info(f"shuffle buffer size: {size_GB(buffer_BfX)} GB")
 
     buffer_BfX[0] = first_tensor_X
     available_indices = {0}

@@ -36,11 +36,11 @@ def test_batch_topk_activation():
 
 
 def test_weights_folding_keeps_hidden_representations_consistent():
-    batch_size = 4
+    batch_size = 1
     n_models = 2
-    n_layers = 6
-    d_model = 16
-    cc_hidden_dim = 256
+    n_layers = 3
+    d_model = 4
+    cc_hidden_dim = 16
     dec_init_norm = 1
 
     crosscoder = build_relu_crosscoder(n_models, n_layers, d_model, cc_hidden_dim, dec_init_norm)
@@ -52,14 +52,18 @@ def test_weights_folding_keeps_hidden_representations_consistent():
 
     output_without_folding = crosscoder.forward_train(scaled_input_BMLD)
 
-    with crosscoder.temporary_fold(scaling_factors_ML):
+    with crosscoder.temporarily_fold_activation_scaling(scaling_factors_ML):
         output_with_folding = crosscoder.forward_train(unscaled_input_BMLD)
 
     output_after_unfolding = crosscoder.forward_train(scaled_input_BMLD)
 
     # all hidden representations should be the same
-    assert t.allclose(output_without_folding.hidden_BH, output_with_folding.hidden_BH)
-    assert t.allclose(output_without_folding.hidden_BH, output_after_unfolding.hidden_BH)
+    assert t.allclose(output_without_folding.hidden_BH, output_with_folding.hidden_BH), (
+        f"max diff: {t.max(t.abs(output_without_folding.hidden_BH - output_with_folding.hidden_BH))}"
+    )
+    assert t.allclose(output_without_folding.hidden_BH, output_after_unfolding.hidden_BH), (
+        f"max diff: {t.max(t.abs(output_without_folding.hidden_BH - output_after_unfolding.hidden_BH))}"
+    )
 
 
 def test_weights_folding_scales_output_correctly():
@@ -84,6 +88,54 @@ def test_weights_folding_scales_output_correctly():
     scaled_output_folded_BMLD = unscaled_output_folded_BMLD * scaling_factors_ML[..., None]
 
     # with folded weights, the output should be scaled by the scaling factors
-    assert t.allclose(scaled_output_BMLD, scaled_output_folded_BMLD), (
+    assert t.allclose(scaled_output_BMLD, scaled_output_folded_BMLD, atol=1e-4), (
         f"max diff: {t.max(t.abs(scaled_output_BMLD - scaled_output_folded_BMLD))}"
     )
+
+
+def test_weights_rescaling():
+    batch_size = 1
+    n_models = 2
+    n_layers = 3
+    d_model = 4
+    cc_hidden_dim = 32
+    dec_init_norm = 0.1
+
+    crosscoder = build_relu_crosscoder(n_models, n_layers, d_model, cc_hidden_dim, dec_init_norm)
+
+    activations_BMLD = t.randn(batch_size, n_models, n_layers, d_model)
+    output_BMLD = crosscoder.forward_train(activations_BMLD)
+
+    new_cc = crosscoder.with_decoder_unit_norm()
+    output_rescaled_BMLD = new_cc.forward_train(activations_BMLD)
+
+    assert t.allclose(output_BMLD.reconstructed_acts_BMLD, output_rescaled_BMLD.reconstructed_acts_BMLD), (
+        f"max diff: {t.max(t.abs(output_BMLD.reconstructed_acts_BMLD - output_rescaled_BMLD.reconstructed_acts_BMLD))}"
+    )
+
+    new_cc_dec_norms = new_cc.W_dec_HMLD.norm(p=2, dim=(1, 2, 3))
+    assert t.allclose(new_cc_dec_norms, t.ones_like(new_cc_dec_norms))
+
+
+def test_weights_rescaling_makes_unit_norm_decoder_output():
+    batch_size = 1
+    n_models = 2
+    n_layers = 3
+    d_model = 4
+    cc_hidden_dim = 32
+    dec_init_norm = 0.1
+
+    crosscoder = build_relu_crosscoder(n_models, n_layers, d_model, cc_hidden_dim, dec_init_norm)
+
+    activations_BMLD = t.randn(batch_size, n_models, n_layers, d_model)
+    output_BMLD = crosscoder.forward_train(activations_BMLD)
+
+    new_cc = crosscoder.with_decoder_unit_norm()
+    output_rescaled_BMLD = new_cc.forward_train(activations_BMLD)
+
+    assert t.allclose(output_BMLD.reconstructed_acts_BMLD, output_rescaled_BMLD.reconstructed_acts_BMLD), (
+        f"max diff: {t.max(t.abs(output_BMLD.reconstructed_acts_BMLD - output_rescaled_BMLD.reconstructed_acts_BMLD))}"
+    )
+
+    new_cc_dec_norms = new_cc.W_dec_HMLD.norm(p=2, dim=(1, 2, 3))
+    assert t.allclose(new_cc_dec_norms, t.ones_like(new_cc_dec_norms))

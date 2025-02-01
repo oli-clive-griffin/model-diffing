@@ -1,7 +1,7 @@
 import torch
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
-from model_diffing.dataloader.activations import ActivationsDataloader, ActivationsHarvester
+from model_diffing.dataloader.activations import ActivationsHarvester, ScaledActivationsDataloader
 from model_diffing.dataloader.token_loader import (
     CommonCorpusTokenSequenceLoader,
     ConnorGemma2TokenSequenceLoader,
@@ -16,7 +16,7 @@ def build_dataloader(
     cfg: DataConfig,
     cache_dir: str,
     device: torch.device,
-) -> ActivationsDataloader:
+) -> ScaledActivationsDataloader:
     llms = build_llms(
         cfg.activations_harvester.llms,
         cache_dir,
@@ -41,11 +41,13 @@ def build_dataloader(
         layer_indices_to_harvest=cfg.activations_harvester.layer_indices_to_harvest,
     )
 
-    activations_dataloader = ActivationsDataloader(
+    activations_dataloader = ScaledActivationsDataloader(
         token_sequence_loader=token_sequence_loader,
         activations_harvester=activations_harvester,
         activations_shuffle_buffer_size=cfg.activations_shuffle_buffer_size,
         yield_batch_size=cfg.cc_training_batch_size,
+        device=device,
+        n_batches_for_norm_estimate=cfg.n_batches_for_norm_estimate,
     )
 
     return activations_dataloader

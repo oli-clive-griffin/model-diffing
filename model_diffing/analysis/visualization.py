@@ -5,15 +5,18 @@ import torch
 from plotly.subplots import make_subplots
 
 from model_diffing.analysis import metrics
+from model_diffing.log import logger
 
 
-def create_visualizations(W_dec_HMLD: torch.Tensor, layers: list[int]) -> dict[str, go.Figure]:
-    H, M, L, D = W_dec_HMLD.shape
-    assert M == 2, "only two models are supported currently"
+def create_visualizations(W_dec_HMLD: torch.Tensor, layers: list[int]) -> dict[str, go.Figure] | None:
+    _, num_models, num_layers, _ = W_dec_HMLD.shape
+    if num_models != 2:
+        logger.warning(f"num_models != 2, skipping visualizations. num_models: {num_models}")
+        return None
 
     plots = {}
 
-    for layer_idx in range(L):
+    for layer_idx in range(num_layers):
         layer_name = layers[layer_idx]  # layer_idx is the index into the list of layers we're collecting
         a_HD = W_dec_HMLD[:, 0, layer_idx]
         b_HD = W_dec_HMLD[:, 1, layer_idx]

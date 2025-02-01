@@ -31,6 +31,7 @@ class DataConfig(BaseModel):
     activations_harvester: ActivationsHarvesterConfig
     activations_shuffle_buffer_size: int
     cc_training_batch_size: int
+    n_batches_for_norm_estimate: int = 100
 
 
 class BaseTrainConfig(BaseModel):
@@ -43,7 +44,6 @@ class BaseTrainConfig(BaseModel):
     log_every_n_steps: int | None = None
     log_visualizations_every_n_steps: int | None = None
     upload_checkpoint_to_wandb_every_n_steps: int | None = None
-    n_batches_for_norm_estimate: int = 100
 
     def __post_init__(self):
         if not (
