@@ -121,6 +121,6 @@ class ScaledActivationsDataloader(BaseActivationsDataloader):
     @torch.no_grad()
     def get_shuffled_activations_iterator_BMLD(self) -> Iterator[torch.Tensor]:
         raw_activations_iterator_BMLD = self._get_shuffled_raw_activations_iterator_BMLD()
-        scaling_factors_ML1 = rearrange(self.norm_scaling_factors_ML, "m l -> m l 1")
+        scaling_factors_ML1 = rearrange(self.get_norm_scaling_factors_ML(), "m l -> m l 1")
         for unscaled_example_BMLD in raw_activations_iterator_BMLD:
             yield unscaled_example_BMLD * scaling_factors_ML1
