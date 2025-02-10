@@ -1,7 +1,7 @@
 import torch
 from einops import reduce
 
-from model_diffing.utils import calculate_explained_variance_ML, l1_norm, l2_norm, multi_reduce
+from model_diffing.utils import calculate_explained_variance_X, l1_norm, l2_norm, multi_reduce
 
 
 def test_multi_reduce():
@@ -23,7 +23,7 @@ def test_explained_variance():
     D = 20
     y_BMLD = torch.randn(B, M, L, D) * 0.1
     y_hat_BMLD = torch.zeros(B, M, L, D)
-    ev = calculate_explained_variance_ML(y_BMLD, y_hat_BMLD)
+    ev = calculate_explained_variance_X(y_BMLD, y_hat_BMLD)
     assert ev.shape == (M, L)
     assert ev.mean().item() < 1e-4
     # evs = ev.flatten()

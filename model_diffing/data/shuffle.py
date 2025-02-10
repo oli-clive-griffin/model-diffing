@@ -4,23 +4,28 @@ from collections.abc import Iterator
 import torch
 
 from model_diffing.log import logger
-from model_diffing.utils import size_GB
+from model_diffing.utils import size_human_readable
 
-
+# Shapes:
 # B = "batch"
 # Bf = "buffer size"
 # X = "arbitrary shape"
+
+
 def batch_shuffle_tensor_iterator_BX(
     tensor_iterator_X: Iterator[torch.Tensor],  # X here means "arbitrary shape"
     shuffle_buffer_size: int,
     yield_batch_size: int,
+    name: str | None = None,
 ) -> Iterator[torch.Tensor]:
     if shuffle_buffer_size < yield_batch_size:
         raise ValueError(
-            f"shuffle_buffer_size must be greater than yield_batch_size, but got {shuffle_buffer_size=} and {yield_batch_size=}"
+            f"shuffle_buffer_size ({shuffle_buffer_size}) must be greater than yield_batch_size ({yield_batch_size})"
         )
     if shuffle_buffer_size < yield_batch_size * 4:
-        logger.warning("shuffle_buffer_size is less than 4x yield_batch_size, this may lead to poor shuffling")
+        logger.warning(
+            f"shuffle_buffer_size ({shuffle_buffer_size}) is less than 4x yield_batch_size ({yield_batch_size}), this may lead to poor shuffling"
+        )
 
     first_tensor_X = next(tensor_iterator_X)  # this "wastes" an example. This is ok.
 
@@ -29,7 +34,7 @@ def batch_shuffle_tensor_iterator_BX(
         device=first_tensor_X.device,
         dtype=first_tensor_X.dtype,
     )
-    logger.info(f"shuffle buffer size: {size_GB(buffer_BfX)} GB")
+    logger.info(f"shuffle buffer size: {size_human_readable(buffer_BfX)}{f' ({name})' if name else ''}")
 
     buffer_BfX[0] = first_tensor_X
     available_indices = {0}

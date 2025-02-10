@@ -5,23 +5,22 @@ import pytest
 import torch
 from torch import Tensor
 
-from model_diffing.dataloader.activations import BaseActivationsDataloader
-from model_diffing.models.crosscoder import build_relu_crosscoder
-from model_diffing.scripts.base_trainer import BaseTrainer, validate_num_steps_per_epoch
+from model_diffing.data.model_layer_dataloader import BaseModelLayerActivationsDataloader
+from model_diffing.models.activations.relu import ReLUActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.base_trainer import BaseModelLayerTrainer, validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseTrainConfig
 from model_diffing.utils import get_device
 
 
-class TestTrainer(BaseTrainer[BaseTrainConfig, Any]):
+class TestTrainer(BaseModelLayerTrainer[BaseTrainConfig, Any]):
     __test__ = False
 
-    def _train_step(self, batch_BMLD: Tensor) -> dict[str, float]:
-        return {
-            "loss": 0.0,
-        }
+    def _train_step(self, batch_BMLD: Tensor) -> None:
+        pass
 
 
-class FakeActivationsDataloader(BaseActivationsDataloader):
+class FakeActivationsDataloader(BaseModelLayerActivationsDataloader):
     __test__ = False
 
     def __init__(
@@ -43,12 +42,12 @@ class FakeActivationsDataloader(BaseActivationsDataloader):
             yield torch.randint(
                 0,
                 100,
-                (self._batch_size, self._n_layers, self._n_models, self._d_model),
+                (self._batch_size, self._n_models, self._n_layers, self._d_model),
                 dtype=torch.float32,
             )
 
     def batch_shape_BMLD(self) -> tuple[int, int, int, int]:
-        return (self._batch_size, self._n_layers, self._n_models, self._d_model)
+        return (self._batch_size, self._n_models, self._n_layers, self._d_model)
 
     def num_batches(self) -> int | None:
         return self._num_batches
@@ -64,9 +63,9 @@ def opt():
 @pytest.mark.parametrize(
     "train_cfg",
     [
-        BaseTrainConfig(epochs=2, optimizer=opt()),
-        BaseTrainConfig(epochs=2, num_steps_per_epoch=10, optimizer=opt()),
-        BaseTrainConfig(num_steps=10, optimizer=opt()),
+        BaseTrainConfig(batch_size=1, epochs=2, optimizer=opt()),
+        BaseTrainConfig(batch_size=1, epochs=2, num_steps_per_epoch=10, optimizer=opt()),
+        BaseTrainConfig(batch_size=1, num_steps=10, optimizer=opt()),
     ],
 )
 def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
@@ -85,12 +84,12 @@ def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
         num_batches=num_batches,
     )
 
-    crosscoder = build_relu_crosscoder(
-        n_models=n_models,
-        n_layers=n_layers,
+    crosscoder = AcausalCrosscoder(
+        crosscoding_dims=(n_models, n_layers),
         d_model=d_model,
-        cc_hidden_dim=16,
+        hidden_dim=16,
         dec_init_norm=0.0,
+        hidden_activation=ReLUActivation(),
     )
 
     trainer = TestTrainer(
@@ -124,7 +123,9 @@ def test_validate_num_steps_per_epoch_happy_path(
     expected: int,
 ) -> None:
     activations_dataloader = FakeActivationsDataloader(num_batches=dataloader_num_batches)
-    num_steps_per_epoch = validate_num_steps_per_epoch(epochs, num_steps_per_epoch, None, activations_dataloader)
+    num_steps_per_epoch = validate_num_steps_per_epoch(
+        epochs, num_steps_per_epoch, None, activations_dataloader.num_batches()
+    )
     assert num_steps_per_epoch == expected
 
 
@@ -148,4 +149,4 @@ def test_validate_num_steps_per_epoch_errors(
     activations_dataloader = FakeActivationsDataloader(num_batches=99999)
 
     with pytest.raises(should_raise):
-        validate_num_steps_per_epoch(epochs, num_steps_per_epoch, num_steps, activations_dataloader)
+        validate_num_steps_per_epoch(epochs, num_steps_per_epoch, num_steps, activations_dataloader.num_batches())

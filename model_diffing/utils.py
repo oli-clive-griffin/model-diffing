@@ -1,119 +1,44 @@
 from abc import ABC, abstractmethod
 from functools import partial
+from itertools import product
 from pathlib import Path
 from typing import Any
 
 import einops
 import torch
-import wandb
 import yaml  # type: ignore
 from einops import reduce
 from einops.einops import Reduction
+from pydantic import BaseModel as _BaseModel
 from torch import nn
-from wandb.sdk.wandb_run import Run
 
-from model_diffing.log import logger
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
+
+class BaseModel(_BaseModel):
+    class Config:
+        extra = "forbid"
 
 
 class SaveableModule(nn.Module, ABC):
     @abstractmethod
-    def dump_cfg(self) -> dict[str, Any]: ...
+    def _dump_cfg(self) -> dict[str, Any]: ...
 
     @classmethod
     @abstractmethod
-    def from_cfg(cls, cfg: dict[str, Any]) -> "SaveableModule": ...
+    def _from_cfg(cls, cfg: dict[str, Any]) -> "SaveableModule": ...
 
+    def save(self, basepath: Path):
+        basepath.mkdir(parents=True, exist_ok=True)
+        torch.save(self.state_dict(), basepath / "model.pt")
+        with open(basepath / "model.cfg", "w") as f:
+            yaml.dump(self._dump_cfg(), f)
 
-def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
-    return wandb.init(
-        name=config.experiment_name,
-        project="model-diffing",
-        entity="mars-model-diffing",
-        config=config.model_dump(),
-    )
-
-
-def save_model_and_config(config: BaseTrainConfig, save_dir: Path, model: nn.Module, step: int) -> None:
-    """Save the model to disk. Also save the config file if it doesn't exist.
-
-    Args:
-        config: The config object. Saved if save_dir / "config.yaml" doesn't already exist.
-        save_dir: The directory to save the model and config to.
-        model: The model to save.
-        step: The current step (used in the model filename).
-    """
-    save_dir.mkdir(parents=True, exist_ok=True)
-    if not (save_dir / "config.yaml").exists():
-        with open(save_dir / "config.yaml", "w") as f:
-            yaml.dump(config, f)
-        logger.info("Saved config to %s", save_dir / "config.yaml")
-
-    model_file = save_dir / f"model_step_{step}.pt"
-    torch.save(model.state_dict(), model_file)
-    logger.info("Saved model to %s", model_file)
-
-
-MODEL_CHECKPOINT_ARTIFACT_NAME = "model-checkpoint"
-CONFIG_FILE_NAME = "config.yaml"
-MODEL_FILE_NAME = "model.pt"
-
-
-# def load_model_from_wandb[T: SaveableModule](
-#     run_path: str,
-#     model_class: type[T],
-#     model_params: dict[str, Any] | None = None,
-#     version: str = "latest",
-#     device: torch.device | None = None,
-# ) -> T:
-#     """Load a model checkpoint from Weights & Biases.
-
-#     This function supports two loading modes:
-#     1. Loading a SaveableModule using its config file (when model_params is None)
-#     2. Loading an AcausalCrosscoder with explicit parameters (when model_params is provided)
-
-#     Args:
-#         run_path: The path to the run in format "entity/project/run_id"
-#         model_class: The class of the model to load
-#         model_params: Optional dictionary of model parameters. If None, will load from config.yaml
-#         version: Version of the artifact to load. Defaults to "latest"
-#         device: Device to load the model to. Defaults to auto-detection
-
-#     Returns:
-#         The loaded model of type T.
-#     """
-#     if device is None:
-#         device = get_device()
-
-#     api = wandb.Api()
-#     entity, project, run_id = run_path.split("/")
-#     run = api.run(f"{entity}/{project}/{run_id}")
-
-#     with tempfile.TemporaryDirectory() as temp_dir:
-#         temp_dir_path = Path(temp_dir)
-
-#         if model_params is None:
-#             # Load using config file (SaveableModule approach)
-#             cfg_file = cast(File, run.file(CONFIG_FILE_NAME))
-#             cfg_file.download(root=temp_dir)
-#             with open(temp_dir_path / CONFIG_FILE_NAME) as f:
-#                 cfg_dict = yaml.safe_load(f)
-#             model = model_class.from_cfg(cfg_dict)
-#             checkpoint_name = MODEL_FILE_NAME
-#         else:
-#             # Load using explicit parameters (AcausalCrosscoder approach)
-#             model = model_class(**model_params)
-#             artifact = api.artifact(f"{run_path}/model-checkpoint:{version}")
-#             artifact_dir = artifact.download(root=temp_dir)
-#             checkpoint_name = Path(artifact.file()).name
-
-#         # Load state dict
-#         checkpoint_path = temp_dir_path / checkpoint_name
-#         state_dict = torch.load(checkpoint_path, map_location=device)
-#         model.load_state_dict(state_dict)
-#         model.to(device)
-
-#         return model
+    @classmethod
+    def load(cls, basepath: Path):
+        with open(basepath / "model.cfg") as f:
+            cfg = yaml.safe_load(f)
+            model = cls._from_cfg(cfg)
+        model.load_state_dict(torch.load(basepath / "model.pt"))
+        return model
 
 
 # 1: this signature allows us to use these norms in einops.reduce
@@ -150,21 +75,23 @@ def l2_norm(
     return torch.norm(input, p=2, dim=dim, keepdim=keepdim, out=out, dtype=dtype)
 
 
-def _weighted_l1_sparsity_loss(
-    W_dec_HMLD: torch.Tensor,
+def weighted_l1_sparsity_loss(
+    W_dec_HTMLD: torch.Tensor,
     hidden_BH: torch.Tensor,
     layer_reduction: Reduction,  # type: ignore
     model_reduction: Reduction,  # type: ignore
+    token_reduction: Reduction,  # type: ignore
 ) -> torch.Tensor:
     assert (hidden_BH >= 0).all()
     # think about it like: each latent (called "hidden" here) has a separate projection onto each (model, layer)
     # so we have a separate l2 norm for each (hidden, model, layer)
-    W_dec_l2_norms_HML = reduce(W_dec_HMLD, "hidden model layer dim -> hidden model layer", l2_norm)
+    W_dec_l2_norms_HML = reduce(W_dec_HTMLD, "hidden token model layer dim -> hidden token model layer", l2_norm)
 
     # to get the weighting factor for each latent, we reduce it's decoder norms for each (model, layer)
     reduced_norms_H = multi_reduce(
         W_dec_l2_norms_HML,
-        "hidden model layer",
+        "hidden token model layer",
+        ("token", token_reduction),
         ("layer", layer_reduction),
         ("model", model_reduction),
     )
@@ -176,19 +103,21 @@ def _weighted_l1_sparsity_loss(
 
 
 sparsity_loss_l2_of_norms = partial(
-    _weighted_l1_sparsity_loss,
+    weighted_l1_sparsity_loss,
+    token_reduction=l2_norm,
     layer_reduction=l2_norm,
     model_reduction=l2_norm,
 )
 
 sparsity_loss_l1_of_norms = partial(
-    _weighted_l1_sparsity_loss,
+    weighted_l1_sparsity_loss,
+    token_reduction=l1_norm,
     layer_reduction=l1_norm,
     model_reduction=l1_norm,
 )
 
 
-def calculate_reconstruction_loss(activation_BMLD: torch.Tensor, target_BMLD: torch.Tensor) -> torch.Tensor:
+def calculate_reconstruction_loss(activation_BXD: torch.Tensor, target_BXD: torch.Tensor) -> torch.Tensor:
     """This is a little weird because we have both model and layer dimensions, so it's worth explaining deeply:
 
     The reconstruction loss is a sum of squared L2 norms of the error for each activation space being reconstructed.
@@ -200,10 +129,13 @@ def calculate_reconstruction_loss(activation_BMLD: torch.Tensor, target_BMLD: to
 
     $$ \\sum_{m \\in M} \\sum_{l \\in L} \\|a_m^l(x_j) - a_m^{l'}(x_j)\\|^2 $$
     """
-    error_BMLD = activation_BMLD - target_BMLD
-    error_norm_BML = reduce(error_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
-    squared_error_norm_BML = error_norm_BML.square()
-    summed_squared_error_norm_B = reduce(squared_error_norm_BML, "batch model layer -> batch", torch.sum)
+    # take the L2 norm of the error inside each d_model feature space
+    error_BXD = activation_BXD - target_BXD
+    error_norm_BX = reduce(error_BXD, "batch ... d_model -> batch ...", l2_norm)
+    squared_error_norm_BX = error_norm_BX.square()
+
+    # sum errors across all crosscoding dimensions
+    summed_squared_error_norm_B = reduce(squared_error_norm_BX, "batch ... -> batch", torch.sum)
     return summed_squared_error_norm_B.mean()
 
 
@@ -229,37 +161,70 @@ def multi_reduce(
     return tensor
 
 
-def calculate_explained_variance_ML(
-    activations_BMLD: torch.Tensor,
-    reconstructed_BMLD: torch.Tensor,
+def calculate_explained_variance_X(
+    activations_BXD: torch.Tensor,
+    reconstructed_BXD: torch.Tensor,
     eps: float = 1e-8,
 ) -> torch.Tensor:
     """for each model and layer, calculate the mean explained variance inside each d_model feature space"""
-    error_BMLD = activations_BMLD - reconstructed_BMLD
+    error_BXD = activations_BXD - reconstructed_BXD
 
-    mean_error_var_ML = error_BMLD.var(-1).mean(0)
-    mean_activations_var_ML = activations_BMLD.var(-1).mean(0)
+    mean_error_var_X = error_BXD.var(-1).mean(0)
+    mean_activations_var_X = activations_BXD.var(-1).mean(0)
 
-    explained_var_ML = 1 - (mean_error_var_ML / (mean_activations_var_ML + eps))
-    return explained_var_ML
+    explained_var_X = 1 - (mean_error_var_X / (mean_activations_var_X + eps))
+    return explained_var_X
 
 
-def get_explained_var_dict(explained_variance_ML: torch.Tensor, layers_to_harvest: list[int]) -> dict[str, float]:
-    num_models, _n_layers = explained_variance_ML.shape
-    explained_variances_dict = {
-        f"train/explained_variance/M{model_idx}_L{layer_number}": explained_variance_ML[model_idx, layer_idx].item()
-        for model_idx in range(num_models)
-        for layer_idx, layer_number in enumerate(layers_to_harvest)
-    }
+def get_explained_var_dict(
+    explained_variance_X: torch.Tensor, *crosscoding_dims: tuple[str, list[str] | list[int]]
+) -> dict[str, float]:
+    """
+    crosscoding_dims is a list of tuples, each tuple is:
+        1: the name of the crosscoding dimension ('layer', 'model', 'token', etc.)
+        2: the labels of the crosscoding dimension (e.g. [0, 1, 7] or ['gpt2', 'gpt3', 'gpt4'], or ['<bos>', '-1', 'self'])
+
+    the reason we need the explicit naming pattern is that often indices are not helpful. For example, when training
+    a crosscoder on layers 2, 5, and 8, you don't to want to have them labeled [0, 1, 2]. i.e. you need to know what
+    each index means.
+    """
+
+    assert len(crosscoding_dims) == len(explained_variance_X.shape)
+
+    # index_combinations is a list of tuples, each tuple is a unique set of indices into the explained_variance_X tensor
+    index_combinations = product(*(range(dim_size) for dim_size in explained_variance_X.shape))
+
+    explained_variances_dict = {}
+    for indices in index_combinations:
+        name = "train/explained_variance"
+        for (dim_name, dim_labels), dim_index in zip(crosscoding_dims, indices, strict=True):
+            name += f"_{dim_name}{dim_labels[dim_index]}"
+
+        explained_variances_dict[name] = explained_variance_X[indices].item()
 
     return explained_variances_dict
 
 
-def get_decoder_norms_H(W_dec_HMLD: torch.Tensor) -> torch.Tensor:
-    W_dec_l2_norms_HML = reduce(W_dec_HMLD, "hidden model layer dim -> hidden model layer", l2_norm)
-    norms_H = reduce(W_dec_l2_norms_HML, "hidden model layer -> hidden", torch.sum)
+def get_decoder_norms_H(W_dec_HXD: torch.Tensor) -> torch.Tensor:
+    W_dec_l2_norms_HX = reduce(W_dec_HXD, "hidden ... dim -> hidden ...", l2_norm)
+    norms_H = reduce(W_dec_l2_norms_HX, "hidden ... -> hidden", torch.sum)
     return norms_H
 
 
-def size_GB(tensor: torch.Tensor) -> float:
-    return tensor.numel() * tensor.element_size() / (1024**3)
+def size_human_readable(tensor: torch.Tensor) -> str:
+    # Calculate the number of bytes in the tensor
+    num_bytes = tensor.numel() * tensor.element_size()
+
+    if num_bytes >= 1024**3:
+        return f"{num_bytes / (1024**3):.2f} GB"
+    elif num_bytes >= 1024**2:
+        return f"{num_bytes / (1024**2):.2f} MB"
+    elif num_bytes >= 1024:
+        return f"{num_bytes / 1024:.2f} KB"
+    else:
+        return f"{num_bytes} B"
+
+
+# hacky but useful for debugging
+def inspect(tensor: torch.Tensor) -> str:
+    return f"{tensor.shape}, dtype={tensor.dtype}, device={tensor.device}, size={size_human_readable(tensor)}"

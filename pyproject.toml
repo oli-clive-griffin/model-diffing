@@ -2,7 +2,7 @@
 name = "model-diffing"
 version = "0.0.1"
 description = "MARS Model Diffing project under Bilal Chughtai"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 readme = "README.md"
 dependencies = [
     "torch",
@@ -20,6 +20,7 @@ dependencies = [
     "plotly",
     "nbformat",
     "pandas",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]
