@@ -41,7 +41,8 @@ class SaveableModule(nn.Module, ABC):
         return model
 
 
-# 1: this signature allows us to use these norms in einops.reduce
+# might seem strange to redefine these but:
+# 1: these signatures allow us to use these norm functions in einops.reduce
 # 2: I (oli) find `l2_norm(x, dim=-1)` more readable than `x.norm(p=2, dim=-1)`
 
 
