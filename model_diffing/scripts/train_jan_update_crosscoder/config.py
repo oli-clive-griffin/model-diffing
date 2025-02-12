@@ -26,3 +26,4 @@ class JanUpdateExperimentConfig(BaseExperimentConfig):
     data: DataConfig
     crosscoder: JanUpdateCrosscoderConfig
     train: JanUpdateTrainConfig
+    hookpoints: list[str]

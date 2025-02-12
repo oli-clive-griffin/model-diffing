@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterator
 from itertools import islice
+from typing import Any
 
 import numpy as np
 import torch
@@ -29,30 +30,32 @@ def get_l0_stats(l0_B: torch.Tensor, step: int) -> dict[str, float]:
 
 
 def create_cosine_sim_and_relative_norm_histograms(
-    W_dec_HMLD: torch.Tensor, layers: list[int]
+    W_dec_HMPD: torch.Tensor, hookpoints: list[str]
 ) -> dict[str, wandb.Histogram]:
-    _, n_models, num_layers, _ = W_dec_HMLD.shape
+    _, n_models, num_hookpoints, _ = W_dec_HMPD.shape
     assert n_models == 2, "only works for 2 models"
 
     plots: dict[str, wandb.Histogram] = {}
-    for layer_idx in range(num_layers):
-        layer_name = layers[layer_idx]  # layer_idx is the index into the list of layers we're collecting
-        W_dec_a_HD = W_dec_HMLD[:, 0, layer_idx]
-        W_dec_b_HD = W_dec_HMLD[:, 1, layer_idx]
+    for hookpoint_idx in range(num_hookpoints):
+        hookpoint_name = hookpoints[hookpoint_idx]
+        W_dec_a_HD = W_dec_HMPD[:, 0, hookpoint_idx]
+        W_dec_b_HD = W_dec_HMPD[:, 1, hookpoint_idx]
 
         relative_norms = metrics.compute_relative_norms_N(W_dec_a_HD, W_dec_b_HD)
-        plots[f"media/relative_decoder_norms_layer_{layer_name}"] = wandb_histogram(relative_norms)
+        plots[f"media/relative_decoder_norms_{hookpoint_name}"] = wandb_histogram(relative_norms)
 
         shared_latent_mask = metrics.get_shared_latent_mask(relative_norms)
         cosine_sims = metrics.compute_cosine_similarities_N(W_dec_a_HD, W_dec_b_HD)
         shared_features_cosine_sims = cosine_sims[shared_latent_mask]
-        plots[f"media/cosine_sim_layer_{layer_name}"] = wandb_histogram(shared_features_cosine_sims)
+        plots[f"media/cosine_sim_{hookpoint_name}"] = wandb_histogram(shared_features_cosine_sims)
 
     return plots
 
 
-def wandb_histogram(data_X: torch.Tensor) -> wandb.Histogram:
-    return wandb.Histogram(np_histogram=np.histogram(data_X.detach().cpu().numpy()))
+def wandb_histogram(data_X: torch.Tensor | np.ndarray[Any, Any], bins: int = 100) -> wandb.Histogram:
+    if isinstance(data_X, torch.Tensor):
+        data_X = data_X.detach().cpu().numpy()
+    return wandb.Histogram(np_histogram=np.histogram(data_X, bins=bins))
 
 
 def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
@@ -102,14 +105,14 @@ def estimate_norm_scaling_factor_X(
 @torch.no_grad()
 # adapted from SAELens https://github.com/jbloomAus/SAELens/blob/6d6eaef343fd72add6e26d4c13307643a62c41bf/sae_lens/training/activations_store.py#L370
 def _estimate_mean_norms_X(
-    dataloader_BMLD: Iterator[torch.Tensor],
+    dataloader_BMPD: Iterator[torch.Tensor],
     device: torch.device,
     n_batches_for_norm_estimate: int,
 ) -> torch.Tensor:
     norm_samples = []
 
     for batch_BXD in tqdm(
-        islice(dataloader_BMLD, n_batches_for_norm_estimate),
+        islice(dataloader_BMPD, n_batches_for_norm_estimate),
         desc="Estimating norm scaling factor",
         total=n_batches_for_norm_estimate,
     ):
@@ -123,21 +126,21 @@ def _estimate_mean_norms_X(
 
 
 @torch.no_grad()
-def collect_norms(
-    dataloader_BMLD: Iterator[torch.Tensor],
+def collect_norms_NMP(
+    dataloader_BMPD: Iterator[torch.Tensor],
     device: torch.device,
     n_batches: int,
 ) -> torch.Tensor:
     norm_samples = []
 
-    for batch_BMLD in tqdm(
-        islice(dataloader_BMLD, n_batches),
+    for batch_BMPD in tqdm(
+        islice(dataloader_BMPD, n_batches),
         desc="Collecting norms",
         total=n_batches,
     ):
-        batch_BMLD = batch_BMLD.to(device)
-        norms_BML = reduce(batch_BMLD, "batch model layer d_model -> batch model layer", l2_norm)
-        norm_samples.append(norms_BML)
+        batch_BMPD = batch_BMPD.to(device)
+        norms_BMP = reduce(batch_BMPD, "batch model hookpoint d_model -> batch model hookpoint", l2_norm)
+        norm_samples.append(norms_BMP)
 
-    norm_samples_NML = torch.cat(norm_samples, dim=0)
-    return norm_samples_NML
+    norm_samples_NMP = torch.cat(norm_samples, dim=0)
+    return norm_samples_NMP

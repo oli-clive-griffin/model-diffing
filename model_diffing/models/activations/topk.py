@@ -15,6 +15,7 @@ class TopkActivation(SaveableModule):
         _topk_values_BH, topk_indices_BH = hidden_preactivation_BH.topk(self.k, dim=-1)
         hidden_BH = t.zeros_like(hidden_preactivation_BH)
         hidden_BH.scatter_(-1, topk_indices_BH, _topk_values_BH)
+        # TODO: use faster implementation as in https://github.com/EleutherAI/sparsify
         return hidden_BH
 
     def _dump_cfg(self) -> dict[str, int | str]:

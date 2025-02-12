@@ -10,3 +10,4 @@ class SlidingWindowExperimentConfig(BaseExperimentConfig):
     crosscoder: JanUpdateCrosscoderConfig
     train: JanUpdateTrainConfig
     data: SlidingWindowDataConfig
+    hookpoints: list[str]

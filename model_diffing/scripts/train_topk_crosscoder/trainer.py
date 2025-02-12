@@ -4,21 +4,21 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.topk import TopkActivation
-from model_diffing.scripts.base_trainer import BaseModelLayerTrainer
+from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms
 from model_diffing.utils import calculate_explained_variance_X, calculate_reconstruction_loss, get_explained_var_dict
 
 
-class TopKTrainer(BaseModelLayerTrainer[BaseTrainConfig, TopkActivation]):
-    def _train_step(self, batch_BMLD: torch.Tensor) -> None:
+class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
+    def _train_step(self, batch_BMPD: torch.Tensor) -> None:
         self.optimizer.zero_grad()
 
         # fwd
-        train_res = self.crosscoder.forward_train(batch_BMLD)
+        train_res = self.crosscoder.forward_train(batch_BMPD)
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss(batch_BMLD, train_res.reconstructed_acts_BXD)
+        reconstruction_loss = calculate_reconstruction_loss(batch_BMPD, train_res.output_BXD)
 
         # backward
         reconstruction_loss.backward()
@@ -31,12 +31,12 @@ class TopKTrainer(BaseModelLayerTrainer[BaseTrainConfig, TopkActivation]):
         if (
             self.wandb_run is not None
             and self.cfg.log_every_n_steps is not None
-            and self.step % self.cfg.log_every_n_steps == 0
+            and (self.step + 1) % self.cfg.log_every_n_steps == 0
         ):
             explained_variance_dict = get_explained_var_dict(
-                calculate_explained_variance_X(batch_BMLD, train_res.reconstructed_acts_BXD),
+                calculate_explained_variance_X(batch_BMPD, train_res.output_BXD),
                 ("model", list(range(self.n_models))),
-                ("layer", self.layers_to_harvest),
+                ("hookpoint", self.hookpoints),
             )
 
             log_dict: dict[str, Any] = {
@@ -49,11 +49,12 @@ class TopKTrainer(BaseModelLayerTrainer[BaseTrainConfig, TopkActivation]):
 
             if self.n_models == 2:
                 W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
-                assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_layers)
+                crosscoding_dims = W_dec_HXD.shape[1:-1]
+                assert crosscoding_dims == (self.n_models, self.n_hookpoints)
                 log_dict.update(
                     create_cosine_sim_and_relative_norm_histograms(
-                        W_dec_HMLD=W_dec_HXD,
-                        layers=self.layers_to_harvest,
+                        W_dec_HMPD=W_dec_HXD,
+                        hookpoints=self.hookpoints,
                     )
                 )
 

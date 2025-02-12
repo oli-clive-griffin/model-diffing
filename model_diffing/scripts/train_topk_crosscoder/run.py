@@ -1,10 +1,11 @@
 import fire  # type: ignore
 
-from model_diffing.data.model_layer_dataloader import build_dataloader
+from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
 from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
+from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_topk_crosscoder.config import TopKExperimentConfig
 from model_diffing.scripts.train_topk_crosscoder.trainer import TopKTrainer
 from model_diffing.scripts.utils import build_wandb_run
@@ -14,12 +15,28 @@ from model_diffing.utils import get_device
 def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
     device = get_device()
 
-    dataloader = build_dataloader(cfg.data, cfg.train.batch_size, cfg.cache_dir, device)
-    _, n_models, n_layers, d_model = dataloader.batch_shape_BMLD()
+    llms = build_llms(
+        cfg.data.activations_harvester.llms,
+        cfg.cache_dir,
+        device,
+        dtype=cfg.data.activations_harvester.inference_dtype,
+    )
+
+    dataloader = build_dataloader(
+        cfg.data,
+        llms,
+        cfg.hookpoints,
+        cfg.train.batch_size,
+        cfg.cache_dir,
+        device,
+    )
+
+    n_models = len(llms)
+    n_hookpoints = len(cfg.hookpoints)
 
     crosscoder = AcausalCrosscoder(
-        crosscoding_dims=(n_models, n_layers),
-        d_model=d_model,
+        crosscoding_dims=(n_models, n_hookpoints),
+        d_model=llms[0].cfg.d_model,
         hidden_dim=cfg.crosscoder.hidden_dim,
         dec_init_norm=cfg.crosscoder.dec_init_norm,
         hidden_activation=TopkActivation(k=cfg.crosscoder.k),
@@ -35,7 +52,7 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
         crosscoder=crosscoder,
         wandb_run=wandb_run,
         device=device,
-        layers_to_harvest=cfg.data.activations_harvester.layer_indices_to_harvest,
+        hookpoints=cfg.hookpoints,
         experiment_name=cfg.experiment_name,
     )
 

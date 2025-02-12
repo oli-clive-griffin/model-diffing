@@ -7,3 +7,4 @@ class L1SlidingWindowExperimentConfig(BaseExperimentConfig):
     crosscoder: L1CrosscoderConfig
     train: L1TrainConfig
     data: SlidingWindowDataConfig
+    hookpoints: list[str]

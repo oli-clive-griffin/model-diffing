@@ -14,16 +14,13 @@ data:
     harvesting_batch_size: 1
   activations_shuffle_buffer_size: 2048
 crosscoder:
-  hidden_dim: 6144
+  hidden_dim: 4096
+  k: 64
 train:
   num_steps: 10_000
   batch_size: 32
   save_every_n_steps: 2500
   log_every_n_steps: 100
-  lambda_s_max: 5
-  lambda_s_n_steps: 1000
-  save_every_n_steps: 1000
-  log_every_n_steps: 20
-experiment_name: l1_crosscoder_example
-wandb: True
-hookpoints: ["blocks.8.hook_resid_post"]
+experiment_name: skip_trans_crosscoder_example
+wandb: true
+mlp_indices: [7]

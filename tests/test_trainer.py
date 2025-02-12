@@ -5,54 +5,51 @@ import pytest
 import torch
 from torch import Tensor
 
-from model_diffing.data.model_layer_dataloader import BaseModelLayerActivationsDataloader
+from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.scripts.base_trainer import BaseModelLayerTrainer, validate_num_steps_per_epoch
+from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer, validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseTrainConfig
 from model_diffing.utils import get_device
 
 
-class TestTrainer(BaseModelLayerTrainer[BaseTrainConfig, Any]):
+class TestTrainer(BaseModelHookpointTrainer[BaseTrainConfig, Any]):
     __test__ = False
 
-    def _train_step(self, batch_BMLD: Tensor) -> None:
+    def _train_step(self, batch_BMPD: Tensor) -> None:
         pass
 
 
-class FakeActivationsDataloader(BaseModelLayerActivationsDataloader):
+class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
     __test__ = False
 
     def __init__(
         self,
         batch_size: int = 16,
         n_models: int = 1,
-        n_layers: int = 1,
+        n_hookpoints: int = 1,
         d_model: int = 16,
         num_batches: int = 100,
     ):
         self._batch_size = batch_size
         self._n_models = n_models
-        self._n_layers = n_layers
+        self._n_hookpoints = n_hookpoints
         self._d_model = d_model
         self._num_batches = num_batches
 
-    def get_shuffled_activations_iterator_BMLD(self) -> Iterator[Tensor]:
+    def get_shuffled_activations_iterator_BMPD(self) -> Iterator[Tensor]:
         for _ in range(self._num_batches):
             yield torch.randint(
                 0,
                 100,
-                (self._batch_size, self._n_models, self._n_layers, self._d_model),
+                (self._batch_size, self._n_models, self._n_hookpoints, self._d_model),
                 dtype=torch.float32,
             )
-
-    def batch_shape_BMLD(self) -> tuple[int, int, int, int]:
-        return (self._batch_size, self._n_models, self._n_layers, self._d_model)
 
     def num_batches(self) -> int | None:
         return self._num_batches
 
-    def get_norm_scaling_factors_ML(self) -> torch.Tensor:
+    def get_norm_scaling_factors_MP(self) -> torch.Tensor:
         return torch.ones(self._n_models, self._d_model)
 
 
@@ -71,21 +68,21 @@ def opt():
 def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
     batch_size = 4
     n_models = 1
-    layer_indices_to_harvest = [0]
-    n_layers = len(layer_indices_to_harvest)
+    hookpoints = ["blocks.0.hook_resid_post"]
+    n_hookpoints = len(hookpoints)
     d_model = 16
     num_batches = 10
 
     activations_dataloader = FakeActivationsDataloader(
         batch_size=batch_size,
         n_models=n_models,
-        n_layers=n_layers,
+        n_hookpoints=n_hookpoints,
         d_model=d_model,
         num_batches=num_batches,
     )
 
     crosscoder = AcausalCrosscoder(
-        crosscoding_dims=(n_models, n_layers),
+        crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=16,
         dec_init_norm=0.0,
@@ -98,7 +95,7 @@ def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
         crosscoder=crosscoder,
         wandb_run=None,
         device=get_device(),
-        layers_to_harvest=layer_indices_to_harvest,
+        hookpoints=hookpoints,
         experiment_name="test",
     )
 

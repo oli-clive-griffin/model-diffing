@@ -4,7 +4,7 @@ import torch as t
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.jumprelu import JumpReLUActivation
-from model_diffing.scripts.base_trainer import BaseModelLayerTrainer
+from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTrainConfig
 from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms, get_l0_stats, wandb_histogram
 from model_diffing.utils import (
@@ -16,15 +16,15 @@ from model_diffing.utils import (
 )
 
 
-class JanUpdateCrosscoderTrainer(BaseModelLayerTrainer[JanUpdateTrainConfig, JumpReLUActivation]):
-    def _train_step(self, batch_BMLD: t.Tensor) -> None:
+class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig, JumpReLUActivation]):
+    def _train_step(self, batch_BMPD: t.Tensor) -> None:
         self.optimizer.zero_grad()
 
         # fwd
-        train_res = self.crosscoder.forward_train(batch_BMLD)
+        train_res = self.crosscoder.forward_train(batch_BMPD)
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss(batch_BMLD, train_res.reconstructed_acts_BXD)
+        reconstruction_loss = calculate_reconstruction_loss(batch_BMPD, train_res.output_BXD)
 
         decoder_norms_H = get_decoder_norms_H(self.crosscoder.W_dec_HXD)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.hidden_BH, decoder_norms_H)
@@ -50,7 +50,7 @@ class JanUpdateCrosscoderTrainer(BaseModelLayerTrainer[JanUpdateTrainConfig, Jum
         if (
             self.wandb_run is not None
             and self.cfg.log_every_n_steps is not None
-            and self.step % self.cfg.log_every_n_steps == 0
+            and (self.step + 1) % self.cfg.log_every_n_steps == 0
         ):
             l0_B = l0_norm(train_res.hidden_BH, dim=-1)
 
@@ -59,9 +59,9 @@ class JanUpdateCrosscoderTrainer(BaseModelLayerTrainer[JanUpdateTrainConfig, Jum
             thresholds_hist = wandb_histogram(self.crosscoder.hidden_activation.log_threshold_H.exp())
 
             explained_variance_dict = get_explained_var_dict(
-                calculate_explained_variance_X(batch_BMLD, train_res.reconstructed_acts_BXD),
+                calculate_explained_variance_X(batch_BMPD, train_res.output_BXD),
                 ("model", list(range(self.n_models))),
-                ("layer", self.layers_to_harvest),
+                ("hookpoint", self.hookpoints),
             )
 
             log_dict: dict[str, Any] = {
@@ -87,11 +87,11 @@ class JanUpdateCrosscoderTrainer(BaseModelLayerTrainer[JanUpdateTrainConfig, Jum
 
             if self.n_models == 2:
                 W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
-                assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_layers)
+                assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
                 log_dict.update(
                     create_cosine_sim_and_relative_norm_histograms(
-                        W_dec_HMLD=W_dec_HXD,
-                        layers=self.layers_to_harvest,
+                        W_dec_HMPD=W_dec_HXD,
+                        hookpoints=self.hookpoints,
                     )
                 )
 

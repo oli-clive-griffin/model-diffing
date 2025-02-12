@@ -2,33 +2,29 @@ data:
   sequence_iterator:
     classname: HuggingfaceTextDatasetTokenSequenceLoader
     kwargs:
-      hf_dataset_name: "PleIAs/common_corpus"
-      sequence_length: 1024
-      shuffle_buffer_size: 16_384
+      hf_dataset_name: "monology/pile-uncopyrighted"
+      sequence_length: 256
+      shuffle_buffer_size: 8192
   activations_harvester:
     llms:
       - name: EleutherAI/pythia-160M
         revision: step142000
       - name: EleutherAI/pythia-160M
         revision: step143000
-    layer_indices_to_harvest: [10]
-    harvesting_batch_size: 32
-  activations_shuffle_buffer_size: 32_768
+    harvesting_batch_size: 1
+  activations_shuffle_buffer_size: 2048
 crosscoder:
-  hidden_dim: 6144
+  hidden_dim: 4096
   jumprelu:
     backprop_through_jumprelu_input: true
 train:
-  batch_size: 256
-  optimizer:
-    warmup_pct: 0.05
-    initial_learning_rate: 4e-4
-    last_pct_of_steps: 0.2
-  num_steps: 20_000
+  num_steps: 10_000
+  batch_size: 32
   save_every_n_steps: 2500
   log_every_n_steps: 100
   c: 4.0
   final_lambda_s: 5.0
   lambda_p: 0.000003
-experiment_name: JumpReLU_SAE_pythia_160M_crossmodel_layer10
+experiment_name: jan_update_crosscoder_example
 wandb: true
+hookpoints: ["blocks.8.hook_resid_post"]

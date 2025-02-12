@@ -2,35 +2,31 @@ data:
   sequence_iterator:
     classname: HuggingfaceTextDatasetTokenSequenceLoader
     kwargs:
-      hf_dataset_name: "PleIAs/common_corpus"
-      # hf_dataset_name: "monology/pile-uncopyrighted"
+      hf_dataset_name: "monology/pile-uncopyrighted"
       sequence_length: 256
-      shuffle_buffer_size: 16_384
+      shuffle_buffer_size: 8192
   activations_harvester:
     llms:
       - name: EleutherAI/pythia-160M
         revision: step143000 # last checkpoint
-    layer_indices_to_harvest: [0, 1, 2]
-    harvesting_batch_size: 4
-  activations_shuffle_buffer_size: 8_192
+    harvesting_batch_size: 1
+  activations_shuffle_buffer_size: 2048
   token_window_size: 2
 crosscoder:
   hidden_dim: 4096
   jumprelu:
     backprop_through_jumprelu_input: true
 train:
-  batch_size: 128
-  optimizer:
-    warmup_pct: 0.05
-    initial_learning_rate: 4e-4
-    last_pct_of_steps: 0.2
-  num_steps: 30_000
+  num_steps: 10_000
+  batch_size: 32
   save_every_n_steps: 2500
   log_every_n_steps: 100
-
   c: 4.0
   final_lambda_s: 5.0
   lambda_p: 0.000003 # 3e-6
-
 experiment_name: sliding_window_test
 wandb: True
+hookpoints:
+  - "blocks.0.hook_resid_post"
+  - "blocks.1.hook_resid_post"
+  - "blocks.2.hook_resid_post"

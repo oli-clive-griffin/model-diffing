@@ -2,14 +2,14 @@ from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainC
 from model_diffing.utils import BaseModel
 
 
-class TopKCrosscoderConfig(BaseModel):
+class TopkSkipTransCrosscoderConfig(BaseModel):
     hidden_dim: int
     dec_init_norm: float = 0.1
     k: int
 
 
-class TopKExperimentConfig(BaseExperimentConfig):
+class TopkSkipTransCrosscoderExperimentConfig(BaseExperimentConfig):
     data: DataConfig
-    crosscoder: TopKCrosscoderConfig
+    crosscoder: TopkSkipTransCrosscoderConfig
     train: BaseTrainConfig
-    hookpoints: list[str]
+    mlp_indices: list[int]

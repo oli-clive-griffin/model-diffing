@@ -19,12 +19,12 @@ def test_multi_reduce():
 def test_explained_variance():
     B = 1
     M = 10
-    L = 10
+    P = 10
     D = 20
-    y_BMLD = torch.randn(B, M, L, D) * 0.1
-    y_hat_BMLD = torch.zeros(B, M, L, D)
-    ev = calculate_explained_variance_X(y_BMLD, y_hat_BMLD)
-    assert ev.shape == (M, L)
-    assert ev.mean().item() < 1e-4
+    y_BMPD = torch.randn(B, M, P, D) * 0.1
+    y_hat_BMPD = torch.zeros(B, M, P, D)
+    ev_MP = calculate_explained_variance_X(y_BMPD, y_hat_BMPD)
+    assert ev_MP.shape == (M, P)
+    assert ev_MP.mean().item() < 1e-4
     # evs = ev.flatten()
     # plotly.express.histogram(evs, nbins=10).show()

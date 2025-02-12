@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
+from math import prod
 from typing import Any, Generic, TypeVar, cast
 
 import torch as t
@@ -31,6 +32,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         hidden_dim: int,
         dec_init_norm: float,
         hidden_activation: TActivation,
+        skip_linear: bool = False,
     ):
         super().__init__()
         self.crosscoding_dims = crosscoding_dims
@@ -57,8 +59,16 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         self.b_dec_XD = nn.Parameter(t.zeros((*crosscoding_dims, d_model)))
         self.b_enc_H = nn.Parameter(t.zeros((hidden_dim,)))
 
+        if skip_linear:
+            # instead of retaining the arbitrary dimensions, flatten and run as a large flat matmul
+            # makes things simpler later on
+            dims = prod([*crosscoding_dims, d_model])
+            self.W_skip_XdXd = nn.Parameter(t.zeros((dims, dims)))
+        else:
+            self.W_skip_XdXd = None
+
         # Initialize the buffer with a zero tensor of the correct shape
-        self.register_buffer("folded_scaling_factors_X", None)
+        self.register_buffer("folded_scaling_factors_X", t.zeros(self.crosscoding_dims))
         # track this boolean flag as a tensor so that it's serialized by torch.save
         self.register_buffer("is_folded", t.tensor(False, dtype=t.bool))
 
@@ -75,31 +85,6 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         pre_bias_BXD = einsum(hidden_BH, self.W_dec_HXD, "b h, h ... d -> b ... d")
         return pre_bias_BXD + self.b_dec_XD
 
-    @dataclass
-    class TrainResult:
-        hidden_BH: t.Tensor
-        reconstructed_acts_BXD: t.Tensor
-
-    def forward_train(
-        self,
-        activation_BXD: t.Tensor,
-    ) -> TrainResult:
-        """returns the activations, the h states, and the reconstructed activations"""
-        self._validate_acts_shape(activation_BXD)
-
-        hidden_BH = self._encode_BH(activation_BXD)
-        reconstructed_BXD = self._decode_BXD(hidden_BH)
-
-        if reconstructed_BXD.shape != activation_BXD.shape:
-            raise ValueError(
-                f"reconstructed_BXD.shape {reconstructed_BXD.shape} != activation_BXD.shape {activation_BXD.shape}"
-            )
-
-        return self.TrainResult(
-            hidden_BH=hidden_BH,
-            reconstructed_acts_BXD=reconstructed_BXD,
-        )
-
     def _validate_acts_shape(self, activation_BXD: t.Tensor) -> None:
         _, *crosscoding_dims, d_model = activation_BXD.shape
         if d_model != self.d_model:
@@ -110,9 +95,45 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
                 f"activation_BXD.shape[:-1] {crosscoding_dims} != crosscoding_dims {self.crosscoding_dims}"
             )
 
-    def forward(self, activation_BXD: t.Tensor) -> t.Tensor:
+    @dataclass
+    class ForwardResult:
+        hidden_BH: t.Tensor
+        output_BXD: t.Tensor
+
+    def _forward(self, activation_BXD: t.Tensor) -> ForwardResult:
         hidden_BH = self._encode_BH(activation_BXD)
-        return self._decode_BXD(hidden_BH)
+        output_BXD = self._decode_BXD(hidden_BH)
+
+        if self.W_skip_XdXd is not None:
+            # way easier to just flatten and run as a large flat matmul, instead of managing
+            # the 2 sets of arbitrary dimensions. (can't use 2 sets of ellipses in einsum)
+            _, *act_shape = activation_BXD.shape
+            activation_BXd = activation_BXD.flatten(start_dim=1)
+            linear_out_BXd = einsum(activation_BXd, self.W_skip_XdXd, "b cc_in, cc_in cc_out -> b cc_out")
+            linear_out_BXD = linear_out_BXd.unflatten(dim=1, sizes=act_shape)
+            output_BXD += linear_out_BXD
+
+        return self.ForwardResult(
+            hidden_BH=hidden_BH,
+            output_BXD=output_BXD,
+        )
+
+    def forward_train(
+        self,
+        activation_BXD: t.Tensor,
+    ) -> ForwardResult:
+        """returns the activations, the h states, and the reconstructed activations"""
+        self._validate_acts_shape(activation_BXD)
+
+        res = self._forward(activation_BXD)
+
+        if res.output_BXD.shape != activation_BXD.shape:
+            raise ValueError(f"output_BXD.shape {res.output_BXD.shape} != activation_BXD.shape {activation_BXD.shape}")
+
+        return res
+
+    def forward(self, activation_BXD: t.Tensor) -> t.Tensor:
+        return self._forward(activation_BXD).output_BXD
 
     def _dump_cfg(self) -> dict[str, Any]:
         return {
@@ -121,6 +142,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             "hidden_dim": self.hidden_dim,
             "hidden_activation_classname": self.hidden_activation.__class__.__name__,
             "hidden_activation_cfg": self.hidden_activation._dump_cfg(),
+            "skip_linear": self.W_skip_XdXd is not None,
         }
 
     @classmethod
@@ -137,6 +159,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             hidden_dim=cfg["hidden_dim"],
             dec_init_norm=0,  # dec_init_norm doesn't matter here as we should be loading weights from a checkpoint
             hidden_activation=hidden_activation,
+            skip_linear=cfg["skip_linear"],
         )
 
     def with_decoder_unit_norm(self) -> "AcausalCrosscoder[TActivation]":

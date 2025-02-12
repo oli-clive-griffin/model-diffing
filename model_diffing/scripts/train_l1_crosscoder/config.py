@@ -16,3 +16,4 @@ class L1ExperimentConfig(BaseExperimentConfig):
     data: DataConfig
     crosscoder: L1CrosscoderConfig
     train: L1TrainConfig
+    hookpoints: list[str]

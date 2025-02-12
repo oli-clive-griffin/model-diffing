@@ -12,21 +12,21 @@ torch.set_grad_enabled(False)
 # %%
 
 # for example:
-# path = ".checkpoints/l1_crosscoder_pythia_160M_layer_3/model_epoch_5000.pt"
+# path = ".checkpoints/l1_crosscoder_pythia_160M_hookpoint_3/model_epoch_5000.pt"
 
-path = "../../../.checkpoints/JumpReLU_SAE_pythia_160M_crossmodel_nlayers_32k/model_step_27500.pt"
+path = "../../../.checkpoints/JumpReLU_SAE_pythia_160M_crossmodel_nhookpoints_32k/model_step_27500.pt"
 
 state_dict = torch.load(path, map_location="mps")
 state_dict["is_folded"] = torch.tensor(True, dtype=torch.bool)
 
 # %%
-state_dict["folded_scaling_factors_ML"]
+state_dict["folded_scaling_factors_MP"]
 # %%
 
 n_models = 2
-n_layers = 4
+n_hookpoints = 4
 cc = crosscoder.AcausalCrosscoder(
-    crosscoding_dims=(n_models, n_layers),
+    crosscoding_dims=(n_models, n_hookpoints),
     d_model=768,
     hidden_dim=32_768,
     dec_init_norm=0.1,
@@ -36,10 +36,10 @@ cc.load_state_dict(state_dict)
 
 
 def vis(cc: crosscoder.AcausalCrosscoder[Any]):
-    n_models, n_layers = cc.crosscoding_dims
-    for layer_idx in range(n_layers):
-        W_dec_a_HD = cc.W_dec_HXD[:, 0, layer_idx]
-        W_dec_b_HD = cc.W_dec_HXD[:, 1, layer_idx]
+    n_models, n_hookpoints = cc.crosscoding_dims
+    for hookpoint_idx in range(n_hookpoints):
+        W_dec_a_HD = cc.W_dec_HXD[:, 0, hookpoint_idx]
+        W_dec_b_HD = cc.W_dec_HXD[:, 1, hookpoint_idx]
 
         relative_norms = metrics.compute_relative_norms_N(W_dec_a_HD, W_dec_b_HD)
         fig = visualization.relative_norms_hist(relative_norms)

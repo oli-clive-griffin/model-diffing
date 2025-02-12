@@ -6,15 +6,17 @@ from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import torch
+import wandb
 import yaml  # type: ignore
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
-from model_diffing.data.model_layer_dataloader import BaseModelLayerActivationsDataloader
+from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
-from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer
+from model_diffing.scripts.firing_tracker import FiringTracker
+from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, wandb_histogram
 from model_diffing.utils import SaveableModule
 
 
@@ -37,29 +39,29 @@ TAct = TypeVar("TAct", bound=SaveableModule)
 # TDataLoader = TypeVar("TDataLoader", bound=BaseActivationsDataloader)
 
 
-class BaseModelLayerTrainer(Generic[TConfig, TAct]):
+class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
     def __init__(
         self,
         cfg: TConfig,
-        activations_dataloader: BaseModelLayerActivationsDataloader,
+        activations_dataloader: BaseModelHookpointActivationsDataloader,
         crosscoder: AcausalCrosscoder[TAct],
         wandb_run: Run | None,
         device: torch.device,
-        layers_to_harvest: list[int],
+        hookpoints: list[str],
         experiment_name: str,
     ):
         self.cfg = cfg
         self.activations_dataloader = activations_dataloader
 
         assert len(crosscoder.crosscoding_dims) == 2, (
-            "crosscoder must have 2 crosscoding dimensions (model, layer). (They can be singleton dimensions)"
+            "crosscoder must have 2 crosscoding dimensions (model, hookpoint). (They can be singleton dimensions)"
         )
-        self.n_models, self.n_layers = crosscoder.crosscoding_dims
+        self.n_models, self.n_hookpoints = crosscoder.crosscoding_dims
 
         self.crosscoder = crosscoder
         self.wandb_run = wandb_run
         self.device = device
-        self.layers_to_harvest = layers_to_harvest
+        self.hookpoints = hookpoints
 
         self.optimizer = build_optimizer(cfg.optimizer, crosscoder.parameters())
 
@@ -72,44 +74,53 @@ class BaseModelLayerTrainer(Generic[TConfig, TAct]):
             f"Total steps: {self.total_steps} (num_steps_per_epoch: {self.num_steps_per_epoch}, epochs: {cfg.epochs})"
         )
 
-        self.lr_scheduler = build_lr_scheduler(cfg.optimizer, self.num_steps_per_epoch)
+        self.lr_scheduler = build_lr_scheduler(cfg.optimizer, self.total_steps)
 
         self.save_dir = Path(cfg.base_save_dir) / experiment_name
         self.save_dir.mkdir(parents=True, exist_ok=True)
+
+        # buffer to track when features activation, used for logging dead features
+        self.firing_tracker = FiringTracker(
+            activation_size=crosscoder.hidden_dim,
+            # length=1_000_000,  # TODO(oli): make this dynamic
+            # device=self.device,
+        )
 
         self.step = 0
         self.epoch = 0
         self.unique_tokens_trained = 0
 
+    def get_firing_percentage_hist(self) -> wandb.Histogram:
+        return wandb_histogram(self.firing_tracker.steps_since_fired_A)
+
     def train(self) -> None:
         save_config(self.cfg, self.save_dir)
-        # for _ in range(self.cfg.epochs or 1):
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
-            epoch_dataloader_BMLD = self.activations_dataloader.get_shuffled_activations_iterator_BMLD()
-            epoch_dataloader_BMLD = islice(epoch_dataloader_BMLD, self.num_steps_per_epoch)
+            epoch_dataloader_BMPD = self.activations_dataloader.get_shuffled_activations_iterator_BMPD()
+            epoch_dataloader_BMPD = islice(epoch_dataloader_BMPD, self.num_steps_per_epoch)
 
-            for batch_BMLD in tqdm(epoch_dataloader_BMLD, desc="Train Steps"):
-                batch_BMLD = batch_BMLD.to(self.device)
+            for batch_BMPD in tqdm(epoch_dataloader_BMPD, desc="Train Steps"):
+                batch_BMPD = batch_BMPD.to(self.device)
 
-                self._train_step(batch_BMLD)
+                self._train_step(batch_BMPD)
 
                 # TODO(oli): get wandb checkpoint saving working
 
-                if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
+                if self.cfg.save_every_n_steps is not None and (self.step + 1) % self.cfg.save_every_n_steps == 0:
                     with self.crosscoder.temporarily_fold_activation_scaling(
-                        self.activations_dataloader.get_norm_scaling_factors_ML()
+                        self.activations_dataloader.get_norm_scaling_factors_MP()
                     ):
                         save_model(self.crosscoder, self.save_dir / f"step{self.step}", self.epoch, self.step)
 
                 if self.epoch == 0:
-                    self.unique_tokens_trained += batch_BMLD.shape[0]
+                    self.unique_tokens_trained += batch_BMPD.shape[0]
 
                 self.step += 1
             self.epoch += 1
 
     @abstractmethod
-    def _train_step(self, batch_BMLD: torch.Tensor) -> None: ...
+    def _train_step(self, batch_BMPD: torch.Tensor) -> None: ...
 
 
 def validate_num_steps_per_epoch(
@@ -157,7 +168,7 @@ def run_exp(build_trainer: Callable[[TCfg], Any], cfg_cls: type[TCfg]) -> Callab
 
     def inner(config_path: Path) -> None:
         config_path = Path(config_path)
-        assert config_path.suffix == ".yaml", f"Config file {config_path} must be a YAML file."
+        assert config_path.suffix == ".yaml", f"Config file {config_path} must be a YAMP file."
         assert Path(config_path).exists(), f"Config file {config_path} does not exist."
         logger.info("Loading config...")
         with open(config_path) as f:

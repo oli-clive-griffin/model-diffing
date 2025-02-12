@@ -12,7 +12,7 @@ class LLMConfig(BaseModel):
 
 class AdamDecayTo0LearningRateConfig(BaseModel):
     warmup_pct: float = 0.05
-    initial_learning_rate: float
+    initial_learning_rate: float = 5e-5
     last_pct_of_steps: float = 0.2
 
 
@@ -24,7 +24,6 @@ class SequenceIteratorConfig(BaseModel):
 
 class ActivationsHarvesterConfig(BaseModel):
     llms: list[LLMConfig]
-    layer_indices_to_harvest: list[int]
     inference_dtype: str = "float32"
     harvesting_batch_size: int
 
@@ -38,7 +37,7 @@ class DataConfig(BaseModel):
 
 class BaseTrainConfig(BaseModel):
     batch_size: int
-    optimizer: AdamDecayTo0LearningRateConfig
+    optimizer: AdamDecayTo0LearningRateConfig = AdamDecayTo0LearningRateConfig()
     epochs: int | None = None
     num_steps_per_epoch: int | None = None
     num_steps: int | None = None
