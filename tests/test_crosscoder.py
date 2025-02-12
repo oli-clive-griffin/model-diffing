@@ -4,6 +4,7 @@ import torch as t
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.activations.topk import BatchTopkActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 
 
 def test_return_shapes():
@@ -18,8 +19,8 @@ def test_return_shapes():
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
-        dec_init_norm=dec_init_norm,
         hidden_activation=ReLUActivation(),
+        init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
     )
 
     activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
@@ -50,8 +51,8 @@ def test_weights_folding_keeps_hidden_representations_consistent():
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
-        dec_init_norm=dec_init_norm,
         hidden_activation=ReLUActivation(),
+        init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
     )
 
     scaling_factors_MP = t.randn(n_models, n_hookpoints)
@@ -64,12 +65,13 @@ def test_weights_folding_keeps_hidden_representations_consistent():
     with crosscoder.temporarily_fold_activation_scaling(scaling_factors_MP):
         output_with_folding = crosscoder.forward_train(unscaled_input_BMPD)
 
-    output_after_unfolding = crosscoder.forward_train(scaled_input_BMPD)
-
     # all hidden representations should be the same
     assert t.allclose(output_without_folding.hidden_BH, output_with_folding.hidden_BH), (
         f"max diff: {t.max(t.abs(output_without_folding.hidden_BH - output_with_folding.hidden_BH))}"
     )
+
+    output_after_unfolding = crosscoder.forward_train(scaled_input_BMPD)
+
     assert t.allclose(output_without_folding.hidden_BH, output_after_unfolding.hidden_BH), (
         f"max diff: {t.max(t.abs(output_without_folding.hidden_BH - output_after_unfolding.hidden_BH))}"
     )
@@ -87,8 +89,8 @@ def test_weights_folding_scales_output_correctly():
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
-        dec_init_norm=dec_init_norm,
         hidden_activation=ReLUActivation(),
+        init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
     )
 
     scaling_factors_MP = t.randn(n_models, n_hookpoints)
@@ -121,8 +123,8 @@ def test_weights_rescaling():
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
-        dec_init_norm=dec_init_norm,
         hidden_activation=ReLUActivation(),
+        init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
     )
 
     activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
@@ -152,8 +154,8 @@ def test_weights_rescaling_makes_unit_norm_decoder_output():
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
-        dec_init_norm=dec_init_norm,
         hidden_activation=ReLUActivation(),
+        init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
     )
 
     activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)

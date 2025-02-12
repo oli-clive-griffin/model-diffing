@@ -1,9 +1,11 @@
 from typing import Any
 
 import torch
+from einops import rearrange
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.relu import ReLUActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
 from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms
@@ -12,8 +14,26 @@ from model_diffing.utils import (
     calculate_reconstruction_loss,
     get_explained_var_dict,
     l0_norm,
+    l2_norm,
     sparsity_loss_l1_of_norms,
 )
+
+
+class AnthropicTransposeInit(InitStrategy[Any]):
+    def __init__(self, dec_init_norm: float):
+        self.dec_init_norm = dec_init_norm
+
+    @torch.no_grad()
+    def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
+        cc.W_dec_HXD[:] = torch.randn_like(cc.W_dec_HXD)
+        W_dec_norm_HX1 = l2_norm(cc.W_dec_HXD, dim=-1, keepdim=True)
+        cc.W_dec_HXD.data.div_(W_dec_norm_HX1)
+        cc.W_dec_HXD.data.mul_(self.dec_init_norm)
+
+        cc.W_enc_XDH[:] = rearrange(cc.W_dec_HXD.clone(), "h ... d -> ... d h")
+
+        cc.b_enc_H.zero_()
+        cc.b_dec_XD.zero_()
 
 
 class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivation]):

@@ -174,10 +174,15 @@ def run_exp(build_trainer: Callable[[TCfg], Any], cfg_cls: type[TCfg]) -> Callab
         with open(config_path) as f:
             config_dict = yaml.safe_load(f)
         config = cfg_cls(**config_dict)
+
+        # # REMOVE ME
+        # config.train.num_steps = 2
+        config.wandb = False
+
         logger.info("Loaded config")
         logger.info("Building trainer")
         trainer = build_trainer(config)
         logger.info("Training")
-        trainer.train()
+        # trainer.train()
 
     return inner

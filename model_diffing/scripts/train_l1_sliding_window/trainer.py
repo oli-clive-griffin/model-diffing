@@ -32,37 +32,11 @@ from model_diffing.utils import (
 TAct = TypeVar("TAct", bound=SaveableModule)
 
 
-class TokenhookpointCrosscoder(AcausalCrosscoder[TAct], Generic[TAct]):
-    def __init__(
-        self,
-        token_window_size: int,
-        n_hookpoints: int,
-        d_model: int,
-        hidden_dim: int,
-        dec_init_norm: float,
-        hidden_activation: TAct,
-    ):
-        super().__init__(
-            crosscoding_dims=(token_window_size, n_hookpoints),
-            d_model=d_model,
-            hidden_dim=hidden_dim,
-            dec_init_norm=dec_init_norm,
-            hidden_activation=hidden_activation,
-        )
-        self.W_enc_TPDH = self.W_enc_XDH
-        self.W_dec_HTPD = self.W_dec_HXD
-        self.b_dec_TPD = self.b_dec_XD
-
-        assert self.W_enc_TPDH.shape == (token_window_size, n_hookpoints, d_model, hidden_dim)
-        assert self.W_dec_HTPD.shape == (hidden_dim, token_window_size, n_hookpoints, d_model)
-        assert self.b_dec_TPD.shape == (token_window_size, n_hookpoints, d_model)
-
-
 class BiTokenCCWrapper(nn.Module, Generic[TAct]):
     def __init__(
         self,
-        single_token_cc: TokenhookpointCrosscoder[TAct],
-        double_token_cc: TokenhookpointCrosscoder[TAct],
+        single_token_cc: AcausalCrosscoder[TAct],
+        double_token_cc: AcausalCrosscoder[TAct],
     ):
         super().__init__()
 
@@ -191,15 +165,15 @@ class L1SlidingWindowCrosscoderTrainer:
         )
 
         sparsity_loss_single1 = sparsity_loss_fn(
-            W_dec_HTMPD=self.crosscoders.single_cc.W_dec_HTPD[:, :, None],
+            W_dec_HTMPD=self.crosscoders.single_cc.W_dec_HXD[:, :, None],
             hidden_BH=res.hidden_BH_single1,
         )
         sparsity_loss_single2 = sparsity_loss_fn(
-            W_dec_HTMPD=self.crosscoders.single_cc.W_dec_HTPD[:, :, None],
+            W_dec_HTMPD=self.crosscoders.single_cc.W_dec_HXD[:, :, None],
             hidden_BH=res.hidden_BH_single2,
         )
         sparsity_loss_double = sparsity_loss_fn(
-            W_dec_HTMPD=self.crosscoders.double_cc.W_dec_HTPD[:, :, None],
+            W_dec_HTMPD=self.crosscoders.double_cc.W_dec_HXD[:, :, None],
             hidden_BH=res.hidden_BH_double,
         )
         sparsity_loss = sparsity_loss_single1 + sparsity_loss_single2 + sparsity_loss_double

@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from math import prod
 
 import fire  # type: ignore
 import torch
@@ -8,7 +9,7 @@ from tqdm import tqdm  # type: ignore
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader, build_dataloader
 from model_diffing.log import logger
 from model_diffing.models.activations import JumpReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig, JumpReLUConfig
@@ -76,7 +77,12 @@ def _build_jan_update_crosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
-        dec_init_norm=0,  # dec_init_norm doesn't matter here as we override weights below
+        init_strategy=JanUpdateInitStrategy(
+            activations_iterator_BXD=data_loader.get_shuffled_activations_iterator_BMPD(),
+            device=device,
+            n_examples_to_sample=100_000,
+            firing_sparsity=10_000,
+        ),
         hidden_activation=JumpReLUActivation(
             size=cc_hidden_dim,
             bandwidth=jumprelu.bandwidth,
@@ -87,102 +93,91 @@ def _build_jan_update_crosscoder(
 
     cc.to(device)
 
-    with torch.no_grad():
-        # parameters from the jan update doc
+    return cc
 
-        n = float(n_models * n_hookpoints * d_model)  # n is the size of the input space
-        m = float(cc_hidden_dim)  # m is the size of the hidden space
 
-        # W_dec ~ U(-1/n, 1/n) (from doc)
+class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
+    def __init__(
+        self,
+        activations_iterator_BXD: Iterator[torch.Tensor],
+        device: torch.device,
+        n_examples_to_sample: int = 100_000,
+        firing_sparsity: float = 10_000,
+    ):
+        self.activations_iterator_BXD = activations_iterator_BXD
+        self.device = device
+        self.n_examples_to_sample = n_examples_to_sample
+        self.firing_sparsity = firing_sparsity
+
+    def init_weights(self, cc: AcausalCrosscoder[JumpReLUActivation]) -> None:
+        n = prod(cc.crosscoding_dims) * cc.d_model
+        m = cc.hidden_dim
+
         cc.W_dec_HXD.uniform_(-1.0 / n, 1.0 / n)
-
-        # For now, assume we're in the X == Y case.
-        # Therefore W_enc = (n/m) * W_dec^T
         cc.W_enc_XDH.copy_(
             rearrange(cc.W_dec_HXD, "hidden ... -> ... hidden")  #
             * (n / m)
         )
 
-        # raise ValueError("need to fix this: 10000/m, not 1/10000")
-        calibrated_b_enc_H = compute_b_enc_H(
-            data_loader.get_shuffled_activations_iterator_BMPD(),
+        calibrated_b_enc_H = self.compute_b_enc_H(
             cc.W_enc_XDH,
             cc.hidden_activation.log_threshold_H.exp(),
-            device,
-            n_examples_to_sample=50_000,
-            firing_sparsity=4,
         )
+
         cc.b_enc_H.copy_(calibrated_b_enc_H)
 
-        # no data-dependent initialization of b_dec
         cc.b_dec_XD.zero_()
 
-    return cc
+    def compute_b_enc_H(self, W_enc_XDH: torch.Tensor, initial_jumprelu_threshold_H: torch.Tensor) -> torch.Tensor:
+        logger.info(f"Harvesting pre-bias for {self.n_examples_to_sample} examples")
 
+        pre_bias_NH = self.harvest_pre_bias_NH(W_enc_XDH)
 
-def compute_b_enc_H(
-    activations_iterator_BXD: Iterator[torch.Tensor],
-    W_enc_XDH: torch.Tensor,
-    initial_jumprelu_threshold_H: torch.Tensor,
-    device: torch.device,
-    n_examples_to_sample: int = 100_000,
-    firing_sparsity: float = 10_000,
-) -> torch.Tensor:
-    logger.info(f"Harvesting pre-bias for {n_examples_to_sample} examples")
+        # find the threshold for each idx H such that 1/10_000 of the examples are above the threshold
+        quantile_H = torch.quantile(pre_bias_NH, 1 - 1 / self.firing_sparsity, dim=0)
 
-    pre_bias_NH = harvest_pre_bias_NH(activations_iterator_BXD, W_enc_XDH, device, n_examples_to_sample)
+        # firing is when the post-bias is above the jumprelu threshold therefore, we subtract
+        # the quantile from the initial jumprelu threshold, such the 1/firing_sparsity of the
+        # examples are above the threshold
+        b_enc_H = initial_jumprelu_threshold_H - quantile_H
 
-    # find the threshold for each idx H such that 1/10_000 of the examples are above the threshold
-    quantile_H = torch.quantile(pre_bias_NH, 1 - 1 / firing_sparsity, dim=0)
+        logger.info(f"computed b_enc_H. Sample: {b_enc_H[:10]}. mean: {b_enc_H.mean()}, std: {b_enc_H.std()}")
 
-    # firing is when the post-bias is above the jumprelu threshold therefore, we subtract
-    # the quantile from the initial jumprelu threshold, such the 1/firing_sparsity of the
-    # examples are above the threshold
-    b_enc_H = initial_jumprelu_threshold_H - quantile_H
+        return b_enc_H
 
-    logger.info(f"computed b_enc_H. Sample: {b_enc_H[:10]}. mean: {b_enc_H.mean()}, std: {b_enc_H.std()}")
+    def harvest_pre_bias_NH(self, W_enc_XDH: torch.Tensor) -> torch.Tensor:
+        def get_batch_pre_bias() -> torch.Tensor:
+            # this is essentially the first step of the crosscoder forward pass, but not worth
+            # creating a new method for it, just (easily) reimplementing it here
+            batch_BXD = next(self.activations_iterator_BXD)
+            x_BH = torch.einsum("b ... d, ... d h -> b h", batch_BXD, W_enc_XDH)
+            return x_BH
 
-    return b_enc_H
+        sample_BH = get_batch_pre_bias()
+        batch_size, hidden_size = sample_BH.shape
 
+        rounded_n_examples_to_sample = round_up(self.n_examples_to_sample, to_multiple_of=batch_size)
 
-def harvest_pre_bias_NH(
-    activations_iterator_BXD: Iterator[torch.Tensor],
-    W_enc_XDH: torch.Tensor,
-    device: torch.device,
-    n_examples_to_sample: int,
-) -> torch.Tensor:
-    def get_batch_pre_bias() -> torch.Tensor:
-        # this is essentially the first step of the crosscoder forward pass, but not worth
-        # creating a new method for it, just (easily) reimplementing it here
-        batch_BXD = next(activations_iterator_BXD)
-        x_BH = torch.einsum("b ... d, ... d h -> b h", batch_BXD, W_enc_XDH)
-        return x_BH
+        if rounded_n_examples_to_sample > self.n_examples_to_sample:
+            logger.warning(
+                f"rounded n_examples_to_sample from {self.n_examples_to_sample} to {rounded_n_examples_to_sample} "
+                f"to be divisible by the batch size {batch_size}"
+            )
 
-    sample_BH = get_batch_pre_bias()
-    batch_size, hidden_size = sample_BH.shape
+        num_batches = rounded_n_examples_to_sample // batch_size
 
-    rounded_n_examples_to_sample = round_up(n_examples_to_sample, to_multiple_of=batch_size)
+        pre_bias_buffer_NH = torch.empty(rounded_n_examples_to_sample, hidden_size, device=self.device)
+        logger.info(f"pre_bias_buffer_NH: {inspect(pre_bias_buffer_NH)}")
 
-    if rounded_n_examples_to_sample > n_examples_to_sample:
-        logger.warning(
-            f"rounded n_examples_to_sample from {n_examples_to_sample} to {rounded_n_examples_to_sample} "
-            f"to be divisible by the batch size {batch_size}"
-        )
+        pre_bias_buffer_NH[:batch_size] = sample_BH
 
-    num_batches = rounded_n_examples_to_sample // batch_size
+        for i in tqdm(
+            range(1, num_batches), desc="Harvesting pre-bias"
+        ):  # start at 1 because we already sampled the first batch
+            batch_pre_bias_BH = get_batch_pre_bias()
+            pre_bias_buffer_NH[batch_size * i : batch_size * (i + 1)] = batch_pre_bias_BH
 
-    pre_bias_buffer_NH = torch.empty(rounded_n_examples_to_sample, hidden_size, device=device)
-    logger.info(f"pre_bias_buffer_NH: {inspect(pre_bias_buffer_NH)}")
-
-    pre_bias_buffer_NH[:batch_size] = sample_BH
-
-    for i in tqdm(
-        range(1, num_batches), desc="Harvesting pre-bias"
-    ):  # start at 1 because we already sampled the first batch
-        batch_pre_bias_BH = get_batch_pre_bias()
-        pre_bias_buffer_NH[batch_size * i : batch_size * (i + 1)] = batch_pre_bias_BH
-
-    return pre_bias_buffer_NH
+        return pre_bias_buffer_NH
 
 
 if __name__ == "__main__":

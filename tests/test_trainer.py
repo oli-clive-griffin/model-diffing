@@ -10,6 +10,7 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer, validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseTrainConfig
+from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 from model_diffing.utils import get_device
 
 
@@ -85,7 +86,7 @@ def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=16,
-        dec_init_norm=0.0,
+        init_strategy=AnthropicTransposeInit(dec_init_norm=0.0),
         hidden_activation=ReLUActivation(),
     )
 

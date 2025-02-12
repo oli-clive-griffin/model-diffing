@@ -1,24 +1,79 @@
+from collections.abc import Iterator
+from itertools import islice
 from typing import Any
 
 import torch
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.topk import TopkActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms
-from model_diffing.utils import calculate_explained_variance_X, calculate_reconstruction_loss, get_explained_var_dict
+from model_diffing.utils import (
+    calculate_explained_variance_X,
+    calculate_reconstruction_loss,
+    get_explained_var_dict,
+    l2_norm,
+)
 
-# shapes:
-# B: batch size
-# M: number of models
-# P: number of hookpoints
-# Pi: number of input hookpoints
-# Po: number of output hookpoints (should be equal to Pi)
-# D: activation dimension (in this case, d_mlp)
+
+class ZeroDecSkipTranscoderInit(InitStrategy[TopkActivation]):
+    def __init__(self, activation_iterator_BMPD: Iterator[torch.Tensor], n_samples_for_dec_mean: int):
+        self.activation_iterator_BMPD = activation_iterator_BMPD
+        self.n_samples_for_dec_mean = n_samples_for_dec_mean
+
+    @torch.no_grad()
+    def init_weights(self, cc: AcausalCrosscoder[TopkActivation]) -> None:
+        cc.W_enc_XDH[:] = torch.randn_like(cc.W_enc_XDH)
+        cc.b_enc_H.zero_()
+
+        cc.W_dec_HXD.zero_()
+        cc.b_dec_XD[:] = self._get_output_mean_MPD()
+
+        assert cc.W_skip_XdXd is not None, "W_skip_XdXd should not be None"
+        cc.W_skip_XdXd.zero_()
+
+    def _get_output_mean_MPD(self) -> torch.Tensor:
+        samples = []
+        for sample_BMPD in islice(self.activation_iterator_BMPD, self.n_samples_for_dec_mean):
+            assert sample_BMPD.shape[2] % 2 == 0, "we should have an even number of hookpoints"
+            # get every second hookpoint as output, assuming that these are the output hookpoints
+            output_BMPD = sample_BMPD[:, :, 1::2]
+            samples.append(output_BMPD)
+
+        samples_BMPD = torch.cat(samples, dim=0)
+        mean_samples_MPD = samples_BMPD.mean(0)
+        return mean_samples_MPD
+
+
+class OrthogonalSkipTranscoderInit(InitStrategy[TopkActivation]):
+    def __init__(self, dec_init_norm: float):
+        self.dec_init_norm = dec_init_norm
+
+    @torch.no_grad()
+    def init_weights(self, cc: AcausalCrosscoder[TopkActivation]) -> None:
+        cc.W_enc_XDH[:] = torch.randn_like(cc.W_enc_XDH)
+        cc.b_enc_H.zero_()
+
+        torch.nn.init.orthogonal_(cc.W_dec_HXD)
+        W_dec_HXD_norm_HX1 = l2_norm(cc.W_dec_HXD, dim=-1, keepdim=True)
+        cc.W_dec_HXD.data.div_(W_dec_HXD_norm_HX1)
+        cc.W_dec_HXD.data.mul_(self.dec_init_norm)
+
+        assert cc.W_skip_XdXd is not None, "W_skip_XdXd should not be None"
+        cc.W_skip_XdXd.zero_()
 
 
 class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
+    # shapes:
+    # B: batch size
+    # M: number of models
+    # P: number of hookpoints
+    # Pi: number of input hookpoints
+    # Po: number of output hookpoints (should be equal to Pi)
+    # D: activation dimension (in this case, d_mlp)
+
     def _train_step(self, batch_BMPD: torch.Tensor) -> None:
         self.optimizer.zero_grad()
 
@@ -44,10 +99,14 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
             and self.cfg.log_every_n_steps is not None
             and (self.step + 1) % self.cfg.log_every_n_steps == 0
         ):
+            assert batch_y_BMPoD.shape[2] == len(self.hookpoints[1::2])
+            assert train_res.output_BXD.shape[2] == len(self.hookpoints[::2])
+            names = [" - ".join(pair) for pair in zip(self.hookpoints[::2], self.hookpoints[1::2], strict=True)]
+
             explained_variance_dict = get_explained_var_dict(
                 calculate_explained_variance_X(batch_y_BMPoD, train_res.output_BXD),
                 ("model", list(range(self.n_models))),
-                ("hookpoint", self.hookpoints),
+                ("hookpoints", names),
             )
 
             log_dict: dict[str, Any] = {

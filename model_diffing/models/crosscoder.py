@@ -1,10 +1,10 @@
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-from math import prod
 from typing import Any, Generic, TypeVar, cast
 
 import torch as t
-from einops import einsum, rearrange, reduce
+from einops import einsum, reduce
 from torch import nn
 
 from model_diffing.models.activations import ACTIVATIONS
@@ -21,6 +21,11 @@ Dimensions:
 TActivation = TypeVar("TActivation", bound=SaveableModule)
 
 
+class InitStrategy(ABC, Generic[TActivation]):
+    @abstractmethod
+    def init_weights(self, cc: "AcausalCrosscoder[TActivation]") -> None: ...
+
+
 class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
     is_folded: t.Tensor
     folded_scaling_factors_X: t.Tensor | None
@@ -30,9 +35,9 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         crosscoding_dims: tuple[int, ...],
         d_model: int,
         hidden_dim: int,
-        dec_init_norm: float,
         hidden_activation: TActivation,
         skip_linear: bool = False,
+        init_strategy: InitStrategy[TActivation] | None = None,
     ):
         super().__init__()
         self.crosscoding_dims = crosscoding_dims
@@ -40,36 +45,21 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         self.hidden_dim = hidden_dim
         self.hidden_activation = hidden_activation
 
-        W_base_HXD = t.randn((hidden_dim, *crosscoding_dims, d_model))
-
-        self.W_dec_HXD = nn.Parameter(W_base_HXD.clone())
-
-        with t.no_grad():
-            W_dec_norm_HX1 = l2_norm(self.W_dec_HXD, dim=-1, keepdim=True)
-            self.W_dec_HXD.div_(W_dec_norm_HX1)
-            self.W_dec_HXD.mul_(dec_init_norm)
-
-            self.W_enc_XDH = nn.Parameter(
-                rearrange(  # "transpose" of the encoder weights
-                    W_base_HXD,
-                    "h ... -> ... h",
-                )
-            )
-
-        self.b_dec_XD = nn.Parameter(t.zeros((*crosscoding_dims, d_model)))
-        self.b_enc_H = nn.Parameter(t.zeros((hidden_dim,)))
-
+        self.W_dec_HXD = nn.Parameter(t.empty((hidden_dim, *crosscoding_dims, d_model)))
+        self.b_enc_H = nn.Parameter(t.empty((hidden_dim,)))
+        self.W_enc_XDH = nn.Parameter(t.empty((*crosscoding_dims, d_model, hidden_dim)))
+        self.b_dec_XD = nn.Parameter(t.empty((*crosscoding_dims, d_model)))
+        self.W_skip_XdXd = None
         if skip_linear:
-            # instead of retaining the arbitrary dimensions, flatten and run as a large flat matmul
-            # makes things simpler later on
-            dims = prod([*crosscoding_dims, d_model])
-            self.W_skip_XdXd = nn.Parameter(t.zeros((dims, dims)))
-        else:
-            self.W_skip_XdXd = None
+            self.W_skip_XdXd = nn.Parameter(t.empty((*crosscoding_dims, d_model, *crosscoding_dims, d_model)))
 
-        # Initialize the buffer with a zero tensor of the correct shape
+        if init_strategy is not None:
+            init_strategy.init_weights(self)
+
+        # Initialize the buffer with a zero tensor of the correct shape, this means it's always serialized
         self.register_buffer("folded_scaling_factors_X", t.zeros(self.crosscoding_dims))
-        # track this boolean flag as a tensor so that it's serialized by torch.save
+        # However, track whether it's actually holding a meaningful value by using this boolean flag.
+        # Represented as a tensor so that it's serialized by torch.save
         self.register_buffer("is_folded", t.tensor(False, dtype=t.bool))
 
     def _encode_BH(self, activation_BXD: t.Tensor) -> t.Tensor:
@@ -142,7 +132,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             "hidden_dim": self.hidden_dim,
             "hidden_activation_classname": self.hidden_activation.__class__.__name__,
             "hidden_activation_cfg": self.hidden_activation._dump_cfg(),
-            "skip_linear": self.W_skip_XdXd is not None,
+            # don't need to serialize init_strategy as loading from state_dict will re-initialize the params
         }
 
     @classmethod
@@ -157,9 +147,8 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             crosscoding_dims=cfg["crosscoding_dims"],
             d_model=cfg["d_model"],
             hidden_dim=cfg["hidden_dim"],
-            dec_init_norm=0,  # dec_init_norm doesn't matter here as we should be loading weights from a checkpoint
             hidden_activation=hidden_activation,
-            skip_linear=cfg["skip_linear"],
+            # don't need to serialize init_strategy as loading from state_dict will re-initialize the params
         )
 
     def with_decoder_unit_norm(self) -> "AcausalCrosscoder[TActivation]":
@@ -172,7 +161,6 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             crosscoding_dims=self.crosscoding_dims,
             d_model=self.d_model,
             hidden_dim=self.hidden_dim,
-            dec_init_norm=0,  # this shouldn't matter
             hidden_activation=self.hidden_activation,
         )
 

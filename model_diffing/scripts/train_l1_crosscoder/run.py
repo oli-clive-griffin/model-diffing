@@ -7,7 +7,7 @@ from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.config import L1ExperimentConfig
-from model_diffing.scripts.train_l1_crosscoder.trainer import L1CrosscoderTrainer
+from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit, L1CrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import get_device
 
@@ -38,7 +38,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=llms[0].cfg.d_model,
         hidden_dim=cfg.crosscoder.hidden_dim,
-        dec_init_norm=cfg.crosscoder.dec_init_norm,
+        init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
         hidden_activation=ReLUActivation(),
     )
 
