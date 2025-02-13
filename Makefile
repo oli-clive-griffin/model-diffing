@@ -4,7 +4,7 @@ install:
 
 .PHONY: install-dev
 install-dev:
-	uv pip install -e .[dev]
+	pip install -e .[dev]
 	pre-commit install
 
 .PHONY: type
@@ -46,10 +46,6 @@ sync-down:
 # Default values
 LOCATION ?= user@10.10.10.10:/path/to/destination
 
-.PHONY: setup-machine
-setup-machine:
-	pip install uv && \
-	uv venv --python 3.11 && \
-	. .venv/bin/activate && \
-	uv pip install -e .
-	echo "setup complete, now run 'source .venv/bin/activate'"
+.PHONY: setup-vast
+setup-vast: # this is so shit but it works for now. Tired of trying to get uv, pyproject.toml, and pip to work together
+	pip install transformer_lens pydantic wandb fire tqdm einops transformers datasets plotly pandas matplotlib

@@ -36,14 +36,16 @@ class ZeroDecSkipTranscoderInit(InitStrategy[TopkActivation]):
 
     def _get_output_mean_MPD(self) -> torch.Tensor:
         samples = []
-        for sample_BMPD in islice(self.activation_iterator_BMPD, self.n_samples_for_dec_mean):
+        samples_processed = 0
+        while samples_processed < self.n_samples_for_dec_mean:
+            sample_BMPD = next(self.activation_iterator_BMPD)
             assert sample_BMPD.shape[2] % 2 == 0, "we should have an even number of hookpoints"
             # get every second hookpoint as output, assuming that these are the output hookpoints
             output_BMPD = sample_BMPD[:, :, 1::2]
             samples.append(output_BMPD)
+            samples_processed += output_BMPD.shape[0]
 
-        samples_BMPD = torch.cat(samples, dim=0)
-        mean_samples_MPD = samples_BMPD.mean(0)
+        mean_samples_MPD = torch.cat(samples, dim=0).mean(0)
         return mean_samples_MPD
 
 

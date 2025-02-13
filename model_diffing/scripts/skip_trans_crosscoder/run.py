@@ -58,6 +58,7 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
             n_samples_for_dec_mean=100_000,
         ),
         hidden_activation=TopkActivation(k=cfg.crosscoder.k),
+        skip_linear=True,
     )
 
     crosscoder = crosscoder.to(device)
