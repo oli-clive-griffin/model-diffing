@@ -3,6 +3,7 @@ from typing import Any
 import torch
 from torch.nn.utils import clip_grad_norm_
 
+from model_diffing.log import logger
 from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
@@ -11,6 +12,10 @@ from model_diffing.utils import calculate_explained_variance_X, calculate_recons
 
 
 class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
+    def __init__(self, *args, **kwargs):  # type: ignore
+        super().__init__(*args, **kwargs)
+        logger.warn("Auxiliary loss is not implemented for topk training, you may see large amounts of dead latents")
+
     def _train_step(self, batch_BMPD: torch.Tensor) -> None:
         self.optimizer.zero_grad()
 
@@ -27,7 +32,6 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"
         self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
-        # is measuring l0 meaningful here? I don't think so in the case of topk
         if (
             self.wandb_run is not None
             and self.cfg.log_every_n_steps is not None

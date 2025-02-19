@@ -3,6 +3,7 @@ from typing import Any
 import torch as t
 from einops import rearrange
 
+from model_diffing.log import logger
 from model_diffing.utils import SaveableModule
 
 
@@ -10,6 +11,7 @@ class TopkActivation(SaveableModule):
     def __init__(self, k: int):
         super().__init__()
         self.k = k
+        logger.warn("using topk activation, BatchTopk is available and generally ≈better")
 
     def forward(self, hidden_preactivation_BH: t.Tensor) -> t.Tensor:
         _topk_values_BH, topk_indices_BH = hidden_preactivation_BH.topk(self.k, dim=-1)
