@@ -52,7 +52,7 @@ def _build_sliding_window_crosscoder_trainer(
             hidden_activation=JumpReLUActivation(
                 size=cfg.crosscoder.hidden_dim,
                 bandwidth=cfg.crosscoder.jumprelu.bandwidth,
-                threshold_init=cfg.crosscoder.jumprelu.threshold_init,
+                log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
                 backprop_through_input=cfg.crosscoder.jumprelu.backprop_through_jumprelu_input,
             ),
             init_strategy=JanUpdateInitStrategy(

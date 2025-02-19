@@ -52,7 +52,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         hidden_activation=JumpReLUActivation(
             size=cfg.crosscoder.hidden_dim,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
-            threshold_init=cfg.crosscoder.jumprelu.threshold_init,
+            log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
             backprop_through_input=cfg.crosscoder.jumprelu.backprop_through_jumprelu_input,
         ),
     )

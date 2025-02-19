@@ -6,8 +6,8 @@ from model_diffing.utils import BaseModel
 
 class JumpReLUConfig(BaseModel):
     bandwidth: float = 2.0  # aka ε
-    threshold_init: float = 0.1  # aka t
-    backprop_through_jumprelu_input: bool = False
+    log_threshold_init: float = 0.1  # aka t. Importantly, they set `log t` to 0.1, not `t`.
+    backprop_through_jumprelu_input: bool = True
 
 
 class JanUpdateCrosscoderConfig(BaseModel):
