@@ -3,28 +3,28 @@ data:
     classname: HuggingfaceTextDatasetTokenSequenceLoader
     kwargs:
       hf_dataset_name: "monology/pile-uncopyrighted"
-      sequence_length: 256
-      shuffle_buffer_size: 8192
+      sequence_length: 2048
+      shuffle_buffer_size: 32_768
   activations_harvester:
     llms:
-      - name: EleutherAI/pythia-160M
-        revision: step142000
+      # - name: EleutherAI/pythia-160M
+      #   revision: step142000
       - name: EleutherAI/pythia-160M
         revision: step143000
-    harvesting_batch_size: 1
-  activations_shuffle_buffer_size: 2048
+    harvesting_batch_size: 4
+  activations_shuffle_buffer_size: 32_768
 crosscoder:
-  hidden_dim: 4096
+  hidden_dim: 6144
   jumprelu:
     backprop_through_jumprelu_input: true
-  initial_approx_firing_pct: 0.5 # WARNING(oli): very uncertain this is a good default!
+  initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!
 train:
-  num_steps: 10_000
-  batch_size: 32
+  num_steps: 50_000
+  batch_size: 8192
   save_every_n_steps: 2500
-  log_every_n_steps: 100
+  log_every_n_steps: 50
   c: 4.0
   final_lambda_s: 5.0
   lambda_p: 0.000003
-experiment_name: jan_update_crosscoder_example
+experiment_name: oli-interp-test
 hookpoints: ["blocks.8.hook_resid_post"]

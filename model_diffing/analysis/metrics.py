@@ -6,7 +6,7 @@ def compute_relative_norms_N(vectors_a_NF: torch.Tensor, vectors_b_NF: torch.Ten
     """Compute relative norms between two sets of vectors."""
     norm_a_N = torch.norm(vectors_a_NF, dim=-1)
     norm_b_N = torch.norm(vectors_b_NF, dim=-1)
-    return norm_b_N / (norm_a_N + norm_b_N)
+    return (norm_b_N + 1e-6) / (norm_a_N + norm_b_N + 1e-6)
 
 
 def compute_cosine_similarities_N(vectors_a_NF: torch.Tensor, vectors_b_NF: torch.Tensor) -> torch.Tensor:

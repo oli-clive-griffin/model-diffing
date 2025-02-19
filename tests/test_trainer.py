@@ -97,7 +97,7 @@ def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
         wandb_run=None,
         device=get_device(),
         hookpoints=hookpoints,
-        experiment_name="test",
+        save_dir="test_save_dir",
     )
 
     trainer.train()

@@ -21,23 +21,36 @@ class JumpReLUActivation(SaveableModule):
         self,
         size: int,
         bandwidth: float,
-        threshold_init: float,
+        log_threshold_init: float | None = None,
         backprop_through_input: bool = True,
     ):
         super().__init__()
-        self.log_threshold_H = nn.Parameter(t.ones(size) * threshold_init)
+
+        self.size = size
         self.bandwidth = bandwidth
+        self.log_threshold_H = nn.Parameter(t.ones(size))
+        if log_threshold_init is not None:
+            self.log_threshold_H.data.mul_(log_threshold_init)
         self.backprop_through_input = backprop_through_input
 
     def forward(self, x_BX: t.Tensor) -> t.Tensor:
         return JumpReLU.apply(x_BX, self.log_threshold_H, self.bandwidth, self.backprop_through_input)  # type: ignore
 
-    def _dump_cfg(self) -> dict[str, int | float | str]:
-        return {"size": self.log_threshold_H.shape[0], "bandwidth": self.bandwidth}
+    def _dump_cfg(self) -> dict[str, int | float | str | list[float]]:
+        return {
+            "size": self.size,
+            "bandwidth": self.bandwidth,
+            "backprop_through_input": self.backprop_through_input,
+        }
 
     @classmethod
     def _from_cfg(cls, cfg: dict[str, Any]) -> "JumpReLUActivation":
-        return cls(**cfg)
+        return cls(
+            size=cfg["size"],
+            bandwidth=cfg["bandwidth"],
+            log_threshold_init=None,  # will be handled by loading the state dict
+            backprop_through_input=cfg["backprop_through_input"],
+        )
 
 
 class JumpReLU(t.autograd.Function):

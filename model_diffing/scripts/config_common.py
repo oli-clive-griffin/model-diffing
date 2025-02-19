@@ -1,5 +1,6 @@
 from datetime import datetime
 from operator import xor
+from pathlib import Path
 from typing import Any, Literal
 
 from model_diffing.utils import BaseModel
@@ -41,7 +42,6 @@ class BaseTrainConfig(BaseModel):
     epochs: int | None = None
     num_steps_per_epoch: int | None = None
     num_steps: int | None = None
-    base_save_dir: str = ".checkpoints"
     save_every_n_steps: int | None = None
     log_every_n_steps: int | None = None
 
@@ -62,8 +62,13 @@ class WandbConfig(BaseModel):
 class BaseExperimentConfig(BaseModel):
     seed: int = 42
     cache_dir: str = ".cache"
+    base_save_dir: str = ".checkpoints"
     wandb: WandbConfig | Literal["disabled"] = WandbConfig()
     experiment_name: str
+
+    @property
+    def save_dir(self) -> Path:
+        return Path(self.base_save_dir) / self.experiment_name
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)

@@ -53,7 +53,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         wandb_run=wandb_run,
         device=device,
         hookpoints=cfg.hookpoints,
-        experiment_name=cfg.experiment_name,
+        save_dir=cfg.save_dir,
     )
 
 

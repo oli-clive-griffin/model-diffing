@@ -10,7 +10,7 @@ from wandb.sdk.wandb_run import Run
 from model_diffing.data.token_hookpoint_dataloader import BaseTokenhookpointActivationsDataloader
 from model_diffing.log import logger
 from model_diffing.models.activations.jumprelu import JumpReLUActivation
-from model_diffing.scripts.base_trainer import save_config, save_model, validate_num_steps_per_epoch
+from model_diffing.scripts.base_trainer import save_model, validate_num_steps_per_epoch
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTrainConfig
 from model_diffing.scripts.train_l1_sliding_window.trainer import BiTokenCCWrapper
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, wandb_histogram
@@ -32,7 +32,7 @@ class JumpreluSlidingWindowCrosscoderTrainer:
         wandb_run: Run | None,
         device: t.device,
         hookpoints: list[str],
-        experiment_name: str,
+        save_dir: Path | str,
     ):
         self.cfg = cfg
         self.activations_dataloader = activations_dataloader
@@ -55,16 +55,13 @@ class JumpreluSlidingWindowCrosscoderTrainer:
 
         self.lr_scheduler = build_lr_scheduler(cfg.optimizer, self.total_steps)
 
-        self.save_dir = Path(cfg.base_save_dir) / experiment_name
-        self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.save_dir = Path(save_dir)
 
         self.step = 0
         self.epoch = 0
         self.unique_tokens_trained = 0
 
     def train(self):
-        save_config(self.cfg, self.save_dir)
-
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             epoch_dataloader_BTPD = self.activations_dataloader.get_shuffled_activations_iterator_BTPD()
@@ -77,13 +74,15 @@ class JumpreluSlidingWindowCrosscoderTrainer:
 
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     scaling_factors_TP = self.activations_dataloader.get_norm_scaling_factors_TP()
+                    step_dir = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+
                     with self.crosscoders.single_cc.temporarily_fold_activation_scaling(
                         scaling_factors_TP.mean(dim=0, keepdim=True)
                     ):
-                        save_model(self.crosscoders.single_cc, self.save_dir / "single_cc", self.epoch, self.step)
+                        save_model(self.crosscoders.single_cc, step_dir / "single_cc")
 
                     with self.crosscoders.double_cc.temporarily_fold_activation_scaling(scaling_factors_TP):
-                        save_model(self.crosscoders.double_cc, self.save_dir / "double_cc", self.epoch, self.step)
+                        save_model(self.crosscoders.double_cc, step_dir / "double_cc")
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BTPD.shape[0]

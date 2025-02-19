@@ -8,7 +8,6 @@ from typing import Any, Generic, TypeVar
 import torch
 import wandb
 import yaml  # type: ignore
-from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
@@ -18,26 +17,12 @@ from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, wandb_histogram
+from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
 from model_diffing.utils import SaveableModule
-
-
-def save_config(config: BaseModel, save_dir: Path) -> None:
-    save_dir.mkdir(parents=True, exist_ok=True)
-    with open(save_dir / "config.yaml", "w") as f:
-        yaml.dump(config.model_dump(), f)
-    logger.info(f"Saved config to {save_dir / 'config.yaml'}")
-
-
-def save_model(model: SaveableModule, save_dir: Path, epoch: int, step: int) -> None:
-    save_dir.mkdir(parents=True, exist_ok=True)
-    model.save(save_dir / f"epoch_{epoch}_step_{step}")
-    logger.info(f"Saved model to {save_dir / f'epoch_{epoch}_step_{step}'}")
-
 
 # using python3.11 generics because it's better supported by GPU providers
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=SaveableModule)
-# TDataLoader = TypeVar("TDataLoader", bound=BaseActivationsDataloader)
 
 
 class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
@@ -49,7 +34,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         wandb_run: Run | None,
         device: torch.device,
         hookpoints: list[str],
-        experiment_name: str,
+        save_dir: Path | str,
     ):
         self.cfg = cfg
         self.activations_dataloader = activations_dataloader
@@ -77,7 +62,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
 
         self.lr_scheduler = build_lr_scheduler(cfg.optimizer, self.total_steps)
 
-        self.save_dir = Path(cfg.base_save_dir) / experiment_name
+        self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
         # buffer to track when features activation, used for logging dead features
@@ -95,7 +80,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         return wandb_histogram(self.firing_tracker.steps_since_fired_A)
 
     def train(self) -> None:
-        save_config(self.cfg, self.save_dir)
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             epoch_dataloader_BMPD = self.activations_dataloader.get_shuffled_activations_iterator_BMPD()
@@ -109,10 +93,16 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 # TODO(oli): get wandb checkpoint saving working
 
                 if self.cfg.save_every_n_steps is not None and (self.step + 1) % self.cfg.save_every_n_steps == 0:
+                    checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+
                     with self.crosscoder.temporarily_fold_activation_scaling(
                         self.activations_dataloader.get_norm_scaling_factors_MP()
                     ):
-                        save_model(self.crosscoder, self.save_dir / f"step{self.step}", self.epoch, self.step)
+                        save_model(self.crosscoder, checkpoint_path)
+
+                    if self.wandb_run is not None:
+                        artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id)
+                        self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BMPD.shape[0]
@@ -161,6 +151,19 @@ def validate_num_steps_per_epoch(
     return num_steps
 
 
+def save_config(config: BaseExperimentConfig) -> None:
+    config.save_dir.mkdir(parents=True, exist_ok=True)
+    with open(config.save_dir / "config.yaml", "w") as f:
+        yaml.dump(config.model_dump(), f)
+    logger.info(f"Saved config to {config.save_dir / 'config.yaml'}")
+
+
+def save_model(model: SaveableModule, save_dir: Path) -> None:
+    save_dir.mkdir(parents=True, exist_ok=True)
+    model.save(save_dir)
+    logger.info(f"Saved model to {save_dir}")
+
+
 TCfg = TypeVar("TCfg", bound=BaseExperimentConfig)
 
 
@@ -169,13 +172,14 @@ def run_exp(build_trainer: Callable[[TCfg], Any], cfg_cls: type[TCfg]) -> Callab
 
     def inner(config_path: Path) -> None:
         config_path = Path(config_path)
-        assert config_path.suffix == ".yaml", f"Config file {config_path} must be a YAMP file."
+        assert config_path.suffix == ".yaml", f"Config file {config_path} must be a YAML file."
         assert Path(config_path).exists(), f"Config file {config_path} does not exist."
         logger.info("Loading config...")
         with open(config_path) as f:
             config_dict = yaml.safe_load(f)
         config = cfg_cls(**config_dict)
-        logger.info("Loaded config")
+        logger.info(f"Loaded config, saving in save_dir: {config.save_dir}")
+        save_config(config)
         logger.info("Building trainer")
         trainer = build_trainer(config)
         logger.info("Training")

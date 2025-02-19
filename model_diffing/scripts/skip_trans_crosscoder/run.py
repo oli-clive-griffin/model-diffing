@@ -72,7 +72,7 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
         wandb_run=wandb_run,
         device=device,
         hookpoints=hookpoints,
-        experiment_name=cfg.experiment_name,
+        save_dir=cfg.save_dir,
     )
 
 

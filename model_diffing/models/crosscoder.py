@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
+from math import prod
 from typing import Any, Generic, TypeVar, cast
 
 import torch as t
 from einops import einsum, reduce
 from torch import nn
 
-from model_diffing.models.activations import ACTIVATIONS
+from model_diffing.models.activations import ACTIVATIONS_MAP
 from model_diffing.utils import SaveableModule, l2_norm
 
 """
@@ -49,9 +50,11 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         self.b_enc_H = nn.Parameter(t.empty((hidden_dim,)))
         self.W_enc_XDH = nn.Parameter(t.empty((*crosscoding_dims, d_model, hidden_dim)))
         self.b_dec_XD = nn.Parameter(t.empty((*crosscoding_dims, d_model)))
+
         self.W_skip_XdXd = None
         if skip_linear:
-            self.W_skip_XdXd = nn.Parameter(t.empty((*crosscoding_dims, d_model, *crosscoding_dims, d_model)))
+            Xd = prod([*crosscoding_dims, d_model])
+            self.W_skip_XdXd = nn.Parameter(t.empty((Xd, Xd)))
 
         if init_strategy is not None:
             init_strategy.init_weights(self)
@@ -140,7 +143,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         hidden_activation_cfg = cfg["hidden_activation_cfg"]
         hidden_activation_classname = cfg["hidden_activation_classname"]
 
-        hidden_activation_cls = ACTIVATIONS[hidden_activation_classname]
+        hidden_activation_cls = ACTIVATIONS_MAP[hidden_activation_classname]
         hidden_activation = cast(TActivation, hidden_activation_cls._from_cfg(hidden_activation_cfg))
 
         return AcausalCrosscoder(

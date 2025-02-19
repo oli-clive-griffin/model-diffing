@@ -4,9 +4,12 @@ from .jumprelu import JumpReLUActivation
 from .relu import ReLUActivation
 from .topk import BatchTopkActivation, TopkActivation
 
-ACTIVATIONS: dict[str, type[SaveableModule]] = {
-    "TopkActivation": TopkActivation,
-    "BatchTopkActivation": BatchTopkActivation,
-    "ReLU": ReLUActivation,
-    "JumpReLU": JumpReLUActivation,
+ACTIVATIONS_MAP: dict[str, type[SaveableModule]] = {
+    cls.__name__: cls
+    for cls in [
+        TopkActivation,
+        BatchTopkActivation,
+        ReLUActivation,
+        JumpReLUActivation,
+    ]
 }

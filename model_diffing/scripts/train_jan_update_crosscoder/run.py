@@ -67,7 +67,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         wandb_run=wandb_run,
         device=device,
         hookpoints=cfg.hookpoints,
-        experiment_name=cfg.experiment_name,
+        save_dir=cfg.save_dir,
     )
 
 

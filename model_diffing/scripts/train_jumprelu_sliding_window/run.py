@@ -75,7 +75,7 @@ def _build_sliding_window_crosscoder_trainer(
         wandb_run=wandb_run,
         device=device,
         hookpoints=cfg.hookpoints,
-        experiment_name=cfg.experiment_name,
+        save_dir=cfg.save_dir,
     )
 
 
