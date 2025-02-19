@@ -25,5 +25,4 @@ train:
   save_every_n_steps: 1000
   log_every_n_steps: 20
 experiment_name: l1_crosscoder_example
-wandb: True
 hookpoints: ["blocks.8.hook_resid_post"]

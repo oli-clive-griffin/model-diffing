@@ -63,7 +63,7 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
 
     crosscoder = crosscoder.to(device)
 
-    wandb_run = build_wandb_run(cfg) if cfg.wandb else None
+    wandb_run = build_wandb_run(cfg)
 
     return TopkSkipTransCrosscoderTrainer(
         cfg=cfg.train,

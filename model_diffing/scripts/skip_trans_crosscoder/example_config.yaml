@@ -22,5 +22,4 @@ train:
   save_every_n_steps: 2500
   log_every_n_steps: 100
 experiment_name: skip_trans_crosscoder_example
-wandb: true
 mlp_indices: [7]

@@ -1,5 +1,4 @@
 from collections.abc import Iterator
-from itertools import islice
 from typing import Any
 
 import torch

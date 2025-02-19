@@ -8,6 +8,7 @@ from typing import Any, Generic, TypeVar
 import torch
 import wandb
 import yaml  # type: ignore
+from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
@@ -20,10 +21,10 @@ from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, wan
 from model_diffing.utils import SaveableModule
 
 
-def save_config(config: BaseTrainConfig, save_dir: Path) -> None:
+def save_config(config: BaseModel, save_dir: Path) -> None:
     save_dir.mkdir(parents=True, exist_ok=True)
     with open(save_dir / "config.yaml", "w") as f:
-        yaml.dump(config, f)
+        yaml.dump(config.model_dump(), f)
     logger.info(f"Saved config to {save_dir / 'config.yaml'}")
 
 

@@ -44,7 +44,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
 
     crosscoder = crosscoder.to(device)
 
-    wandb_run = build_wandb_run(cfg) if cfg.wandb else None
+    wandb_run = build_wandb_run(cfg)
 
     return L1CrosscoderTrainer(
         cfg=cfg.train,

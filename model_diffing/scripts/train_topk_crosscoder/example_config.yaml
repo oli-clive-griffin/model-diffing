@@ -22,5 +22,4 @@ train:
   save_every_n_steps: 2500
   log_every_n_steps: 100
 experiment_name: topk_crosscoder_example
-wandb: true
 hookpoints: ["blocks.8.hook_resid_post"]

@@ -1,6 +1,6 @@
 from datetime import datetime
 from operator import xor
-from typing import Any
+from typing import Any, Literal
 
 from model_diffing.utils import BaseModel
 
@@ -54,10 +54,15 @@ class BaseTrainConfig(BaseModel):
             raise ValueError("must provide either only epochs and num_steps_per_epoch or only num_steps")
 
 
+class WandbConfig(BaseModel):
+    entity: str = "mars-model-diffing"
+    project: str = "model-diffing"
+
+
 class BaseExperimentConfig(BaseModel):
     seed: int = 42
     cache_dir: str = ".cache"
-    wandb: bool
+    wandb: WandbConfig | Literal["disabled"] = WandbConfig()
     experiment_name: str
 
     def model_post_init(self, __context: Any) -> None:
