@@ -12,7 +12,6 @@ from model_diffing.utils import (
     calculate_reconstruction_loss,
     get_decoder_norms_H,
     get_explained_var_dict,
-    l0_norm,
 )
 
 
@@ -52,10 +51,6 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
             and self.cfg.log_every_n_steps is not None
             and (self.step + 1) % self.cfg.log_every_n_steps == 0
         ):
-            l0_B = l0_norm(train_res.hidden_BH, dim=-1)
-
-            l0_stats = get_l0_stats(l0_B, self.step)
-
             thresholds_hist = wandb_histogram(self.crosscoder.hidden_activation.log_threshold_H.exp())
 
             explained_variance_dict = get_explained_var_dict(
@@ -71,8 +66,6 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
                 "train/tanh_sparsity_loss_scaled": scaled_tanh_sparsity_loss.item(),
                 "train/lambda_s": lambda_s,
                 #
-                "train/mean_l0_pct": l0_B.mean().item() / self.crosscoder.hidden_dim,
-                #
                 "train/pre_act_loss": pre_act_loss.item(),
                 "train/pre_act_loss_scaled": scaled_pre_act_loss.item(),
                 "train/lambda_p": self.cfg.lambda_p,
@@ -81,8 +74,10 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
                 #
                 "media/jumprelu_threshold_distribution": thresholds_hist,
                 #
+                #
                 **explained_variance_dict,
-                **l0_stats,
+                **get_l0_stats(train_res.hidden_BH),
+                **self.common_logs(),
             }
 
             if self.n_models == 2:

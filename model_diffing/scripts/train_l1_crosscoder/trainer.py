@@ -8,12 +8,11 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
-from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms
+from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms, get_l0_stats
 from model_diffing.utils import (
     calculate_explained_variance_X,
     calculate_reconstruction_loss,
     get_explained_var_dict,
-    l0_norm,
     l2_norm,
     sparsity_loss_l1_of_norms,
 )
@@ -67,8 +66,6 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
             and self.cfg.log_every_n_steps is not None
             and (self.step + 1) % self.cfg.log_every_n_steps == 0
         ):
-            mean_l0 = l0_norm(train_res.hidden_BH, dim=-1).mean()
-
             explained_variance_dict = get_explained_var_dict(
                 calculate_explained_variance_X(batch_BMPD, train_res.output_BXD),
                 ("model", list(range(self.n_models))),
@@ -77,12 +74,12 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
 
             log_dict: dict[str, Any] = {
                 "train/l1_coef": l1_coef,
-                "train/mean_l0": mean_l0,
-                "train/mean_l0_pct": mean_l0 / self.crosscoder.hidden_dim,
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/sparsity_loss": sparsity_loss.item(),
                 "train/loss": loss.item(),
                 **explained_variance_dict,
+                **get_l0_stats(train_res.hidden_BH),
+                **self.common_logs(),
             }
 
             if self.n_models == 2:

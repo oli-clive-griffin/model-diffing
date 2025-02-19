@@ -12,15 +12,16 @@ from wandb.sdk.wandb_run import Run
 
 from model_diffing.analysis import metrics
 from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseExperimentConfig
-from model_diffing.utils import l2_norm
+from model_diffing.utils import l0_norm, l2_norm
 
 
-def get_l0_stats(l0_B: torch.Tensor, step: int) -> dict[str, float]:
-    mean_l0 = l0_B.mean().item()
-    l0_np = l0_B.detach().cpu().numpy()
+def get_l0_stats(hidden_BH: torch.Tensor) -> dict[str, float]:
+    l0_BH = l0_norm(hidden_BH, dim=-1)
+    mean_l0 = l0_BH.mean().item()
+    l0_np = l0_BH.detach().cpu().numpy()
     l0_5, l0_25, l0_75, l0_95 = np.percentile(l0_np, [5, 25, 75, 95])
     return {
-        "train/l0/step": step,
+        "train/mean_firing_pct": mean_l0 / hidden_BH.shape[1],
         "train/l0/5th": l0_5,
         "train/l0/25th": l0_25,
         "train/l0/mean": mean_l0,

@@ -65,19 +65,14 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
-        # buffer to track when features activation, used for logging dead features
-        self.firing_tracker = FiringTracker(
-            activation_size=crosscoder.hidden_dim,
-            # length=1_000_000,  # TODO(oli): make this dynamic
-            # device=self.device,
-        )
+        self.firing_tracker = FiringTracker(activation_size=crosscoder.hidden_dim)
 
         self.step = 0
         self.epoch = 0
         self.unique_tokens_trained = 0
 
-    def get_firing_percentage_hist(self) -> wandb.Histogram:
-        return wandb_histogram(self.firing_tracker.steps_since_fired_A)
+    def tokens_since_fired_hist(self) -> wandb.Histogram:
+        return wandb_histogram(self.firing_tracker.steps_since_fired_A * self.cfg.batch_size)
 
     def train(self) -> None:
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
@@ -109,6 +104,14 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
 
                 self.step += 1
             self.epoch += 1
+
+    def common_logs(self) -> dict[str, Any]:
+        return {
+            "train/epoch": self.epoch,
+            "train/unique_tokens_trained": self.unique_tokens_trained,
+            "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+            "train/tokens_since_fired": self.tokens_since_fired_hist(),
+        }
 
     @abstractmethod
     def _train_step(self, batch_BMPD: torch.Tensor) -> None: ...

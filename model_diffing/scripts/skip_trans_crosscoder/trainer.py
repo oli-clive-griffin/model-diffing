@@ -111,12 +111,9 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
             )
 
             log_dict: dict[str, Any] = {
-                "train/epoch": self.epoch,
-                "train/unique_tokens_trained": self.unique_tokens_trained,
-                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
                 "train/reconstruction_loss": reconstruction_loss.item(),
-                "train/firing_percentages": self.get_firing_percentage_hist(),
                 **explained_variance_dict,
+                **self.common_logs(),
             }
 
             if self.n_models == 2:

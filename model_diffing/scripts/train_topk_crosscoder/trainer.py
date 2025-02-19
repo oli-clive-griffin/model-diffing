@@ -49,6 +49,7 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
                 "train/learning_rate": self.optimizer.param_groups[0]["lr"],
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 **explained_variance_dict,
+                **self.common_logs(),
             }
 
             if self.n_models == 2:
