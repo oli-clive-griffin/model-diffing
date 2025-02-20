@@ -12,7 +12,6 @@ data:
         revision: step143000 # last checkpoint
     harvesting_batch_size: 1
   activations_shuffle_buffer_size: 2048
-  token_window_size: 2
 crosscoder:
   hidden_dim: 4096
 train:

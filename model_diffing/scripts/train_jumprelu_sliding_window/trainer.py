@@ -15,10 +15,10 @@ from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTr
 from model_diffing.scripts.train_l1_sliding_window.trainer import BiTokenCCWrapper
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, wandb_histogram
 from model_diffing.utils import (
-    calculate_explained_variance_X,
+    calculate_fvu_X,
     calculate_reconstruction_loss,
     get_decoder_norms_H,
-    get_explained_var_dict,
+    get_fvu_dict,
     l0_norm,
 )
 
@@ -157,10 +157,10 @@ class JumpreluSlidingWindowCrosscoderTrainer:
                 cc2_pre_biases_BH = einsum(batch_BTPD, self.crosscoders.double_cc.W_enc_XDH, "b t p d, t p d h -> b h")
                 cc2_pre_biases_hist = wandb_histogram(cc2_pre_biases_BH.flatten())
 
-                activations_hist = wandb_histogram(hidden_B3H)
+                nonzero_activations_hist = wandb_histogram(hidden_B3H[hidden_B3H > 0])
 
-            explained_variance_dict = get_explained_var_dict(
-                calculate_explained_variance_X(batch_BTPD, reconstructed_acts_BTPD),
+            fvu_dict = get_fvu_dict(
+                calculate_fvu_X(batch_BTPD, reconstructed_acts_BTPD),
                 ("token", [0, 1]),
                 ("hookpoint", self.hookpoints),
             )
@@ -181,7 +181,7 @@ class JumpreluSlidingWindowCrosscoderTrainer:
                 #
                 "train/loss": loss.item(),
                 #
-                **explained_variance_dict,
+                **fvu_dict,
                 #
                 "media/jumprelu_threshold_distribution_single": thresholds_single_hist,
                 "media/jumprelu_threshold_distribution_both": thresholds_both_hist,
@@ -193,7 +193,7 @@ class JumpreluSlidingWindowCrosscoderTrainer:
                 "media/cc1_t1_pre_biases": cc1_t1_pre_biases_hist,
                 "media/cc1_t2_pre_biases": cc1_t2_pre_biases_hist,
                 "media/cc2_pre_biases": cc2_pre_biases_hist,
-                "media/activations": activations_hist,
+                "media/nonzero_activations": nonzero_activations_hist,
             }
 
             self.wandb_run.log(log_dict, step=self.step)

@@ -10,7 +10,7 @@ from transformers import PreTrainedTokenizerBase  # type: ignore  # type: ignore
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.shuffle import batch_shuffle_tensor_iterator_BX
 from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
-from model_diffing.scripts.train_jumprelu_sliding_window.config import SlidingWindowDataConfig
+from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
 
 
@@ -110,12 +110,13 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenhookpointActivationsData
 
 
 def build_sliding_window_dataloader(
-    cfg: SlidingWindowDataConfig,
+    cfg: DataConfig,
     llms: list[HookedTransformer],
     hookpoints: list[str],
     batch_size: int,
     cache_dir: str,
     device: torch.device,
+    window_size: int,
 ) -> BaseTokenhookpointActivationsDataloader:
     tokenizer = llms[0].tokenizer
     if not isinstance(tokenizer, PreTrainedTokenizerBase):
@@ -142,7 +143,7 @@ def build_sliding_window_dataloader(
         yield_batch_size=batch_size,
         device=device,
         n_batches_for_norm_estimate=cfg.n_batches_for_norm_estimate,
-        window_size=cfg.token_window_size,
+        window_size=window_size,
     )
 
     return activations_dataloader

@@ -8,10 +8,10 @@ from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTrainConfig
 from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms, get_l0_stats, wandb_histogram
 from model_diffing.utils import (
-    calculate_explained_variance_X,
+    calculate_fvu_X,
     calculate_reconstruction_loss,
     get_decoder_norms_H,
-    get_explained_var_dict,
+    get_fvu_dict,
 )
 
 
@@ -53,8 +53,8 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
         ):
             thresholds_hist = wandb_histogram(self.crosscoder.hidden_activation.log_threshold_H.exp())
 
-            explained_variance_dict = get_explained_var_dict(
-                calculate_explained_variance_X(batch_BMPD, train_res.output_BXD),
+            fvu_dict = get_fvu_dict(
+                calculate_fvu_X(batch_BMPD, train_res.output_BXD),
                 ("model", list(range(self.n_models))),
                 ("hookpoint", self.hookpoints),
             )
@@ -75,7 +75,7 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
                 "media/jumprelu_threshold_distribution": thresholds_hist,
                 #
                 #
-                **explained_variance_dict,
+                **fvu_dict,
                 **get_l0_stats(train_res.hidden_BH),
                 **self.common_logs(),
             }

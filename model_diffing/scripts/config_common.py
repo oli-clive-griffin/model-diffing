@@ -1,4 +1,3 @@
-from datetime import datetime
 from operator import xor
 from pathlib import Path
 from typing import Any, Literal
@@ -68,9 +67,5 @@ class BaseExperimentConfig(BaseModel):
 
     @property
     def save_dir(self) -> Path:
+        assert self.experiment_name is not None
         return Path(self.base_save_dir) / self.experiment_name
-
-    def model_post_init(self, __context: Any) -> None:
-        super().model_post_init(__context)
-        self.experiment_name = f"{self.experiment_name}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-        print(f"experiment_name: {self.experiment_name}")

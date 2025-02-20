@@ -37,8 +37,8 @@ def create_checkpoint_artifact(model_checkpoint_path: Path | str, run_id: str) -
 
 def download_experiment_checkpoint(
     run_id: str,
-    version: str = "v0",
-    destination_dir: str = "artifact_download",
+    version: str,
+    destination_dir: Path | str,
     entity: str = "mars-model-diffing",
     project: str = "model-diffing",
 ) -> None:

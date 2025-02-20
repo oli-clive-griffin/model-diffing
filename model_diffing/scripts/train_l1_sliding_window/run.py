@@ -25,6 +25,7 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
     )
 
     assert len({llm.cfg.d_model for llm in llms}) == 1, "all models must have the same d_model"
+    d_model = llms[0].cfg.d_model
 
     dataloader = build_sliding_window_dataloader(
         cfg=cfg.data,
@@ -33,15 +34,13 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
         batch_size=cfg.train.batch_size,
         cache_dir=cfg.cache_dir,
         device=device,
+        window_size=2,
     )
-
-    if cfg.data.token_window_size != 2:
-        raise ValueError(f"token_window_size must be 2, got {cfg.data.token_window_size}")
 
     crosscoder1, crosscoder2 = [
         AcausalCrosscoder(
             crosscoding_dims=(window_size, len(cfg.hookpoints)),
-            d_model=llms[0].cfg.d_model,
+            d_model=d_model,
             hidden_dim=cfg.crosscoder.hidden_dim,
             init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
             hidden_activation=ReLUActivation(),

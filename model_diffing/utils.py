@@ -175,48 +175,45 @@ def multi_reduce(
     return tensor
 
 
-def calculate_explained_variance_X(
+def calculate_fvu_X(
     activations_BXD: torch.Tensor,
     reconstructed_BXD: torch.Tensor,
     eps: float = 1e-8,
 ) -> torch.Tensor:
-    """for each model and hookpoint, calculate the mean explained variance inside each d_model feature space"""
+    """for each model and hookpoint, calculate the mean fvu inside each d_model feature space"""
     error_BXD = activations_BXD - reconstructed_BXD
 
     mean_error_var_X = error_BXD.var(-1).mean(0)
     mean_activations_var_X = activations_BXD.var(-1).mean(0)
 
-    explained_var_X = 1 - (mean_error_var_X / (mean_activations_var_X + eps))
-    return explained_var_X
+    return mean_error_var_X / (mean_activations_var_X + eps)
 
 
-def get_explained_var_dict(
-    explained_variance_X: torch.Tensor, *crosscoding_dims: tuple[str, list[str] | list[int]]
-) -> dict[str, float]:
+def get_fvu_dict(fvu_X: torch.Tensor, *crosscoding_dims: tuple[str, list[str] | list[int]]) -> dict[str, float]:
     """
-    crosscoding_dims is a list of tuples, each tuple is:
-        1: the name of the crosscoding dimension ('hookpoint', 'model', 'token', etc.)
-        2: the labels of the crosscoding dimension (e.g. [0, 1, 7] or ['gpt2', 'gpt3', 'gpt4'], or ['<bos>', '-1', 'self'])
+    crosscoding_dims is a list of tuples, each (a, b) tuple is:
+        a: the name of the crosscoding dimension ('hookpoint', 'model', 'token', etc.)
+        b: the labels of the crosscoding dimension (e.g. [0, 1, 7] or ['gpt2', 'gpt3', 'gpt4'], or ['<bos>', '-1', 'self'])
 
     the reason we need the explicit naming pattern is that often indices are not helpful. For example, when training
     a crosscoder on hookpoints 2, 5, and 8, you don't to want to have them labeled [0, 1, 2]. i.e. you need to know what
     each index means.
     """
 
-    assert len(crosscoding_dims) == len(explained_variance_X.shape)
+    assert len(crosscoding_dims) == len(fvu_X.shape)
 
-    # index_combinations is a list of tuples, each tuple is a unique set of indices into the explained_variance_X tensor
-    index_combinations = product(*(range(dim_size) for dim_size in explained_variance_X.shape))
+    # index_combinations is a list of tuples, each tuple is a unique set of indices into the fvu_X tensor
+    index_combinations = product(*(range(dim_size) for dim_size in fvu_X.shape))
 
-    explained_variances_dict = {}
+    fvu_dict = {}
     for indices in index_combinations:
-        name = "train/explained_variance"
+        name = "train/fvu"
         for (dim_name, dim_labels), dim_index in zip(crosscoding_dims, indices, strict=True):
             name += f"_{dim_name}{dim_labels[dim_index]}"
 
-        explained_variances_dict[name] = explained_variance_X[indices].item()
+        fvu_dict[name] = fvu_X[indices].item()
 
-    return explained_variances_dict
+    return fvu_dict
 
 
 def get_decoder_norms_H(W_dec_HXD: torch.Tensor) -> torch.Tensor:

@@ -10,7 +10,7 @@ from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.shuffle import batch_shuffle_tensor_iterator_BX
-from model_diffing.data.token_loader import TokenSequenceLoader, TokensSequenceBatch, build_tokens_sequence_loader
+from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
 from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
 

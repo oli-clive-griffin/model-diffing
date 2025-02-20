@@ -20,9 +20,9 @@ from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer
 from model_diffing.utils import (
     SaveableModule,
-    calculate_explained_variance_X,
+    calculate_fvu_X,
     calculate_reconstruction_loss,
-    get_explained_var_dict,
+    get_fvu_dict,
     l0_norm,
     l1_norm,
     l2_norm,
@@ -204,8 +204,8 @@ class L1SlidingWindowCrosscoderTrainer:
             mean_l0 = l0_B.mean().item()
             l0_5, l0_25, l0_75, l0_95 = np.percentile(l0_np, [5, 25, 75, 95])
 
-            explained_variance_dict = get_explained_var_dict(
-                calculate_explained_variance_X(batch_BTPD, reconstructed_acts_BTPD),
+            fvu_dict = get_fvu_dict(
+                calculate_fvu_X(batch_BTPD, reconstructed_acts_BTPD),
                 ("token", [0, 1]),
                 ("hookpoint", self.hookpoints),
             )
@@ -226,7 +226,7 @@ class L1SlidingWindowCrosscoderTrainer:
                 #
                 "train/loss": loss.item(),
                 #
-                **explained_variance_dict,
+                **fvu_dict,
                 #
                 "train/epoch": self.epoch,
                 "train/unique_tokens_trained": self.unique_tokens_trained,

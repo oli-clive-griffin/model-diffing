@@ -30,7 +30,7 @@ def _build_sliding_window_crosscoder_trainer(
         dtype=cfg.data.activations_harvester.inference_dtype,
     )
 
-    assert all("hook_resid" in hp for hp in cfg.hookpoints), "we're assuming we're training on the residual stream"
+    assert all("hook_resid" in hp for hp in cfg.hookpoints), "we should be training on the residual stream"
 
     dataloader = build_sliding_window_dataloader(
         cfg=cfg.data,
@@ -39,10 +39,8 @@ def _build_sliding_window_crosscoder_trainer(
         batch_size=cfg.train.batch_size,
         cache_dir=cfg.cache_dir,
         device=device,
+        window_size=2,
     )
-
-    if cfg.data.token_window_size != 2:
-        raise ValueError(f"token_window_size must be 2, got {cfg.data.token_window_size}")
 
     crosscoder1, crosscoder2 = [
         AcausalCrosscoder(

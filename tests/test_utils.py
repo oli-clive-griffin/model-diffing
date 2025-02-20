@@ -1,7 +1,7 @@
 import torch
 from einops import reduce
 
-from model_diffing.utils import calculate_explained_variance_X, l1_norm, l2_norm, multi_reduce
+from model_diffing.utils import calculate_fvu_X, l1_norm, l2_norm, multi_reduce
 
 
 def test_multi_reduce():
@@ -16,15 +16,15 @@ def test_multi_reduce():
     assert (out_1 == out_2).all()
 
 
-def test_explained_variance():
+def test_fvu():
     B = 1
     M = 10
     P = 10
     D = 20
     y_BMPD = torch.randn(B, M, P, D) * 0.1
     y_hat_BMPD = torch.zeros(B, M, P, D)
-    ev_MP = calculate_explained_variance_X(y_BMPD, y_hat_BMPD)
-    assert ev_MP.shape == (M, P)
-    assert ev_MP.mean().item() < 1e-4
+    fvu_MP = calculate_fvu_X(y_BMPD, y_hat_BMPD)
+    assert fvu_MP.shape == (M, P)
+    assert fvu_MP.mean().item() < 1e-4
     # evs = ev.flatten()
     # plotly.express.histogram(evs, nbins=10).show()

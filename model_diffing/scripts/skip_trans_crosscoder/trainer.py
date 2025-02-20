@@ -10,9 +10,9 @@ from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms
 from model_diffing.utils import (
-    calculate_explained_variance_X,
+    calculate_fvu_X,
     calculate_reconstruction_loss,
-    get_explained_var_dict,
+    get_fvu_dict,
     l2_norm,
 )
 
@@ -104,15 +104,15 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
             assert train_res.output_BXD.shape[2] == len(self.hookpoints[::2])
             names = [" - ".join(pair) for pair in zip(self.hookpoints[::2], self.hookpoints[1::2], strict=True)]
 
-            explained_variance_dict = get_explained_var_dict(
-                calculate_explained_variance_X(batch_y_BMPoD, train_res.output_BXD),
+            fvu_dict = get_fvu_dict(
+                calculate_fvu_X(batch_y_BMPoD, train_res.output_BXD),
                 ("model", list(range(self.n_models))),
                 ("hookpoints", names),
             )
 
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
-                **explained_variance_dict,
+                **fvu_dict,
                 **self.common_logs(),
             }
 

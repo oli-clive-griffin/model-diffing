@@ -10,9 +10,9 @@ from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
 from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms, get_l0_stats
 from model_diffing.utils import (
-    calculate_explained_variance_X,
+    calculate_fvu_X,
     calculate_reconstruction_loss,
-    get_explained_var_dict,
+    get_fvu_dict,
     l2_norm,
     sparsity_loss_l1_of_norms,
 )
@@ -66,8 +66,8 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
             and self.cfg.log_every_n_steps is not None
             and (self.step + 1) % self.cfg.log_every_n_steps == 0
         ):
-            explained_variance_dict = get_explained_var_dict(
-                calculate_explained_variance_X(batch_BMPD, train_res.output_BXD),
+            fvu_dict = get_fvu_dict(
+                calculate_fvu_X(batch_BMPD, train_res.output_BXD),
                 ("model", list(range(self.n_models))),
                 ("hookpoint", self.hookpoints),
             )
@@ -77,7 +77,7 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/sparsity_loss": sparsity_loss.item(),
                 "train/loss": loss.item(),
-                **explained_variance_dict,
+                **fvu_dict,
                 **get_l0_stats(train_res.hidden_BH),
                 **self.common_logs(),
             }
