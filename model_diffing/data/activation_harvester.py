@@ -1,5 +1,3 @@
-from functools import cached_property
-
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
 
@@ -25,29 +23,22 @@ class ActivationsHarvester:
 
         self.num_models = len(llms)
         self._num_hookpoints = len(hookpoints)
+        self._layer_to_stop_at = self._get_layer_to_stop_at()
 
-    @cached_property
-    def names_set(self) -> set[str]:
-        return set(self._hookpoints)
-
-    @cached_property
-    def layer_to_stop_at(self):
+    def _get_layer_to_stop_at(self) -> int:
         last_needed_layer = max(_get_layer(name) for name in self._hookpoints)
         layer_to_stop_at = last_needed_layer + 1
         logger.info(f"computed last needed layer: {last_needed_layer}, stopping at {layer_to_stop_at}")
         return layer_to_stop_at
 
     def _names_filter(self, name: str) -> bool:
-        return name in self.names_set
+        return name in self._hookpoints  # not doing any fancy hash/set usage as this list is tiny
 
     def _get_model_activations_BSPD(self, model: HookedTransformer, sequence_BS: torch.Tensor) -> torch.Tensor:
         _, cache = model.run_with_cache(
-            sequence_BS,
-            names_filter=self._names_filter,
-            stop_at_layer=self.layer_to_stop_at + 1,
+            sequence_BS, names_filter=self._names_filter, stop_at_layer=self._layer_to_stop_at
         )
         # cache[name] is shape BSD, so stacking on dim 2 = BSPD
-        print(list(cache.keys()))
         activations_BSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
         return activations_BSPD
 
