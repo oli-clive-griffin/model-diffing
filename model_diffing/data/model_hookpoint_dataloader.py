@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from dataclasses import dataclass
 from functools import cached_property
 
 import torch
@@ -9,7 +10,7 @@ from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.shuffle import batch_shuffle_tensor_iterator_BX
-from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
+from model_diffing.data.token_loader import TokenSequenceLoader, TokensSequenceBatch, build_tokens_sequence_loader
 from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
 
@@ -49,6 +50,17 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
 
     def get_norm_scaling_factors_MP(self) -> torch.Tensor:
         return self._norm_scaling_factors_MP
+
+    @dataclass
+    class ActivationsWithText:
+        activations_BSMPD: torch.Tensor
+        tokens_BS: torch.Tensor
+
+    @torch.no_grad()
+    def iterate_activations_with_text(self) -> Iterator[ActivationsWithText]:
+        for seq in self._token_sequence_loader.get_sequences_batch_iterator():
+            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)
+            yield self.ActivationsWithText(activations_BSMPD=activations_BSMPD, tokens_BS=seq.tokens_BS)
 
     @torch.no_grad()
     def _activations_iterator_MPD(self) -> Iterator[torch.Tensor]:

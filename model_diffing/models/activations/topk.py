@@ -37,9 +37,9 @@ class BatchTopkActivation(SaveableModule):
         batch_size = hidden_preactivation_BH.shape[0]
         batch_k = self.k_per_example * batch_size
         hidden_preactivation_Bh = rearrange(hidden_preactivation_BH, "batch hidden -> (batch hidden)")
-        _topk_values_Bh, topk_indices_Bh = hidden_preactivation_Bh.topk(k=batch_k)
+        topk_values_Bh, topk_indices_Bh = hidden_preactivation_Bh.topk(k=batch_k)
         hidden_Bh = t.zeros_like(hidden_preactivation_Bh)
-        hidden_Bh.scatter_(-1, topk_indices_Bh, _topk_values_Bh)
+        hidden_Bh.scatter_(-1, topk_indices_Bh, topk_values_Bh)
         hidden_BH = rearrange(hidden_Bh, "(batch hidden) -> batch hidden", batch=batch_size)
         return hidden_BH
 
