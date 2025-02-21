@@ -157,9 +157,9 @@ def validate_num_steps_per_epoch(
 
 def save_config(config: BaseExperimentConfig) -> None:
     config.save_dir.mkdir(parents=True, exist_ok=True)
-    with open(config.save_dir / "config.yaml", "w") as f:
+    with open(config.save_dir / "experiment_config.yaml", "w") as f:
         yaml.dump(config.model_dump(), f)
-    logger.info(f"Saved config to {config.save_dir / 'config.yaml'}")
+    logger.info(f"Saved config to {config.save_dir / 'experiment_config.yaml'}")
 
 
 def save_model(model: SaveableModule, save_dir: Path) -> None:

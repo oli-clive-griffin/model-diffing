@@ -14,7 +14,7 @@ from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
 
 
-class BaseTokenhookpointActivationsDataloader(ABC):
+class BaseTokenHookpointActivationsDataloader(ABC):
     @abstractmethod
     def get_shuffled_activations_iterator_BTPD(self) -> Iterator[torch.Tensor]: ...
 
@@ -25,7 +25,7 @@ class BaseTokenhookpointActivationsDataloader(ABC):
     def get_norm_scaling_factors_TP(self) -> torch.Tensor: ...
 
 
-class SlidingWindowScaledActivationsDataloader(BaseTokenhookpointActivationsDataloader):
+class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsDataloader):
     def __init__(
         self,
         token_sequence_loader: TokenSequenceLoader,
@@ -117,7 +117,7 @@ def build_sliding_window_dataloader(
     cache_dir: str,
     device: torch.device,
     window_size: int,
-) -> BaseTokenhookpointActivationsDataloader:
+) -> BaseTokenHookpointActivationsDataloader:
     tokenizer = llms[0].tokenizer
     if not isinstance(tokenizer, PreTrainedTokenizerBase):
         raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")

@@ -1,25 +1,14 @@
-from dataclasses import dataclass
 from functools import partial
-from itertools import islice
-from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 import numpy as np
 import torch as t
-import torch.nn as nn
 from torch.nn.utils import clip_grad_norm_
-from tqdm import tqdm  # type: ignore
-from wandb.sdk.wandb_run import Run
 
-from model_diffing.data.token_hookpoint_dataloader import BaseTokenhookpointActivationsDataloader
-from model_diffing.log import logger
 from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.scripts.base_trainer import save_model, validate_num_steps_per_epoch
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
-from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer
+from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
 from model_diffing.utils import (
-    SaveableModule,
     calculate_fvu_X,
     calculate_reconstruction_loss,
     get_fvu_dict,
@@ -29,124 +18,8 @@ from model_diffing.utils import (
     weighted_l1_sparsity_loss,
 )
 
-TAct = TypeVar("TAct", bound=SaveableModule)
 
-
-class BiTokenCCWrapper(nn.Module, Generic[TAct]):
-    def __init__(
-        self,
-        single_token_cc: AcausalCrosscoder[TAct],
-        double_token_cc: AcausalCrosscoder[TAct],
-    ):
-        super().__init__()
-
-        assert single_token_cc.crosscoding_dims[0] == 1  # token
-        assert len(single_token_cc.crosscoding_dims) == 2  # (token, hookpoint)
-        self.single_cc = single_token_cc
-
-        assert double_token_cc.crosscoding_dims[0] == 2  # token
-        assert len(double_token_cc.crosscoding_dims) == 2  # (token, hookpoint)
-        self.double_cc = double_token_cc
-
-    @dataclass
-    class TrainResult:
-        recon_B1PD_single1: t.Tensor
-        recon_B1PD_single2: t.Tensor
-        recon_B2PD_double: t.Tensor
-        hidden_BH_single1: t.Tensor
-        hidden_BH_single2: t.Tensor
-        hidden_BH_double: t.Tensor
-
-    def forward_train(self, x_BTPD: t.Tensor) -> TrainResult:
-        assert x_BTPD.shape[1] == 2
-
-        output_single1 = self.single_cc.forward_train(x_BTPD[:, 0][:, None])
-        output_single2 = self.single_cc.forward_train(x_BTPD[:, 1][:, None])
-        output_both = self.double_cc.forward_train(x_BTPD)
-
-        return self.TrainResult(
-            recon_B1PD_single1=output_single1.output_BXD,
-            recon_B1PD_single2=output_single2.output_BXD,
-            recon_B2PD_double=output_both.output_BXD,
-            hidden_BH_single1=output_single1.hidden_BH,
-            hidden_BH_single2=output_single2.hidden_BH,
-            hidden_BH_double=output_both.hidden_BH,
-        )
-
-    def forward(self, x_BTPD: t.Tensor) -> t.Tensor:
-        return t.Tensor(0)
-
-
-class L1SlidingWindowCrosscoderTrainer:
-    def __init__(
-        self,
-        cfg: L1TrainConfig,
-        activations_dataloader: BaseTokenhookpointActivationsDataloader,
-        crosscoders: BiTokenCCWrapper[ReLUActivation],
-        wandb_run: Run | None,
-        device: t.device,
-        hookpoints: list[str],
-        save_dir: Path | str,
-    ):
-        self.cfg = cfg
-        self.activations_dataloader = activations_dataloader
-        self.wandb_run = wandb_run
-        self.device = device
-        self.hookpoints = hookpoints
-
-        self.crosscoders = crosscoders
-
-        self.optimizer = build_optimizer(cfg.optimizer, self.crosscoders.parameters())
-
-        self.num_steps_per_epoch = validate_num_steps_per_epoch(
-            cfg.epochs, cfg.num_steps_per_epoch, cfg.num_steps, activations_dataloader.num_batches()
-        )
-
-        self.total_steps = self.num_steps_per_epoch * (cfg.epochs or 1)
-        logger.info(
-            f"Total steps: {self.total_steps} (num_steps_per_epoch: {self.num_steps_per_epoch}, epochs: {cfg.epochs})"
-        )
-
-        self.lr_scheduler = build_lr_scheduler(cfg.optimizer, self.total_steps)
-
-        self.save_dir = Path(save_dir)
-        self.save_dir.mkdir(parents=True, exist_ok=True)
-
-        self.step = 0
-        self.epoch = 0
-        self.unique_tokens_trained = 0
-
-    def train(self):
-        epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
-        for _ in epoch_iter:
-            epoch_dataloader_BTPD = self.activations_dataloader.get_shuffled_activations_iterator_BTPD()
-            epoch_dataloader_BTPD = islice(epoch_dataloader_BTPD, self.num_steps_per_epoch)
-
-            for batch_BTPD in tqdm(epoch_dataloader_BTPD, desc="Train Steps"):
-                batch_BTPD = batch_BTPD.to(self.device)
-
-                self._train_step(batch_BTPD)
-
-                # TODO(oli): get wandb checkpoint saving working
-
-                if self.cfg.save_every_n_steps is not None and (self.step + 1) % self.cfg.save_every_n_steps == 0:
-                    scaling_factors_TP = self.activations_dataloader.get_norm_scaling_factors_TP()
-                    step_dir = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
-
-                    with self.crosscoders.single_cc.temporarily_fold_activation_scaling(
-                        scaling_factors_TP.mean(dim=0, keepdim=True)
-                    ):
-                        save_model(self.crosscoders.single_cc, step_dir / "single_cc")
-
-                    with self.crosscoders.double_cc.temporarily_fold_activation_scaling(scaling_factors_TP):
-                        save_model(self.crosscoders.double_cc, step_dir / "double_cc")
-
-                if self.epoch == 0:
-                    self.unique_tokens_trained += batch_BTPD.shape[0]
-
-                self.step += 1
-            self.epoch += 1
-
+class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUActivation, L1TrainConfig]):
     def _train_step(self, batch_BTPD: t.Tensor) -> None:
         self.optimizer.zero_grad()
 
