@@ -139,10 +139,14 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                         save_model(self.crosscoders.double_cc, step_dir / "double_cc")
 
                     if self.wandb_run is not None:
-                        artifact = create_checkpoint_artifact(step_dir / "single_cc", self.wandb_run.id)
+                        artifact = create_checkpoint_artifact(
+                            step_dir / "single_cc", self.wandb_run.id, self.step, self.epoch
+                        )
                         self.wandb_run.log_artifact(artifact)
 
-                        artifact = create_checkpoint_artifact(step_dir / "double_cc", self.wandb_run.id)
+                        artifact = create_checkpoint_artifact(
+                            step_dir / "double_cc", self.wandb_run.id, self.step, self.epoch
+                        )
                         self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:

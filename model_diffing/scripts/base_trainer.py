@@ -97,7 +97,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                         save_model(self.crosscoder, checkpoint_path)
 
                     if self.wandb_run is not None:
-                        artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id)
+                        artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
                         self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
