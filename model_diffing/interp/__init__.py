@@ -6,7 +6,7 @@ from typing import Any
 
 import tabulate
 import torch
-from einops import rearrange, reduce
+from einops import rearrange
 from rich import print as rprint
 from rich.table import Table
 from tqdm import tqdm
@@ -17,7 +17,6 @@ from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.token_loader import TokenSequenceLoader
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.utils import l2_norm
 
 
 @dataclass
