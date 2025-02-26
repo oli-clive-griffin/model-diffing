@@ -34,7 +34,7 @@ def create_checkpoint_artifact(
 ) -> wandb.Artifact:
     model_pt_path = Path(model_checkpoint_path) / "model.pt"
     model_config_path = Path(model_checkpoint_path) / "model_cfg.yaml"
-    exp_config_path = Path(model_checkpoint_path).parent / "config.yaml"
+    exp_config_path = Path(model_checkpoint_path).parent / "experiment_config.yaml"
 
     assert model_pt_path.exists(), f"Model file {model_pt_path} does not exist."
     assert model_config_path.exists(), f"Model config file {model_config_path} does not exist."

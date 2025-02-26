@@ -11,7 +11,7 @@ from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.run import JanUpdateInitStrategy
 from model_diffing.scripts.train_jumprelu_sliding_window.config import SlidingWindowExperimentConfig
 from model_diffing.scripts.train_jumprelu_sliding_window.trainer import JumpReLUSlidingWindowCrosscoderTrainer
-from model_diffing.scripts.train_l1_sliding_window.trainer import BiTokenCCWrapper
+from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import SaveableModule, get_device
 
@@ -36,9 +36,8 @@ def _build_sliding_window_crosscoder_trainer(
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
         window_size=2,
     )
 

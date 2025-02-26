@@ -22,14 +22,13 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
         device,
         dtype=cfg.data.activations_harvester.inference_dtype,
     )
-
+    
     dataloader = build_dataloader(
-        cfg.data,
-        llms,
-        cfg.hookpoints,
-        cfg.train.batch_size,
-        cfg.cache_dir,
-        device,
+        cfg=cfg.data,
+        llms=llms,
+        hookpoints=cfg.hookpoints,
+        batch_size=cfg.train.minibatch_size(),
+        cache_dir=cfg.cache_dir,
     )
 
     n_models = len(llms)

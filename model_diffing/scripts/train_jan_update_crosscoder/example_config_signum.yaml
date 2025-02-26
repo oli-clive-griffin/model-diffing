@@ -18,9 +18,9 @@ crosscoder:
   initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!
 train:
   optimizer:
-    type: adam
-    learning_rate: 0.00006
-    betas: [0.0, 0.999]
+    type: schedule_free_signum
+    learning_rate: 0.0006
+    momentum: 0.95
   num_steps: 3_000
   batch_size: 512
   save_every_n_steps: 9999999999
@@ -28,5 +28,5 @@ train:
   c: 4.0
   final_lambda_s: 1.5
   lambda_p: 0.000003
-experiment_name: pythia-160M-10k-adam
+experiment_name: pythia-160M-10k-signum
 hookpoints: ["blocks.8.hook_resid_post"]

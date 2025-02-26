@@ -7,11 +7,14 @@ import torch
 import wandb
 import wandb.plot.custom_chart
 from einops import reduce
+from schedulefree import ScheduleFreeWrapper
+from torch.optim import Optimizer
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.analysis import metrics
-from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseExperimentConfig
+from model_diffing.log import logger
+from model_diffing.scripts.config_common import AdamConfig, BaseExperimentConfig, ScheduleFreeSigNumConfig
 from model_diffing.utils import l0_norm, l2_norm
 
 
@@ -70,25 +73,32 @@ def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
     )
 
 
-def build_optimizer(cfg: AdamDecayTo0LearningRateConfig, params: Iterator[torch.nn.Parameter]) -> torch.optim.Optimizer:
-    initial_lr = cfg.initial_learning_rate
-    optimizer = torch.optim.Adam(params, lr=initial_lr)
+def build_optimizer(
+    cfg: AdamConfig | ScheduleFreeSigNumConfig, params: Iterator[torch.nn.Parameter]
+) -> torch.optim.Optimizer | ScheduleFreeWrapper:
+    match cfg:
+        case AdamConfig():
+            optimizer = torch.optim.Adam(params, lr=cfg.learning_rate, betas=cfg.betas)
+        case ScheduleFreeSigNumConfig():
+            optimizer = ScheduleFreeWrapper(SignSGD(params, lr=cfg.learning_rate), momentum=cfg.momentum)
+            optimizer.train()
+    logger.info(f"using optimizer: {optimizer}")
     return optimizer
 
 
-def build_lr_scheduler(cfg: AdamDecayTo0LearningRateConfig, num_steps: int) -> Callable[[int], float]:
+def build_lr_scheduler(cfg: AdamConfig, num_steps: int) -> Callable[[int], float]:
     def _lr_scheduler(step: int) -> float:
         if step < cfg.warmup_pct * num_steps:
-            return cfg.initial_learning_rate * (step / (cfg.warmup_pct * num_steps))
+            return cfg.learning_rate * (step / (cfg.warmup_pct * num_steps))
 
         pct_until_finished = 1 - (step / num_steps)
-        if pct_until_finished < cfg.last_pct_of_steps:
+        if pct_until_finished < cfg.warmdown_pct:
             # 1 at the last step of constant learning rate period
             # 0 at the end of training
-            scale = pct_until_finished / cfg.last_pct_of_steps
-            return cfg.initial_learning_rate * scale
+            scale = pct_until_finished / cfg.warmdown_pct
+            return cfg.learning_rate * scale
 
-        return cfg.initial_learning_rate
+        return cfg.learning_rate
 
     return _lr_scheduler
 
@@ -96,11 +106,10 @@ def build_lr_scheduler(cfg: AdamDecayTo0LearningRateConfig, num_steps: int) -> C
 @torch.no_grad()
 def estimate_norm_scaling_factor_X(
     dataloader_BXD: Iterator[torch.Tensor],
-    device: torch.device,
-    n_batches_for_norm_estimate: int,
+    n_tokens_for_norm_estimate: int,
 ) -> torch.Tensor:
-    d_model = next(dataloader_BXD).shape[-1]
-    mean_norms_X = _estimate_mean_norms_X(dataloader_BXD, device, n_batches_for_norm_estimate)
+    batch_size, *_, d_model = next(dataloader_BXD).shape
+    mean_norms_X = _estimate_mean_norms_X(dataloader_BXD, n_tokens_for_norm_estimate, batch_size)
     scaling_factors_X = torch.sqrt(torch.tensor(d_model)) / mean_norms_X
     return scaling_factors_X
 
@@ -109,17 +118,17 @@ def estimate_norm_scaling_factor_X(
 # adapted from SAELens https://github.com/jbloomAus/SAELens/blob/6d6eaef343fd72add6e26d4c13307643a62c41bf/sae_lens/training/activations_store.py#L370
 def _estimate_mean_norms_X(
     dataloader_BMPD: Iterator[torch.Tensor],
-    device: torch.device,
-    n_batches_for_norm_estimate: int,
+    n_tokens_for_norm_estimate: int,
+    batch_size: int,
 ) -> torch.Tensor:
     norm_samples = []
 
+    n_batches_needed = (n_tokens_for_norm_estimate + batch_size - 1) // batch_size
     for batch_BXD in tqdm(
-        islice(dataloader_BMPD, n_batches_for_norm_estimate),
+        islice(dataloader_BMPD, n_batches_needed),
         desc="Estimating norm scaling factor",
-        total=n_batches_for_norm_estimate,
+        total=n_batches_needed,
     ):
-        batch_BXD = batch_BXD.to(device)
         norms_means_X = l2_norm(batch_BXD, dim=-1).mean(dim=0)
         norm_samples.append(norms_means_X)
 
@@ -147,3 +156,24 @@ def collect_norms_NMP(
 
     norm_samples_NMP = torch.cat(norm_samples, dim=0)
     return norm_samples_NMP
+
+
+class SignSGD(Optimizer):
+    """Steepest descent in the L-infty norm. From <https://arxiv.org/abs/1802.04434>"""
+
+    def __init__(self, params: Any, lr: float = 1e-3):
+        if lr <= 0.0:
+            raise ValueError(f"Invalid learning rate: {lr}")
+
+        defaults = {"lr": lr}
+        super(SignSGD, self).__init__(params, defaults)
+
+    @torch.no_grad()
+    def step(self, closure: Any = None) -> None:  # type: ignore
+        assert closure is None, "Closure is not supported."
+
+        for group in self.param_groups:
+            lr = group["lr"]
+            for p in group["params"]:
+                if p.grad is not None:
+                    p.add_(p.grad.sign(), alpha=-lr)

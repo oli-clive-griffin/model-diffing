@@ -54,13 +54,13 @@ class OrthogonalSkipTranscoderInit(InitStrategy[TopkActivation]):
 
     @torch.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[TopkActivation]) -> None:
-        cc.W_enc_XDH[:] = torch.randn_like(cc.W_enc_XDH)
+        cc.W_enc_XDH.copy_(torch.randn_like(cc.W_enc_XDH))
         cc.b_enc_H.zero_()
 
         torch.nn.init.orthogonal_(cc.W_dec_HXD)
         W_dec_HXD_norm_HX1 = l2_norm(cc.W_dec_HXD, dim=-1, keepdim=True)
-        cc.W_dec_HXD.data.div_(W_dec_HXD_norm_HX1)
-        cc.W_dec_HXD.data.mul_(self.dec_init_norm)
+        cc.W_dec_HXD.div_(W_dec_HXD_norm_HX1)
+        cc.W_dec_HXD.mul_(self.dec_init_norm)
 
         assert cc.W_skip_XdXd is not None, "W_skip_XdXd should not be None"
         cc.W_skip_XdXd.zero_()
@@ -76,7 +76,8 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
     # D: activation dimension (in this case, d_mlp)
 
     def _train_step(self, batch_BMPD: torch.Tensor) -> None:
-        self.optimizer.zero_grad()
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            self.optimizer.zero_grad()
 
         # hookpoints alternate between input and output
         assert batch_BMPD.shape[2] % 2 == 0, "we should have an even number of hookpoints for this trainer"
@@ -84,16 +85,17 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
         batch_y_BMPoD = batch_BMPD[:, :, 1::2]
 
         train_res = self.crosscoder.forward_train(batch_x_BMPiD)
+        self.firing_tracker.add_batch(train_res.hidden_BH)
 
         reconstruction_loss = calculate_reconstruction_loss(train_res.output_BXD, batch_y_BMPoD)
 
-        reconstruction_loss.backward()
-        clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-        self.optimizer.step()
-        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+        reconstruction_loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
 
-        self.firing_tracker.add_batch(train_res.hidden_BH.detach().cpu().numpy() > 0)
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
+            self.optimizer.step()
+
+        self._lr_step()
 
         if (
             self.wandb_run is not None

@@ -17,7 +17,10 @@ def batch_shuffle_tensor_iterator_BX(
     shuffle_buffer_size: int,
     yield_batch_size: int,
     name: str | None = None,
+    seed: int = 42,
 ) -> Iterator[torch.Tensor]:
+    rng = random.Random(seed)
+
     if shuffle_buffer_size < yield_batch_size:
         raise ValueError(
             f"shuffle_buffer_size ({shuffle_buffer_size}) must be greater than yield_batch_size ({yield_batch_size})"
@@ -41,7 +44,7 @@ def batch_shuffle_tensor_iterator_BX(
     stale_indices = set(range(1, shuffle_buffer_size))
 
     def sample_BX():
-        batch_indices = random.sample(list(available_indices), yield_batch_size)
+        batch_indices = rng.sample(list(available_indices), yield_batch_size)
         available_indices.difference_update(batch_indices)
         stale_indices.update(batch_indices)
         return buffer_BfX[batch_indices]

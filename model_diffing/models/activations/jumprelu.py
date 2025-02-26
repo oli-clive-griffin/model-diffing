@@ -30,7 +30,8 @@ class JumpReLUActivation(SaveableModule):
         self.bandwidth = bandwidth
         self.log_threshold_H = nn.Parameter(t.ones(size))
         if log_threshold_init is not None:
-            self.log_threshold_H.data.mul_(log_threshold_init)
+            with t.no_grad():
+                self.log_threshold_H.mul_(log_threshold_init)
         self.backprop_through_input = backprop_through_input
 
     def forward(self, x_BX: t.Tensor) -> t.Tensor:

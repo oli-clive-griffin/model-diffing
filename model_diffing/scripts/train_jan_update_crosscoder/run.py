@@ -28,13 +28,13 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         dtype=cfg.data.activations_harvester.inference_dtype,
     )
 
+    
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
     )
 
     n_models = len(llms)
@@ -97,8 +97,8 @@ class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
         n = prod(cc.crosscoding_dims) * cc.d_model
         m = cc.hidden_dim
 
-        cc.W_dec_HXD.data.uniform_(-1.0 / n, 1.0 / n)
-        cc.W_enc_XDH.data.copy_(
+        cc.W_dec_HXD.uniform_(-1.0 / n, 1.0 / n)
+        cc.W_enc_XDH.copy_(
             rearrange(cc.W_dec_HXD, "hidden ... -> ... hidden")  #
             * (n / m)
         )
@@ -111,9 +111,11 @@ class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
             self.n_examples_to_sample,
         )
 
-        cc.b_enc_H.data.copy_(calibrated_b_enc_H)
+        cc.b_enc_H.copy_(calibrated_b_enc_H)
+        # TODO remove me
+        assert isinstance(cc.b_enc_H, torch.nn.Parameter), "sanity check failed"
 
-        cc.b_dec_XD.data.zero_()
+        cc.b_dec_XD.zero_()
 
 
 def compute_b_enc_H(

@@ -167,25 +167,35 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             hidden_activation=self.hidden_activation,
         )
 
-        with t.no_grad():
-
-            class ImPrettySureThisIsIncorrect(Exception):
-                pass
-
-            raise ImPrettySureThisIsIncorrect(
-                "need to figure out how the math works in the arbitrary extra dimensions case"
-            )
-
-            W_dec_l2_norms_X1H = reduce(self.W_dec_HXD, "h ... d -> ... 1 h", l2_norm)
-            W_dec_l2_norms_H = reduce(self.W_dec_HXD, "h ... -> h", l2_norm)
-            W_dec_l2_norms_HX1 = reduce(self.W_dec_HXD, "h ... d -> h ... 1", l2_norm)
-
-            cc.W_enc_XDH.copy_(self.W_enc_XDH * W_dec_l2_norms_X1H)
-            cc.b_enc_H.copy_(self.b_enc_H * W_dec_l2_norms_H)
-            cc.W_dec_HXD.copy_(self.W_dec_HXD / W_dec_l2_norms_HX1)
-            # no alteration needed for self.b_dec_XD
+        cc.make_decoder_max_unit_norm_()
 
         return cc
+
+    def make_decoder_max_unit_norm_(self) -> None:
+        """
+        scales the decoder weights such that the model makes the same predictions, but for
+        each latent, the maximum norm of it's decoder vectors is 1.
+        
+        For example, in a 2-model, 3-hookpoint crosscoder, the norms for a given latent might be scaled to:
+
+        [[1, 0.2],
+         [0.2, 0.4],
+         [0.1, 0.3]]
+        """
+        with t.no_grad():
+            output_space_norms_HX = reduce(self.W_dec_HXD, "h ... d -> h ...", l2_norm)
+            assert output_space_norms_HX.shape[1:] == self.crosscoding_dims
+            cc_dim_indices = list(range(1, len(self.crosscoding_dims) + 1))
+            max_norms_per_latent_H = output_space_norms_HX.amax(dim=cc_dim_indices)  # all but the first dimension
+            assert max_norms_per_latent_H.shape == (self.hidden_dim,)
+            # XD_dim_nones = [None, None, None]  # [None] * (len(self.crosscoding_dims) + 1)
+
+            # this means that the maximum norm of the decoder vectors into a given output space is 1
+            # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
+            self.W_dec_HXD.copy_(self.W_dec_HXD / max_norms_per_latent_H[..., None, None, None])
+            self.W_enc_XDH.copy_(self.W_enc_XDH * max_norms_per_latent_H[None, None, None, ...])
+            self.b_enc_H.copy_(self.b_enc_H * max_norms_per_latent_H)
+            # no alteration needed for self.b_dec_XD
 
     @t.no_grad()
     def _scale_weights(self, scaling_factors_X: t.Tensor) -> None:

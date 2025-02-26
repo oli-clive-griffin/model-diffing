@@ -27,13 +27,13 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
     assert len({llm.cfg.d_model for llm in llms}) == 1, "all models must have the same d_model"
     d_model = llms[0].cfg.d_model
 
+    
     dataloader = build_sliding_window_dataloader(
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
         window_size=2,
     )
 

@@ -9,7 +9,7 @@ from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActi
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer, validate_num_steps_per_epoch
-from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseTrainConfig
+from model_diffing.scripts.config_common import AdamConfig, BaseTrainConfig
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 from model_diffing.utils import get_device
 
@@ -55,7 +55,7 @@ class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
 
 
 def opt():
-    return AdamDecayTo0LearningRateConfig(initial_learning_rate=1e-3)
+    return AdamConfig(learning_rate=1e-3)
 
 
 @pytest.mark.parametrize(

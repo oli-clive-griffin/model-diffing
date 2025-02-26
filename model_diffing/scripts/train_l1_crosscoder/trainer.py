@@ -24,12 +24,12 @@ class AnthropicTransposeInit(InitStrategy[Any]):
 
     @torch.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
-        cc.W_dec_HXD[:] = torch.randn_like(cc.W_dec_HXD)
+        cc.W_dec_HXD.copy_(torch.randn_like(cc.W_dec_HXD))
         W_dec_norm_HX1 = l2_norm(cc.W_dec_HXD, dim=-1, keepdim=True)
-        cc.W_dec_HXD.data.div_(W_dec_norm_HX1)
-        cc.W_dec_HXD.data.mul_(self.dec_init_norm)
+        cc.W_dec_HXD.div_(W_dec_norm_HX1)
+        cc.W_dec_HXD.mul_(self.dec_init_norm)
 
-        cc.W_enc_XDH[:] = rearrange(cc.W_dec_HXD.clone(), "h ... d -> ... d h")
+        cc.W_enc_XDH.copy_(rearrange(cc.W_dec_HXD.clone(), "h ... d -> ... d h"))
 
         cc.b_enc_H.zero_()
         cc.b_dec_XD.zero_()
@@ -37,10 +37,12 @@ class AnthropicTransposeInit(InitStrategy[Any]):
 
 class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivation]):
     def _train_step(self, batch_BMPD: torch.Tensor) -> None:
-        self.optimizer.zero_grad()
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            self.optimizer.zero_grad()
 
         # fwd
         train_res = self.crosscoder.forward_train(batch_BMPD)
+        self.firing_tracker.add_batch(train_res.hidden_BH)
 
         # losses
         reconstruction_loss = calculate_reconstruction_loss(batch_BMPD, train_res.output_BXD)
@@ -55,11 +57,13 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
         loss = reconstruction_loss + l1_coef * sparsity_loss
 
         # backward
-        loss.backward()
-        clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-        self.optimizer.step()
-        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
+            self.optimizer.step()
+
+        self._lr_step()
 
         if (
             self.wandb_run is not None

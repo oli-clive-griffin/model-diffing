@@ -3,26 +3,20 @@ import os
 from pathlib import Path
 from typing import cast
 
+import torch
 import yaml
-from rich import print as rprint
-from rich.table import Table
-from torch import Tensor
-from tqdm import tqdm
-from transformer_lens import HookedTransformer  # type: ignore
-from transformer_lens.hook_points import HookPoint  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
+from model_diffing.analysis import metrics, visualization
 from model_diffing.data.activation_harvester import ActivationsHarvester
-from model_diffing.data.token_loader import build_tokens_sequence_loader
+from model_diffing.data.token_loader import MathDatasetTokenSequenceLoader
 from model_diffing.interp import (
-    LatentExample,
-    LatentSummary,
-    display_top_seqs,
+    display_topk_seqs_cross_model,
     gather_max_activating_examples,
     iterate_activations_with_text,
-    top_and_bottom_logits,
 )
 from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
 from model_diffing.utils import get_device
 
@@ -35,148 +29,140 @@ print(f"Current working directory: {Path.cwd()}")
 device = get_device()
 cache_dir = ".cache"
 
-DOWNLOAD_DIR = ".data/artifact_download"
+# DOWNLOAD_DIR = ".data/local"
 # download_experiment_checkpoint(
-#     # this run is a layer-8 jumprelu SAE on pythia-160m for ≈ 90m tokens
-#     # tokens = (checkpoint_idx * checkpoint_every_n_batches * batch_size)
-#     #        = (12 * 1000 * 8192)
-#     run_id="tu1pvnl6",
-#     version="v12",
+#     run_id="bganjcqn",
+#     version="v3",
 #     destination_dir=DOWNLOAD_DIR,
 # )
+DOWNLOAD_DIR = ".checkpoints/oli-RL-math-v2_2025-02-25_12-18-37"
 
-sae = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "model").to(device)
+sae = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "epoch_0_step_15000").to(device)
+
+# %%
 assert sae.is_folded.item()
+sae.make_decoder_max_unit_norm_()
 
 with open(Path(DOWNLOAD_DIR) / "experiment_config.yaml") as f:
     exp_config = JanUpdateExperimentConfig(**yaml.safe_load(f))
 
-assert len(exp_config.data.activations_harvester.llms) == 1
-llm_cfg = exp_config.data.activations_harvester.llms[0]
-llm = cast(HookedTransformer, HookedTransformer.from_pretrained(llm_cfg.name, revision=llm_cfg.revision).to(device))
-tokenizer = llm.tokenizer
+# %%
+
+assert sae.W_dec_HXD.shape[1:-1] == (2, 1)  # two models, single hookpoint
+W_dec_HMD = sae.W_dec_HXD[:, :, 0]  # remove the hookpoint dimension
+
+m1_W_dec_HD, m2_W_dec_HD = W_dec_HMD.unbind(dim=1)
+relative_decoder_norms_H = metrics.compute_relative_norms_N(m1_W_dec_HD, m2_W_dec_HD)
+visualization.relative_norms_hist(relative_decoder_norms_H, title="Relative norms of decoder vectors").show()
+
+shared_latent_mask = metrics.get_shared_latent_mask(relative_decoder_norms_H, min_thresh=0.25, max_thresh=0.5)
+cosine_sims = metrics.compute_cosine_similarities_N(m1_W_dec_HD, m2_W_dec_HD)[shared_latent_mask]
+visualization.plot_cosine_sim(
+    cosine_sims, title="Cosine similarity of decoder vectors (where 0.25 < relative_norm < 0.5)"
+).show()
+
+# %%
+
+llms = build_llms(
+    exp_config.data.activations_harvester.llms,
+    cache_dir=cache_dir,
+    dtype=exp_config.data.activations_harvester.inference_dtype,
+    device=device,
+)
+
+# %%
+tokenizer = cast(PreTrainedTokenizerBase, llms[0].tokenizer)
 if not isinstance(tokenizer, PreTrainedTokenizerBase):
     raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")
 
-# without this, it'll be really slow to run locally
-exp_config.data.sequence_iterator.kwargs["shuffle_buffer_size"] = 32  # type: ignore
+assert exp_config.data.sequence_iterator.type == "MathDatasetTokenSequenceLoader"
 
-# first, get an iterator over sequences of tokens
-batch_size = 1  # todo rethink me
-sequence_length = exp_config.data.sequence_iterator.kwargs["sequence_length"]  # type: ignore
+# %%
 
-token_sequence_loader = build_tokens_sequence_loader(
-    cfg=exp_config.data.sequence_iterator,
-    cache_dir=cache_dir,
-    tokenizer=tokenizer,
-    batch_size=batch_size,
-)
-
-activations_harvester = ActivationsHarvester(
-    llms=[llm],
-    hookpoints=exp_config.hookpoints,
-)
 
 examples_iterator = iterate_activations_with_text(
-    token_sequence_loader=token_sequence_loader,
-    activations_harvester=activations_harvester,
+    token_sequence_loader=MathDatasetTokenSequenceLoader(
+        tokenizer=tokenizer,
+        max_sequence_length=exp_config.data.sequence_iterator.max_sequence_length,
+        cache_dir=cache_dir,
+        batch_size=2,
+    ),
+    activations_harvester=ActivationsHarvester(
+        llms=llms,
+        hookpoints=exp_config.hookpoints,
+    ),
 )
 
 # %% Interp
 
-# max-activating-examples
-
-latents_to_inspect = list(range(100))
-
 examples_by_latent = gather_max_activating_examples(
     examples_iterator,
     cc=sae,
-    total_batches=20,
+    total_batches=4,
     context_size=20,
     topk_per_latent_per_batch=5,
-    latents_to_inspect=latents_to_inspect,
+    latents_to_inspect=list(range(100)),
 )
 
 # %%
 
+for summary in examples_by_latent.values():
+    if len(summary.selected_examples) == 0:
+        continue
 
-def as_table_data(ex: LatentExample) -> tuple[float, list[str]]:
-    final_token_activation = ex.latents_context_S[-1].item()
-    tokens_strings = [tokenizer.decode(tok) for tok in ex.tokens_context_S]  # type: ignore
-    return (final_token_activation, tokens_strings)
+    relative_decoder_norm = relative_decoder_norms_H[summary.index].item()
+    if 0.4 < relative_decoder_norm < 0.6:
+        continue
 
-
-# display up to 10 examples for each latent
-sae_W_dec_HD = sae.W_dec_HXD[:, 0, 0, :]
-
-
-def examine_latent(latent_index: int, summary: LatentSummary):
-    display_top_seqs(
-        data=[as_table_data(example) for example in summary.selected_examples[:20]],
-        latent_index=latent_index,
-        density=summary.density,
+    display_topk_seqs_cross_model(
+        summary,
+        tokenizer,
+        relative_decoder_norm,
+        topk=30,
     )
-    top_and_bottom_logits(
-        llm,
-        sae_W_dec_HD=sae_W_dec_HD,
-        latent_indices=[latent_index],
-    )
-
-
-for latent_index, summary in examples_by_latent.items():
-    examine_latent(latent_index, summary)
-    print("\n=========")
-
-# %%
-
-
-def generate_with_steering(
-    llm: HookedTransformer,
-    prompt: str,
-    max_new_tokens: int,
-    hookpoint: str,
-    steering_coefficient: float,
-    latent_idx: int,
-) -> str:
-    def steering_hook(activations: Tensor, hook: HookPoint) -> Tensor:
-        return activations + steering_coefficient * sae_W_dec_HD[latent_idx]
-
-    with llm.hooks(fwd_hooks=[(hookpoint, steering_hook)]):
-        output = cast(
-            str,
-            llm.generate(
-                prompt,
-                max_new_tokens=max_new_tokens,
-                return_type="str",
-                prepend_bos=False,  # handled by dataloader
-            ),
-        )
-
-    return output
 
 
 # %%
 
-prompt = "When I look at myself in the mirror, I see"
-latent_idx = 248
+# ==============================
+# model-aligned latents
+# ==============================
 
-print(f"Prompt: {prompt}")
-no_steering_output = cast(str, llm.generate(prompt, max_new_tokens=50))
+model_1_topk = relative_decoder_norms_H.topk(100, largest=True)
+model_2_topk = relative_decoder_norms_H.topk(100, largest=False)
 
-table = Table(show_header=False, show_lines=True, title="Steering Output")
-table.add_row("Normal", no_steering_output)
-for i in tqdm(range(3), "Generating steered examples..."):
-    table.add_row(
-        f"Steered #{i}",
-        generate_with_steering(
-            llm,
-            prompt,
-            max_new_tokens=20,
-            hookpoint="blocks.8.hook_resid_post",
-            steering_coefficient=20.0,  # roughly 1.5-2x the latent's max activation
-            latent_idx=latent_idx,
-        ).replace("\n", "↵"),
-    )
-rprint(table)
+model_aligned_latent_indices = torch.cat([model_1_topk.indices, model_2_topk.indices])
+model_aligned_latent_vals = torch.cat([model_1_topk.values, model_2_topk.values])
+# %%
+
+torch.set_printoptions(precision=3, sci_mode=False)
+print(model_aligned_latent_indices)
+print(model_aligned_latent_vals)
+# reset print options
+torch.set_printoptions()
+
+# %%
+
+print(f"gathering {len(model_aligned_latent_indices)} latents")
+model_aligned_examples_by_latent = gather_max_activating_examples(
+    examples_iterator,
+    cc=sae,
+    total_batches=3000,
+    context_size=20,
+    topk_per_latent_per_batch=5,
+    latents_to_inspect=model_aligned_latent_indices.tolist(),
+)
+
+# %%
+
+for summary in model_aligned_examples_by_latent.values():
+    if len(summary.selected_examples) == 0:
+        continue
+
+    relative_decoder_norm = relative_decoder_norms_H[summary.index].item()
+    if 0.4 < relative_decoder_norm < 0.6:
+        continue
+
+    display_topk_seqs_cross_model(summary, tokenizer, relative_decoder_norm)
 
 # %%

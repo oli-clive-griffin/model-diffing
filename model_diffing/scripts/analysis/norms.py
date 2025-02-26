@@ -3,6 +3,7 @@ from typing import cast
 
 import plotly.express as px  # type: ignore
 import torch
+from datasets import load_dataset
 
 from model_diffing.analysis import visualization
 from model_diffing.analysis.metrics import get_IQR_outliers_mask
@@ -21,13 +22,13 @@ llm_configs = [
     ),
 ]
 
-sequence_iterator_config = config_common.SequenceIteratorConfig(
-    classname="HuggingfaceTextDatasetTokenSequenceLoader",
-    kwargs={
-        "hf_dataset_name": "monology/pile-uncopyrighted",
-        "sequence_length": 258,
-        "shuffle_buffer_size": 4096,
-    },
+hf_dataset_name = "monology/pile-uncopyrighted"
+hf_dataset = load_dataset(hf_dataset_name, streaming=True, cache_dir=".cache", split="train")
+
+sequence_iterator_config = config_common.HuggingfaceTextDatasetConfig(
+    hf_dataset_name=hf_dataset_name,
+    sequence_length=258,
+    shuffle_buffer_size=4096,
 )
 
 activations_harvester_config = config_common.ActivationsHarvesterConfig(
@@ -51,7 +52,7 @@ device = get_device()
 llms = build_llms(llm_configs, cache_dir, device, dtype=activations_harvester_config.inference_dtype)
 
 # %%
-dataloader = build_dataloader(data_config, llms, hookpoints, 16, cache_dir, device)
+dataloader = build_dataloader(data_config, llms, hookpoints, 16, cache_dir)
 
 # %%
 sample_BMPD = next(dataloader.get_shuffled_activations_iterator_BMPD())

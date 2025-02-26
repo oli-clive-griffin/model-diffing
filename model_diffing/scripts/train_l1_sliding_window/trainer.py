@@ -21,7 +21,8 @@ from model_diffing.utils import (
 
 class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUActivation, L1TrainConfig]):
     def _train_step(self, batch_BTPD: t.Tensor) -> None:
-        self.optimizer.zero_grad()
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            self.optimizer.zero_grad()
 
         # Forward pass
         res = self.crosscoders.forward_train(batch_BTPD)
@@ -54,12 +55,15 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         loss = reconstruction_loss + self._lambda_s_scheduler() * sparsity_loss
 
         # Backward pass
-        loss.backward()
-        clip_grad_norm_(self.crosscoders.parameters(), 1.0)
-        self.optimizer.step()
+        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            clip_grad_norm_(self.crosscoders.parameters(), 1.0)
+            self.optimizer.step()
 
         # Update learning rate according to scheduler.
-        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+        if self.lr_scheduler is not None:
+            self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
         hidden_B3H = t.cat(
             [res.hidden_BH_single1, res.hidden_BH_double, res.hidden_BH_single2],

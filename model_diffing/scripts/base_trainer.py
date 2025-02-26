@@ -61,7 +61,9 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
             f"Total steps: {self.total_steps} (num_steps_per_epoch: {self.num_steps_per_epoch}, epochs: {cfg.epochs})"
         )
 
-        self.lr_scheduler = build_lr_scheduler(cfg.optimizer, self.total_steps)
+        self.lr_scheduler = (
+            build_lr_scheduler(cfg.optimizer, self.total_steps) if cfg.optimizer.type == "adam" else None
+        )
 
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -72,8 +74,13 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         self.epoch = 0
         self.unique_tokens_trained = 0
 
+    def _lr_step(self) -> None:
+        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
+        if self.lr_scheduler is not None:
+            self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+
     def tokens_since_fired_hist(self) -> wandb.Histogram:
-        return wandb_histogram(self.firing_tracker.steps_since_fired_A * self.cfg.batch_size)
+        return wandb_histogram(self.firing_tracker.examples_since_fired_A)
 
     def train(self) -> None:
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
@@ -81,18 +88,23 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
             epoch_dataloader_BMPD = self.activations_dataloader.get_shuffled_activations_iterator_BMPD()
             epoch_dataloader_BMPD = islice(epoch_dataloader_BMPD, self.num_steps_per_epoch)
 
-            for batch_BMPD in tqdm(epoch_dataloader_BMPD, desc="Train Steps"):
+            batch_iter = tqdm(
+                epoch_dataloader_BMPD,
+                desc="Epoch Train Steps",
+                total=self.num_steps_per_epoch,
+            )
+            for batch_BMPD in batch_iter:
                 batch_BMPD = batch_BMPD.to(self.device)
 
                 self._train_step(batch_BMPD)
 
                 # TODO(oli): get wandb checkpoint saving working
 
-                if self.cfg.save_every_n_steps is not None and (self.step + 1) % self.cfg.save_every_n_steps == 0:
+                if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
 
                     with self.crosscoder.temporarily_fold_activation_scaling(
-                        self.activations_dataloader.get_norm_scaling_factors_MP()
+                        self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
                     ):
                         save_model(self.crosscoder, checkpoint_path)
 
@@ -182,9 +194,9 @@ def run_exp(build_trainer: Callable[[TCfg], Any], cfg_cls: type[TCfg]) -> Callab
         with open(config_path) as f:
             config_dict = yaml.safe_load(f)
         config = cfg_cls(**config_dict)
-        logger.info("Loaded config")
+        logger.info(f"Loaded config:\n{config.model_dump_json(indent=2)}")
         config.experiment_name += f"_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
-        print(f"over-wrote experiment_name: {config.experiment_name}")
+        logger.info(f"over-wrote experiment_name: {config.experiment_name}")
         logger.info(f"saving in save_dir: {config.save_dir}")
         save_config(config)
         logger.info("Building trainer")

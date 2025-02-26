@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Generic, TypeVar
 
 import torch as t
-import torch.nn as nn
+from torch import nn
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
@@ -64,8 +64,9 @@ class BiTokenCCWrapper(nn.Module, Generic[TAct]):
             hidden_BH_double=output_both.hidden_BH,
         )
 
+    # stub forward for appeasing the nn.Module interface, but we don't use it
     def forward(self, x_BTPD: t.Tensor) -> t.Tensor:
-        return t.Tensor(0)
+        raise NotImplementedError("This method should not be called")
 
 
 class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
@@ -98,7 +99,9 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
             f"Total steps: {self.total_steps} (num_steps_per_epoch: {self.num_steps_per_epoch}, epochs: {cfg.epochs})"
         )
 
-        self.lr_scheduler = build_lr_scheduler(cfg.optimizer, self.total_steps)
+        self.lr_scheduler = (
+            build_lr_scheduler(cfg.optimizer, self.total_steps) if cfg.optimizer.type == "adam" else None
+        )
 
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)

@@ -17,10 +17,12 @@ from model_diffing.utils import (
 
 class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig, JumpReLUActivation]):
     def _train_step(self, batch_BMPD: t.Tensor) -> None:
-        self.optimizer.zero_grad()
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            self.optimizer.zero_grad()
 
         # fwd
         train_res = self.crosscoder.forward_train(batch_BMPD)
+        self.firing_tracker.add_batch(train_res.hidden_BH)
 
         # losses
         reconstruction_loss = calculate_reconstruction_loss(batch_BMPD, train_res.output_BXD)
@@ -40,11 +42,13 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
         )
 
         # backward
-        loss.backward()
-        clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-        self.optimizer.step()
-        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
+            self.optimizer.step()
+
+        self._lr_step()
 
         if (
             self.wandb_run is not None

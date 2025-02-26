@@ -31,13 +31,13 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
         for pos in ["hook_pre", "hook_post"]
     ]
 
+    
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,
         hookpoints=hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
     )
 
     # HACK: need to average over each consecutive pair of hookpoints

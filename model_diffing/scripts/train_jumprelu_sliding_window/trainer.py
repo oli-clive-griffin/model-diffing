@@ -52,14 +52,12 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
         )
 
         # backward
-        loss.backward()
+        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
         clip_grad_norm_(self.crosscoders.parameters(), 1.0)
         self.optimizer.step()
+        self._lr_step()
 
-        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
-
-        self.firing_tracker.add_batch(hidden_B3h.detach().cpu().numpy() > 0)
+        self.firing_tracker.add_batch(hidden_B3h)
 
         if (
             self.wandb_run is not None
@@ -106,7 +104,6 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
                 #
                 "media/jumprelu_threshold_distribution_single": thresholds_single_hist,
                 "media/jumprelu_threshold_distribution_both": thresholds_both_hist,
-                # "media/pre_bias_distribution": pre_biases_hist,
                 "train/epoch": self.epoch,
                 "train/unique_tokens_trained": self.unique_tokens_trained,
                 "train/learning_rate": self.optimizer.param_groups[0]["lr"],
@@ -116,12 +113,14 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
                 "media/cc2_pre_biases": cc2_pre_biases_hist,
                 "media/nonzero_activations": nonzero_activations_hist,
                 #
-                "train/tokens_since_fired": wandb_histogram(
-                    self.firing_tracker.steps_since_fired_A * self.cfg.batch_size
-                ),
+                "train/tokens_since_fired": wandb_histogram(self.firing_tracker.examples_since_fired_A),
             }
 
             self.wandb_run.log(log_dict, step=self.step)
+
+    def _lr_step(self) -> None:
+        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
+        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""

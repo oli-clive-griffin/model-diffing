@@ -1,10 +1,12 @@
+from typing import Any
 import pytest
 import torch as t
 
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.activations.topk import BatchTopkActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
+from model_diffing.utils import l2_norm
 
 
 def test_return_shapes():
@@ -110,63 +112,59 @@ def test_weights_folding_scales_output_correctly():
     )
 
 
-@pytest.mark.skip(reason="skipping this till I figure out the unit norm issue with arbitrary crosscoding dims")
-def test_weights_rescaling():
+class RandomInit(InitStrategy[Any]):
+    @t.no_grad()
+    def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
+        cc.W_dec_HXD.random_()
+        cc.W_enc_XDH.random_()
+        cc.b_enc_H.random_()
+        cc.b_dec_XD.random_()
+
+
+def test_weights_rescaling_retains_output():
     batch_size = 1
     n_models = 2
     n_hookpoints = 3
     d_model = 4
-    cc_hidden_dim = 32
-    dec_init_norm = 0.1
+    cc_hidden_dim = 8
 
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         hidden_activation=ReLUActivation(),
-        init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
+        init_strategy=RandomInit(),
     )
 
     activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
-    output_BMPD = crosscoder.forward_train(activations_BMPD)
 
-    new_cc = crosscoder.with_decoder_unit_norm()
-    output_rescaled_BMPD = new_cc.forward_train(activations_BMPD)
+    output_BMPD = crosscoder.forward_train(activations_BMPD)
+    output_rescaled_BMPD = crosscoder.with_decoder_unit_norm().forward_train(activations_BMPD)
 
     assert t.allclose(output_BMPD.output_BXD, output_rescaled_BMPD.output_BXD), (
         f"max diff: {t.max(t.abs(output_BMPD.output_BXD - output_rescaled_BMPD.output_BXD))}"
     )
 
-    new_cc_dec_norms = new_cc.W_dec_HXD.norm(p=2, dim=(1, 2))
-    assert t.allclose(new_cc_dec_norms, t.ones_like(new_cc_dec_norms))
 
+def test_weights_rescaling_max_norm():
+    n_models = 2
+    n_hookpoints = 3
+    d_model = 4
+    cc_hidden_dim = 8
 
-@pytest.mark.skip(reason="skipping this till I figure out the unit norm issue with arbitrary crosscoding dims")
-def test_weights_rescaling_makes_unit_norm_decoder_output():
-    batch_size = 1
-    n_models = 3
-    n_hookpoints = 4
-    d_model = 5
-    cc_hidden_dim = 32
-    dec_init_norm = 0.1
-
-    crosscoder = AcausalCrosscoder(
+    cc = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         hidden_dim=cc_hidden_dim,
         hidden_activation=ReLUActivation(),
-        init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
+        init_strategy=RandomInit(),
+    ).with_decoder_unit_norm()
+
+    cc_dec_norms_HMP = l2_norm(cc.W_dec_HXD, dim=-1)  # dec norms for each output vector space
+
+    assert t.allclose(
+        t.isclose(cc_dec_norms_HMP, t.tensor(1.0))  # for each cc hidden dim,
+        .sum(dim=(1, 2))  # only 1 output vector space should have norm 1
+        .long(),
+        t.ones(cc_hidden_dim).long(),
     )
-
-    activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
-    output_BMPD = crosscoder.forward_train(activations_BMPD)
-
-    new_cc = crosscoder.with_decoder_unit_norm()
-    output_rescaled_BMPD = new_cc.forward_train(activations_BMPD)
-
-    assert t.allclose(output_BMPD.output_BXD, output_rescaled_BMPD.output_BXD), (
-        f"max diff: {t.max(t.abs(output_BMPD.output_BXD - output_rescaled_BMPD.output_BXD))}"
-    )
-
-    new_cc_dec_norms = new_cc.W_dec_HXD.norm(p=2, dim=(1, 2))
-    assert t.allclose(new_cc_dec_norms, t.ones_like(new_cc_dec_norms))

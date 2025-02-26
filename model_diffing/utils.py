@@ -1,8 +1,11 @@
+import os
+import sys
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from functools import partial
 from itertools import product
 from pathlib import Path
-from typing import Any, Self
+from typing import Any
 
 import einops
 import torch
@@ -11,6 +14,14 @@ from einops import reduce
 from einops.einops import Reduction
 from pydantic import BaseModel as _BaseModel
 from torch import nn
+
+from model_diffing.log import logger
+
+python_version = sys.version_info
+if python_version.major == 3 and python_version.minor < 11:
+    Self = Any
+else:
+    from typing import Self
 
 
 class BaseModel(_BaseModel):
@@ -244,3 +255,27 @@ def round_up(x: int, to_multiple_of: int) -> int:
     if remainder != 0:
         x = (((x - remainder) // to_multiple_of) + 1) * to_multiple_of
     return x
+
+
+def torch_batch_iterator(tensor_iterator_X: Iterator[torch.Tensor], yield_batch_size: int) -> Iterator[torch.Tensor]:
+    sample_X = next(tensor_iterator_X)
+    batch_BX = torch.empty([yield_batch_size, *sample_X.shape], device=sample_X.device, dtype=sample_X.dtype)
+    batch_BX[0] = sample_X
+    ptr = 1
+
+    for batch_X in tensor_iterator_X:
+        batch_BX[ptr] = batch_X
+        ptr += 1
+
+        if ptr == yield_batch_size:
+            yield batch_BX
+            ptr = 0
+
+
+# admin function for alerting on finishing long-running cells in notebooks
+def beep_macos():
+    try:
+        # Play the system alert sound
+        os.system("afplay /System/Library/Sounds/Sosumi.aiff")
+    except Exception as e:
+        logger.error(f"Failed to play alarm sound: {e}")

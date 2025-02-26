@@ -45,7 +45,7 @@ def test_MP():
         token_sequence_loader=sequence_loader,
         yield_batch_size=training_batch_size,
         device=get_device(),
-        n_batches_for_norm_estimate=1,
+        n_tokens_for_norm_estimate=1,
     )
 
     sample_activations_batch_BMPD = next(dataloader.get_shuffled_activations_iterator_BMPD())
@@ -92,7 +92,7 @@ def test_TPD():
         token_sequence_loader=sequence_loader,
         yield_batch_size=training_batch_size,
         device=get_device(),
-        n_batches_for_norm_estimate=1,
+        n_tokens_for_norm_estimate=1,
         window_size=window_size,
     )
 
