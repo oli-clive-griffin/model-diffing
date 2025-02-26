@@ -34,8 +34,9 @@ dev = [
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.find-namespace-packages]
-where = ["."]
+[tool.setuptools]
+packages = { find = { where = ["model_diffing"] } }
+
 
 [tool.ruff]
 line-length = 120
