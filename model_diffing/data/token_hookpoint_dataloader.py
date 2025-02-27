@@ -199,9 +199,10 @@ def build_sliding_window_dataloader(
     #     ptr = 1
 
     #     for batch_TPD in activations_iterator_TPD:
-    #         batch_BTPD[ptr] = batch_TPD
-    #         ptr += 1
-
     #         if ptr == self._yield_batch_size:
     #             yield batch_BTPD
     #             ptr = 0
+
+    #         batch_BTPD[ptr] = batch_TPD
+    #         ptr += 1
+

@@ -297,12 +297,13 @@ def torch_batch_iterator(tensor_iterator_X: Iterator[torch.Tensor], yield_batch_
     ptr = 1
 
     for batch_X in tensor_iterator_X:
-        batch_BX[ptr] = batch_X
-        ptr += 1
-
         if ptr == yield_batch_size:
             yield batch_BX
             ptr = 0
+
+        batch_BX[ptr] = batch_X
+        ptr += 1
+
 
 
 # admin function for alerting on finishing long-running cells in notebooks

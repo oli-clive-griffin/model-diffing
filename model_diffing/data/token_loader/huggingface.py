@@ -88,9 +88,6 @@ class HuggingfaceTextDatasetTokenSequenceLoader(TokenSequenceLoader):
             ptr = 1
 
             for sample_S in iterator_S:
-                tokens_BS[ptr] = sample_S
-                ptr += 1
-
                 if ptr == self._batch_size:
                     special_tokens_mask_BS = torch.isin(tokens_BS, special_ids)
                     yield TokensSequenceBatch(
@@ -98,6 +95,9 @@ class HuggingfaceTextDatasetTokenSequenceLoader(TokenSequenceLoader):
                         special_tokens_mask_BS=special_tokens_mask_BS,
                     )
                     ptr = 0
+
+                tokens_BS[ptr] = sample_S
+                ptr += 1
 
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:
         return self._get_sequences_batch_iterator

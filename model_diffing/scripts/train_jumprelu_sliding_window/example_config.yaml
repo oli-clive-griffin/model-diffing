@@ -1,16 +1,13 @@
 data:
   sequence_iterator:
-    classname: HuggingfaceTextDatasetTokenSequenceLoader
-    kwargs:
-      hf_dataset_name: "monology/pile-uncopyrighted"
-      sequence_length: 256
-      shuffle_buffer_size: 8192
+    type: HuggingfaceTextDatasetTokenSequenceLoader
+    hf_dataset_name: "monology/pile-uncopyrighted"
+    sequence_length: 256
   activations_harvester:
     llms:
       - name: EleutherAI/pythia-160M
         revision: step143000 # last checkpoint
     harvesting_batch_size: 1
-  activations_shuffle_buffer_size: 2048
 crosscoder:
   hidden_dim: 4096
   jumprelu:
