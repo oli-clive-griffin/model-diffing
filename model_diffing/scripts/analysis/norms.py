@@ -3,7 +3,7 @@ from typing import cast
 
 import plotly.express as px  # type: ignore
 import torch
-from datasets import load_dataset
+from datasets import load_dataset  # type: ignore
 
 from model_diffing.analysis import visualization
 from model_diffing.analysis.metrics import get_IQR_outliers_mask
@@ -55,11 +55,11 @@ llms = build_llms(llm_configs, cache_dir, device, dtype=activations_harvester_co
 dataloader = build_dataloader(data_config, llms, hookpoints, 16, cache_dir)
 
 # %%
-sample_BMPD = next(dataloader.get_shuffled_activations_iterator_BMPD())
+sample_BMPD = next(dataloader.get_activations_iterator_BMPD())
 print(sample_BMPD.shape, sample_BMPD.device)
 
 # %%
-norms_NMP = collect_norms_NMP(dataloader.get_shuffled_activations_iterator_BMPD(), device=device, n_batches=512)
+norms_NMP = collect_norms_NMP(dataloader.get_activations_iterator_BMPD(), device=device, n_batches=512)
 print(norms_NMP.shape, norms_NMP.device)
 
 # %%

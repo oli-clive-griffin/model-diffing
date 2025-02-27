@@ -72,7 +72,7 @@ def main():
         # First iteration (no cache)
         print("First iteration (fill cache):")
         start_time = time.time()
-        for batch in islice(build_dataloader().get_shuffled_activations_iterator_BMPD(), 1000):
+        for batch in islice(build_dataloader().get_activations_iterator_BMPD(), 1000):
             pass
         first_iter_time = time.time() - start_time
         print(f"First iteration took {first_iter_time:.4f} seconds")
@@ -80,7 +80,7 @@ def main():
         # Second iteration (with cache)
         print("\nSecond iteration (with cache):")
         start_time = time.time()
-        for batch in islice(build_dataloader().get_shuffled_activations_iterator_BMPD(), 1000):
+        for batch in islice(build_dataloader().get_activations_iterator_BMPD(), 1000):
             pass
         second_iter_time = time.time() - start_time
         print(f"Second iteration took {second_iter_time:.4f} seconds")

@@ -38,7 +38,7 @@ class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
         self._d_model = d_model
         self._num_batches = num_batches
 
-    def get_shuffled_activations_iterator_BMPD(self) -> Iterator[Tensor]:
+    def get_activations_iterator_BMPD(self) -> Iterator[Tensor]:
         for _ in range(self._num_batches):
             yield torch.randint(
                 0,

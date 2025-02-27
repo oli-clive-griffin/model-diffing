@@ -28,7 +28,6 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         dtype=cfg.data.activations_harvester.inference_dtype,
     )
 
-    
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,
@@ -45,7 +44,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         d_model=llms[0].cfg.d_model,
         hidden_dim=cfg.crosscoder.hidden_dim,
         init_strategy=JanUpdateInitStrategy(
-            activations_iterator_BXD=dataloader.get_shuffled_activations_iterator_BMPD(),
+            activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
             initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
             n_examples_to_sample=100_000,
         ),
@@ -178,11 +177,10 @@ def _harvest_pre_bias_NH(
 
     pre_bias_buffer_NH[:batch_size] = sample_BH
 
-    for i in tqdm(
-        range(1, num_batches), desc="Harvesting pre-bias"
-    ):  # start at 1 because we already sampled the first batch
+    # start at 1 because we already sampled the first batch
+    for i in tqdm(range(1, num_batches), desc="Harvesting pre-bias"):
         batch_pre_bias_BH = get_batch_pre_bias()
-        pre_bias_buffer_NH[batch_size * i : batch_size * (i + 1)] = batch_pre_bias_BH
+        pre_bias_buffer_NH[i * batch_size : (i + 1) * batch_size] = batch_pre_bias_BH
 
     return pre_bias_buffer_NH
 

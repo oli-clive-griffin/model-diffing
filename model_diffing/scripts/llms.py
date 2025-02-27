@@ -1,9 +1,8 @@
 from typing import cast
-import hashlib
 
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM  # type: ignore
 
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import LLMConfig

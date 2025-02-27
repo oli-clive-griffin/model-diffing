@@ -7,14 +7,13 @@ import torch
 import wandb
 import wandb.plot.custom_chart
 from einops import reduce
-from schedulefree import ScheduleFreeWrapper
+from schedulefree import ScheduleFreeWrapper  # type: ignore
 from torch.optim import Optimizer
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.analysis import metrics
-from model_diffing.log import logger
-from model_diffing.scripts.config_common import AdamConfig, BaseExperimentConfig, ScheduleFreeSigNumConfig
+from model_diffing.scripts.config_common import AdamConfig, BaseExperimentConfig, OptimizerCfg, ScheduleFreeSigNumConfig
 from model_diffing.utils import l0_norm, l2_norm
 
 
@@ -34,7 +33,8 @@ def get_l0_stats(hidden_BH: torch.Tensor) -> dict[str, float]:
 
 
 def create_cosine_sim_and_relative_norm_histograms(
-    W_dec_HMPD: torch.Tensor, hookpoints: list[str]
+    W_dec_HMPD: torch.Tensor,
+    hookpoints: list[str],
 ) -> dict[str, wandb.Histogram]:
     _, n_models, num_hookpoints, _ = W_dec_HMPD.shape
     assert n_models == 2, "only works for 2 models"
@@ -74,16 +74,16 @@ def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
 
 
 def build_optimizer(
-    cfg: AdamConfig | ScheduleFreeSigNumConfig, params: Iterator[torch.nn.Parameter]
+    cfg: OptimizerCfg, params: Iterator[torch.nn.Parameter]
 ) -> torch.optim.Optimizer | ScheduleFreeWrapper:
     match cfg:
         case AdamConfig():
-            optimizer = torch.optim.Adam(params, lr=cfg.learning_rate, betas=cfg.betas)
+            return torch.optim.Adam(params, lr=cfg.learning_rate, betas=cfg.betas)
         case ScheduleFreeSigNumConfig():
             optimizer = ScheduleFreeWrapper(SignSGD(params, lr=cfg.learning_rate), momentum=cfg.momentum)
             optimizer.train()
-    logger.info(f"using optimizer: {optimizer}")
-    return optimizer
+            return optimizer
+    raise ValueError(f"Unknown optimizer. {cfg=}")
 
 
 def build_lr_scheduler(cfg: AdamConfig, num_steps: int) -> Callable[[int], float]:

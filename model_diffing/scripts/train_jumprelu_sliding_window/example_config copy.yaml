@@ -10,17 +10,20 @@ data:
     harvesting_batch_size: 32
 crosscoder:
   hidden_dim: 4096
+  jumprelu:
+    backprop_through_jumprelu_input: true
+  initial_approx_firing_pct: 0.5 # WARNING(oli): very uncertain this is a good default!
 train:
-  num_steps: 20_000
+  num_steps: 60_000
   batch_size: 65_536
   gradient_accumulation_steps_per_batch: 16  # for a minibatch size of 4096
   save_every_n_steps: 2500
   log_every_n_steps: 20
-  lambda_s_max: 5.0
-  lambda_s_n_steps: 20_000
-experiment_name: oli_l1_sliding_window
+  c: 4.0
+  final_lambda_s: 12.0
+  lambda_p: 0.000003 # 3e-6
+experiment_name: oli_jumprelu_sliding_window_v2
 hookpoints:
   - "blocks.0.hook_resid_post"
   - "blocks.1.hook_resid_post"
   - "blocks.2.hook_resid_post"
-  - "blocks.3.hook_resid_post"

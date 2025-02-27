@@ -4,14 +4,14 @@ from dataclasses import dataclass
 from itertools import islice
 from typing import Any
 
-import tabulate
+import tabulate  # type: ignore
 import torch
 from einops import rearrange
 from rich import print as rprint
 from rich.table import Table
-from tqdm import tqdm
-from transformer_lens import HookedTransformer
-from transformers import PreTrainedTokenizerBase
+from tqdm import tqdm  # type: ignore
+from transformer_lens import HookedTransformer  # type: ignore
+from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.token_loader import TokenSequenceLoader

@@ -44,11 +44,10 @@ def test_MP():
         activations_shuffle_buffer_size=training_batch_size * 4,
         token_sequence_loader=sequence_loader,
         yield_batch_size=training_batch_size,
-        device=get_device(),
         n_tokens_for_norm_estimate=1,
     )
 
-    sample_activations_batch_BMPD = next(dataloader.get_shuffled_activations_iterator_BMPD())
+    sample_activations_batch_BMPD = next(dataloader.get_activations_iterator_BMPD())
 
     assert sample_activations_batch_BMPD.shape == (
         training_batch_size,  # B
@@ -91,12 +90,11 @@ def test_TPD():
         activations_shuffle_buffer_size=training_batch_size * 4,
         token_sequence_loader=sequence_loader,
         yield_batch_size=training_batch_size,
-        device=get_device(),
         n_tokens_for_norm_estimate=1,
         window_size=window_size,
     )
 
-    sample_activations_batch_BTPD = next(dataloader.get_shuffled_activations_iterator_BTPD())
+    sample_activations_batch_BTPD = next(dataloader.get_activations_iterator_BTPD())
 
     assert sample_activations_batch_BTPD.shape == (
         training_batch_size,  # B

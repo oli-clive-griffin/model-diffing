@@ -8,14 +8,8 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
-from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms, get_l0_stats
-from model_diffing.utils import (
-    calculate_fvu_X,
-    calculate_reconstruction_loss,
-    get_fvu_dict,
-    l2_norm,
-    sparsity_loss_l1_of_norms,
-)
+from model_diffing.scripts.utils import get_l0_stats
+from model_diffing.utils import calculate_reconstruction_loss, get_fvu_dict, l2_norm, sparsity_loss_l1_of_norms
 
 
 class AnthropicTransposeInit(InitStrategy[Any]):
@@ -68,10 +62,11 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
         if (
             self.wandb_run is not None
             and self.cfg.log_every_n_steps is not None
-            and (self.step + 1) % self.cfg.log_every_n_steps == 0
+            and self.step % self.cfg.log_every_n_steps == 0
         ):
             fvu_dict = get_fvu_dict(
-                calculate_fvu_X(batch_BMPD, train_res.output_BXD),
+                batch_BMPD,
+                train_res.output_BXD,
                 ("model", list(range(self.n_models))),
                 ("hookpoint", self.hookpoints),
             )
@@ -83,18 +78,8 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
                 "train/loss": loss.item(),
                 **fvu_dict,
                 **get_l0_stats(train_res.hidden_BH),
-                **self.common_logs(),
+                **self._common_logs(),
             }
-
-            if self.n_models == 2:
-                W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
-                assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
-                log_dict.update(
-                    create_cosine_sim_and_relative_norm_histograms(
-                        W_dec_HMPD=W_dec_HXD,
-                        hookpoints=self.hookpoints,
-                    )
-                )
 
             self.wandb_run.log(log_dict, step=self.step)
 

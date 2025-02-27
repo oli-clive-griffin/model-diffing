@@ -1,8 +1,8 @@
 from typing import cast
 
 import torch
-from datasets import IterableDataset
-from transformers import AutoTokenizer
+from datasets import IterableDataset  # type: ignore
+from transformers import AutoTokenizer  # type: ignore
 
 from model_diffing.data.token_loader import HuggingfaceTextDatasetTokenSequenceLoader
 

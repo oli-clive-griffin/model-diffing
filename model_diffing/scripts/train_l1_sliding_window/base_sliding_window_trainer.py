@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import torch as t
 from torch import nn
@@ -119,37 +119,35 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
     def train(self):
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
-            epoch_dataloader_BTPD = self.activations_dataloader.get_shuffled_activations_iterator_BTPD()
-            epoch_dataloader_BTPD = islice(epoch_dataloader_BTPD, self.num_steps_per_epoch)
-
-            for batch_BTPD in tqdm(epoch_dataloader_BTPD, desc="Train Steps"):
+            for batch_BTPD in tqdm(
+                islice(self.activations_dataloader.get_activations_iterator_BTPD(), self.num_steps_per_epoch),
+                desc="Epoch Train Steps",
+                total=self.num_steps_per_epoch,
+            ):
                 batch_BTPD = batch_BTPD.to(self.device)
 
                 self._train_step(batch_BTPD)
 
                 # TODO(oli): get wandb checkpoint saving working
 
-                if self.cfg.save_every_n_steps is not None and (self.step + 1) % self.cfg.save_every_n_steps == 0:
+                if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     scaling_factors_TP = self.activations_dataloader.get_norm_scaling_factors_TP()
-                    step_dir = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+                    scaling_factor_1P = scaling_factors_TP.mean(dim=0, keepdim=True)
 
-                    with self.crosscoders.single_cc.temporarily_fold_activation_scaling(
-                        scaling_factors_TP.mean(dim=0, keepdim=True)
-                    ):
-                        save_model(self.crosscoders.single_cc, step_dir / "single_cc")
+                    step_dir_single = self.save_dir / f"epoch_{self.epoch}_step_{self.step}_single"
+                    step_dir_double = self.save_dir / f"epoch_{self.epoch}_step_{self.step}_double"
+
+                    with self.crosscoders.single_cc.temporarily_fold_activation_scaling(scaling_factor_1P):
+                        save_model(self.crosscoders.single_cc, step_dir_single)
 
                     with self.crosscoders.double_cc.temporarily_fold_activation_scaling(scaling_factors_TP):
-                        save_model(self.crosscoders.double_cc, step_dir / "double_cc")
+                        save_model(self.crosscoders.double_cc, step_dir_double)
 
                     if self.wandb_run is not None:
-                        artifact = create_checkpoint_artifact(
-                            step_dir / "single_cc", self.wandb_run.id, self.step, self.epoch
-                        )
+                        artifact = create_checkpoint_artifact(step_dir_single, self.wandb_run.id, self.step, self.epoch)
                         self.wandb_run.log_artifact(artifact)
 
-                        artifact = create_checkpoint_artifact(
-                            step_dir / "double_cc", self.wandb_run.id, self.step, self.epoch
-                        )
+                        artifact = create_checkpoint_artifact(step_dir_double, self.wandb_run.id, self.step, self.epoch)
                         self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
@@ -160,3 +158,10 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
 
     @abstractmethod
     def _train_step(self, batch_BTPD: t.Tensor) -> None: ...
+
+    def _common_logs(self) -> dict[str, Any]:
+        return {
+            "train/epoch": self.epoch,
+            "train/unique_tokens_trained": self.unique_tokens_trained,
+            "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+        }

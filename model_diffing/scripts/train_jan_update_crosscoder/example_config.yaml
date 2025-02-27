@@ -10,7 +10,7 @@ data:
         revision: step143000
     harvesting_batch_size: 4
     cache_mode: "cache"
-  n_tokens_for_norm_estimate: 10_000
+  n_tokens_for_norm_estimate: 100_000
 crosscoder:
   hidden_dim: 6144
   jumprelu:
@@ -21,10 +21,11 @@ train:
     type: adam
     learning_rate: 0.00006
     betas: [0.0, 0.999]
-  num_steps: 3_000
-  batch_size: 512
+  num_steps: 10_000
+  batch_size: 1024
+  gradient_accumulation_steps_per_batch: 8
   save_every_n_steps: 9999999999
-  log_every_n_steps: 10
+  log_every_n_steps: 16
   c: 4.0
   final_lambda_s: 1.5
   lambda_p: 0.000003

@@ -18,7 +18,6 @@ from model_diffing.interp import (
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
-from model_diffing.scripts.wandb_scripts.main import download_experiment_checkpoint
 from model_diffing.utils import get_device
 
 # %% Setup
@@ -30,16 +29,18 @@ print(f"Current working directory: {Path.cwd()}")
 device = get_device()
 cache_dir = ".cache"
 
-DOWNLOAD_DIR = ".data/local"
-download_experiment_checkpoint(
-    run_id="bganjcqn",
-    version="v3",
-    destination_dir=DOWNLOAD_DIR,
-)
+# DOWNLOAD_DIR = ".data/local"
+# download_experiment_checkpoint(
+#     run_id="bganjcqn",
+#     version="v3",
+#     destination_dir=DOWNLOAD_DIR,
+# )
 
-# %%
+DOWNLOAD_DIR = ".checkpoints/oli-RL-math-v2_2025-02-25_12-18-37"
 
 sae = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "epoch_0_step_15000").to(device)
+
+# %%
 assert sae.is_folded.item()
 sae.make_decoder_max_unit_norm_()
 
@@ -135,7 +136,6 @@ model_aligned_latent_indices = torch.cat([model_1_topk.indices, model_2_topk.ind
 model_aligned_latent_vals = torch.cat([model_1_topk.values, model_2_topk.values])
 # %%
 
-
 torch.set_printoptions(precision=3, sci_mode=False)
 print(model_aligned_latent_indices)
 print(model_aligned_latent_vals)
@@ -143,9 +143,6 @@ print(model_aligned_latent_vals)
 torch.set_printoptions()
 
 # %%
-
-info = torch.cuda.mem_get_info()
-print(f"GPU memory: {info[0] / 1024**2} MB used, {info[1] / 1024**2} MB total")
 
 print(f"gathering {len(model_aligned_latent_indices)} latents")
 model_aligned_examples_by_latent = gather_max_activating_examples(

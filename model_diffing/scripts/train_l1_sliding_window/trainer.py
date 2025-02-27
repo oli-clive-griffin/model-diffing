@@ -9,7 +9,6 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
 from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
 from model_diffing.utils import (
-    calculate_fvu_X,
     calculate_reconstruction_loss,
     get_fvu_dict,
     l0_norm,
@@ -73,7 +72,7 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         if (
             self.wandb_run is not None
             and self.cfg.log_every_n_steps is not None
-            and (self.step + 1) % self.cfg.log_every_n_steps == 0
+            and self.step % self.cfg.log_every_n_steps == 0
         ):
             # Instead of building a chart with `get_l0_stats`, we compute and log the values as scalars.
             l0_B = l0_norm(hidden_B3H, dim=-1)
@@ -82,7 +81,8 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
             l0_5, l0_25, l0_75, l0_95 = np.percentile(l0_np, [5, 25, 75, 95])
 
             fvu_dict = get_fvu_dict(
-                calculate_fvu_X(batch_BTPD, reconstructed_acts_BTPD),
+                batch_BTPD,
+                reconstructed_acts_BTPD,
                 ("token", [0, 1]),
                 ("hookpoint", self.hookpoints),
             )

@@ -1,4 +1,4 @@
-import fire
+import fire  # type: ignore
 
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
@@ -6,8 +6,8 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
-from model_diffing.scripts.train_jumprelu_sliding_window.trainer import BiTokenCCWrapper
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
+from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.train_l1_sliding_window.config import L1SlidingWindowExperimentConfig
 from model_diffing.scripts.train_l1_sliding_window.trainer import L1SlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run

@@ -1,32 +1,12 @@
 # %%
-import asyncio
-import concurrent.futures
-import os
-import time
-from concurrent.futures import ThreadPoolExecutor
-from itertools import islice
-from threading import Thread
-from typing import Any, cast
 
-import anthropic
 import torch
-from datasets import Dataset, DatasetDict, load_dataset
-from pydantic import BaseModel
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-from transformer_lens import HookedTransformer
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
-from transformers.models.qwen2 import Qwen2ForCausalLM
+from transformer_lens import HookedTransformer  # type: ignore
+from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.model_hookpoint_dataloader import ScaledModelHookpointActivationsDataloader
 from model_diffing.data.token_loader import MathDatasetTokenSequenceLoader
-from model_diffing.interp import (
-    gather_max_activating_examples,
-    iterate_activations_with_text,
-)
-from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTrainConfig
-from model_diffing.scripts.train_jan_update_crosscoder.trainer import JanUpdateCrosscoderTrainer
 
 # %%
 
@@ -45,12 +25,12 @@ llm_r1 = HookedTransformer.from_pretrained("Qwen/Qwen2.5-1.5B", hf_model=llm_r1_
 
 # %%
 
-llm_r1.tokenizer.padding_side
-# %%
-llm_r1.tokenizer.special_tokens_map
+# llm_r1.tokenizer.padding_side
+# # %%
+# llm_r1.tokenizer.special_tokens_map
 
-# %%
-llm_math.tokenizer.pad_token
+# # %%
+# llm_math.tokenizer.pad_token
 # %%
 
 

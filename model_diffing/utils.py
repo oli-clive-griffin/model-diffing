@@ -186,7 +186,7 @@ def multi_reduce(
     return tensor
 
 
-def calculate_fvu_X(
+def calculate_fvu_X_old(
     activations_BXD: torch.Tensor,
     reconstructed_BXD: torch.Tensor,
     eps: float = 1e-8,
@@ -200,7 +200,39 @@ def calculate_fvu_X(
     return mean_error_var_X / (mean_activations_var_X + eps)
 
 
-def get_fvu_dict(fvu_X: torch.Tensor, *crosscoding_dims: tuple[str, list[str] | list[int]]) -> dict[str, float]:
+def calculate_vector_norm_fvu_X(
+    y_BXD: torch.Tensor,
+    y_pred_BXD: torch.Tensor,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """
+    For each crosscoding output space (model, hookpoint, token, etc.) Calculates the fvu, returning
+    a tensor of shape (crosscoding_dim_1, crosscoding_dim_2, ...) where each element is the fvu for the corresponding
+    crosscoding output space.
+
+    see https://www.lesswrong.com/posts/ZBjhp6zwfE8o8yfni/#Rm8xDeB95fb2usorb for a discussion of this
+    """
+    batch_size = y_BXD.shape[0]
+    if batch_size == 1:
+        logger.warn("Batch size is 1, fvu is not meaningful. returning 0")
+        return torch.zeros(y_BXD.shape[1:-1])
+
+    y_mean_BXD = y_BXD.mean(dim=0, keepdim=True)
+
+    var_err_BX = (y_BXD - y_pred_BXD).norm(p=2, dim=-1).square()  # variance
+    var_err_X = var_err_BX.mean(0)  # mean over batch
+
+    var_total_BX = (y_BXD - y_mean_BXD).norm(p=2, dim=-1).square()
+    var_total_X = var_total_BX.mean(0)  # mean over batch
+
+    return var_err_X / (var_total_X + eps)
+
+
+def get_fvu_dict(
+    y_BXD: torch.Tensor,
+    y_pred_BXD: torch.Tensor,
+    *crosscoding_dims: tuple[str, list[str] | list[int]],
+) -> dict[str, float]:
     """
     crosscoding_dims is a list of tuples, each (a, b) tuple is:
         a: the name of the crosscoding dimension ('hookpoint', 'model', 'token', etc.)
@@ -210,17 +242,18 @@ def get_fvu_dict(fvu_X: torch.Tensor, *crosscoding_dims: tuple[str, list[str] | 
     a crosscoder on hookpoints 2, 5, and 8, you don't to want to have them labeled [0, 1, 2]. i.e. you need to know what
     each index means.
     """
-
+    fvu_X = calculate_vector_norm_fvu_X(y_BXD, y_pred_BXD)
     assert len(crosscoding_dims) == len(fvu_X.shape)
 
-    # index_combinations is a list of tuples, each tuple is a unique set of indices into the fvu_X tensor
+    # a list of tuples where each tuple is a unique set of indices into the fvu_X tensor
     index_combinations = product(*(range(dim_size) for dim_size in fvu_X.shape))
 
     fvu_dict = {}
     for indices in index_combinations:
         name = "train/fvu"
+        # nest so that wandb puts them all in one graph
         for (dim_name, dim_labels), dim_index in zip(crosscoding_dims, indices, strict=True):
-            name += f"_{dim_name}{dim_labels[dim_index]}"
+            name += f"/{dim_name}{dim_labels[dim_index]}"
 
         fvu_dict[name] = fvu_X[indices].item()
 
@@ -279,3 +312,31 @@ def beep_macos():
         os.system("afplay /System/Library/Sounds/Sosumi.aiff")
     except Exception as e:
         logger.error(f"Failed to play alarm sound: {e}")
+
+
+def iter_into_batches(
+    iterator_BX: Iterator[torch.Tensor],
+    yield_batch_size: int,
+) -> Iterator[torch.Tensor]:
+    leftover_BX: torch.Tensor | None = None
+    for activations_BX in iterator_BX:
+        # first one - check for prepend
+        if leftover_BX is not None:
+            needed = yield_batch_size - leftover_BX.shape[0]
+
+            grabbed_BX = activations_BX[:needed]
+            activations_BX = activations_BX[needed:]
+
+            batch_BX = torch.cat([leftover_BX, grabbed_BX], dim=0)
+            yield batch_BX
+
+            leftover_BX = None
+
+        n_batches = activations_BX.shape[0] // yield_batch_size
+        for i in range(0, n_batches):
+            batch_BX = activations_BX[i * yield_batch_size : (i + 1) * yield_batch_size]
+            yield batch_BX
+
+        leftover_BX = activations_BX[n_batches * yield_batch_size :]
+
+    # drop any leftover

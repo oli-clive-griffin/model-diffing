@@ -66,8 +66,6 @@ class ActivationsCache:
             return None
 
         try:
-            logger.info(f"Loading cached activations from {cache_path}")
-
             np_array = np.load(cache_path, mmap_mode="r" if self.use_mmap else None)
 
             return torch.from_numpy(np_array).to(device)
@@ -94,7 +92,6 @@ class ActivationsCache:
         try:
             # Save as numpy array for better compatibility with mmap
             np_array = activations.cpu().numpy()
-            logger.info(f"Caching activations to {cache_path}")
             np.save(cache_path, np_array)
             return True
         except Exception as e:

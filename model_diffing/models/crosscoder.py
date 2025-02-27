@@ -9,6 +9,7 @@ from einops import einsum, reduce
 from torch import nn
 
 from model_diffing.models.activations import ACTIVATIONS_MAP
+from model_diffing.models.activations.jumprelu import JumpReLUActivation
 from model_diffing.utils import SaveableModule, l2_norm
 
 """
@@ -46,9 +47,9 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         self.hidden_dim = hidden_dim
         self.hidden_activation = hidden_activation
 
-        self.W_dec_HXD = nn.Parameter(t.empty((hidden_dim, *crosscoding_dims, d_model)))
-        self.b_enc_H = nn.Parameter(t.empty((hidden_dim,)))
         self.W_enc_XDH = nn.Parameter(t.empty((*crosscoding_dims, d_model, hidden_dim)))
+        self.b_enc_H = nn.Parameter(t.empty((hidden_dim,)))
+        self.W_dec_HXD = nn.Parameter(t.empty((hidden_dim, *crosscoding_dims, d_model)))
         self.b_dec_XD = nn.Parameter(t.empty((*crosscoding_dims, d_model)))
 
         self.W_skip_XdXd = None
@@ -75,6 +76,11 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         return self.hidden_activation(pre_activation_BH)
 
     def _decode_BXD(self, hidden_BH: t.Tensor) -> t.Tensor:
+        if isinstance(self.hidden_activation, JumpReLUActivation):
+            with t.no_grad():
+                threshold_H = (self.hidden_activation.log_threshold_H.exp() - self.hidden_activation.bandwidth)
+                hidden_BH = t.where(hidden_BH > threshold_H, hidden_BH, threshold_H)
+
         pre_bias_BXD = einsum(hidden_BH, self.W_dec_HXD, "b h, h ... d -> b ... d")
         return pre_bias_BXD + self.b_dec_XD
 

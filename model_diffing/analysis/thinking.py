@@ -2,19 +2,15 @@
 import asyncio
 import concurrent.futures
 import os
-import time
 from concurrent.futures import ThreadPoolExecutor
-from itertools import islice
 from threading import Thread
-from typing import cast
 
 import anthropic
-import torch
-from datasets import DatasetDict, load_dataset
+from datasets import DatasetDict, load_dataset  # type: ignore
 from pydantic import BaseModel
-from tqdm import tqdm
-from transformer_lens import HookedTransformer
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
+from tqdm import tqdm  # type: ignore
+from transformer_lens import HookedTransformer  # type: ignore
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer  # type: ignore
 
 BASE = "Qwen/Qwen2.5-Math-1.5B"
 R1 = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"

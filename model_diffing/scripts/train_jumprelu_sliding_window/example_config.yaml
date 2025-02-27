@@ -17,6 +17,9 @@ crosscoder:
     backprop_through_jumprelu_input: true
   initial_approx_firing_pct: 0.5 # WARNING(oli): very uncertain this is a good default!
 train:
+  optimizer:
+    type: adam
+    learning_rate: 0.001
   num_steps: 10_000
   batch_size: 32
   save_every_n_steps: 2500

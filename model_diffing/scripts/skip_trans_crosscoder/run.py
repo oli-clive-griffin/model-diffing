@@ -1,4 +1,4 @@
-import fire
+import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
@@ -54,7 +54,7 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
         d_model=llms[0].cfg.d_mlp,
         hidden_dim=cfg.crosscoder.hidden_dim,
         init_strategy=ZeroDecSkipTranscoderInit(
-            activation_iterator_BMPD=dataloader.get_shuffled_activations_iterator_BMPD(),
+            activation_iterator_BMPD=dataloader.get_activations_iterator_BMPD(),
             n_samples_for_dec_mean=100_000,
         ),
         hidden_activation=TopkActivation(k=cfg.crosscoder.k),

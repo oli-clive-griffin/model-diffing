@@ -17,7 +17,12 @@ from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
 from model_diffing.scripts.firing_tracker import FiringTracker
-from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, wandb_histogram
+from model_diffing.scripts.utils import (
+    build_lr_scheduler,
+    build_optimizer,
+    create_cosine_sim_and_relative_norm_histograms,
+    wandb_histogram,
+)
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
 from model_diffing.utils import SaveableModule
 
@@ -79,19 +84,23 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         if self.lr_scheduler is not None:
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
-    def tokens_since_fired_hist(self) -> wandb.Histogram:
+    def tokens_since_fired_hist_ASDF(self) -> wandb.Histogram:
         return wandb_histogram(self.firing_tracker.examples_since_fired_A)
 
     def train(self) -> None:
-        epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
+        epoch_iter = (
+            tqdm(range(self.cfg.epochs), desc="Epochs")
+            if self.cfg.epochs is not None else range(1)
+        )
         for _ in epoch_iter:
-            epoch_dataloader_BMPD = self.activations_dataloader.get_shuffled_activations_iterator_BMPD()
+            epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
             epoch_dataloader_BMPD = islice(epoch_dataloader_BMPD, self.num_steps_per_epoch)
 
             batch_iter = tqdm(
                 epoch_dataloader_BMPD,
                 desc="Epoch Train Steps",
                 total=self.num_steps_per_epoch,
+                smoothing=0.2,  # this loop is bursty because of activation harvesting
             )
             for batch_BMPD in batch_iter:
                 batch_BMPD = batch_BMPD.to(self.device)
@@ -118,13 +127,26 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 self.step += 1
             self.epoch += 1
 
-    def common_logs(self) -> dict[str, Any]:
-        return {
+        if self.wandb_run is not None:
+            self.wandb_run.finish()
+
+    def _common_logs(self) -> dict[str, Any]:
+        logs = {
             "train/epoch": self.epoch,
             "train/unique_tokens_trained": self.unique_tokens_trained,
             "train/learning_rate": self.optimizer.param_groups[0]["lr"],
-            "train/tokens_since_fired": self.tokens_since_fired_hist(),
         }
+
+        if self.step % (self.cfg.log_every_n_steps * 10) == 0:  # type: ignore
+            tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
+            logs.update({"media/tokens_since_fired": tokens_since_fired_hist})
+
+            if self.n_models == 2:
+                W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
+                assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
+                logs.update(create_cosine_sim_and_relative_norm_histograms(W_dec_HXD, self.hookpoints))
+
+        return logs
 
     @abstractmethod
     def _train_step(self, batch_BMPD: torch.Tensor) -> None: ...

@@ -8,13 +8,8 @@ from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
-from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms
-from model_diffing.utils import (
-    calculate_fvu_X,
-    calculate_reconstruction_loss,
-    get_fvu_dict,
-    l2_norm,
-)
+from model_diffing.scripts.utils import wandb_histogram
+from model_diffing.utils import calculate_reconstruction_loss, get_fvu_dict, l2_norm
 
 
 class ZeroDecSkipTranscoderInit(InitStrategy[TopkActivation]):
@@ -100,14 +95,15 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
         if (
             self.wandb_run is not None
             and self.cfg.log_every_n_steps is not None
-            and (self.step + 1) % self.cfg.log_every_n_steps == 0
+            and self.step % self.cfg.log_every_n_steps == 0
         ):
             assert batch_y_BMPoD.shape[2] == len(self.hookpoints[1::2])
             assert train_res.output_BXD.shape[2] == len(self.hookpoints[::2])
             names = [" - ".join(pair) for pair in zip(self.hookpoints[::2], self.hookpoints[1::2], strict=True)]
 
             fvu_dict = get_fvu_dict(
-                calculate_fvu_X(batch_y_BMPoD, train_res.output_BXD),
+                batch_y_BMPoD,
+                train_res.output_BXD,
                 ("model", list(range(self.n_models))),
                 ("hookpoints", names),
             )
@@ -115,17 +111,14 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 **fvu_dict,
-                **self.common_logs(),
+                **self._common_logs(),
             }
 
-            if self.n_models == 2:
-                W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
-                assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
+            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
                 log_dict.update(
-                    create_cosine_sim_and_relative_norm_histograms(
-                        W_dec_HMPD=W_dec_HXD,
-                        hookpoints=self.hookpoints,
-                    )
+                    {
+                        "media/tokens_since_fired": wandb_histogram(self.firing_tracker.examples_since_fired_A),
+                    }
                 )
 
             self.wandb_run.log(log_dict, step=self.step)

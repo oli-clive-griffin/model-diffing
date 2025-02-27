@@ -1,7 +1,6 @@
 from typing import Any
 
 import torch as t
-from einops import einsum
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.jumprelu import JumpReLUActivation
@@ -9,7 +8,6 @@ from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTr
 from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
-    calculate_fvu_X,
     calculate_reconstruction_loss,
     get_decoder_norms_H,
     get_fvu_dict,
@@ -20,7 +18,8 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
     BaseSlidingWindowCrosscoderTrainer[JumpReLUActivation, JanUpdateTrainConfig]
 ):
     def _train_step(self, batch_BTPD: t.Tensor) -> None:
-        self.optimizer.zero_grad()
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            self.optimizer.zero_grad()
 
         # fwd
         res = self.crosscoders.forward_train(batch_BTPD)
@@ -53,8 +52,11 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
 
         # backward
         loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-        clip_grad_norm_(self.crosscoders.parameters(), 1.0)
-        self.optimizer.step()
+
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            clip_grad_norm_(self.crosscoders.parameters(), 1.0)
+            self.optimizer.step()
+
         self._lr_step()
 
         self.firing_tracker.add_batch(hidden_B3h)
@@ -62,65 +64,42 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
         if (
             self.wandb_run is not None
             and self.cfg.log_every_n_steps is not None
-            and (self.step + 1) % self.cfg.log_every_n_steps == 0
+            and self.step % self.cfg.log_every_n_steps == 0
         ):
-            with t.no_grad():
-                cc1_t1_pre_biases_BH = einsum(
-                    batch_BTPD[:, 0][:, None], self.crosscoders.single_cc.W_enc_XDH, "b t p d, t p d h -> b h"
-                )
-                cc1_t2_pre_biases_BH = einsum(
-                    batch_BTPD[:, 1][:, None], self.crosscoders.single_cc.W_enc_XDH, "b t p d, t p d h -> b h"
-                )
-                cc2_pre_biases_BH = einsum(batch_BTPD, self.crosscoders.double_cc.W_enc_XDH, "b t p d, t p d h -> b h")
-
-            thresholds_single_hist = wandb_histogram(self.crosscoders.single_cc.hidden_activation.log_threshold_H.exp())
-            thresholds_both_hist = wandb_histogram(self.crosscoders.double_cc.hidden_activation.log_threshold_H.exp())
-            cc1_t1_pre_biases_hist = wandb_histogram(cc1_t1_pre_biases_BH.flatten())
-            cc1_t2_pre_biases_hist = wandb_histogram(cc1_t2_pre_biases_BH.flatten())
-            cc2_pre_biases_hist = wandb_histogram(cc2_pre_biases_BH.flatten())
-            nonzero_activations_hist = wandb_histogram(hidden_B3h[hidden_B3h > 0])
-
             fvu_dict = get_fvu_dict(
-                calculate_fvu_X(batch_BTPD, reconstructed_acts_BTPD),
+                batch_BTPD,
+                reconstructed_acts_BTPD,
                 ("token", [0, 1]),
                 ("hookpoint", self.hookpoints),
             )
 
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
-                #
                 "train/tanh_sparsity_loss": tanh_sparsity_loss.item(),
                 "train/tanh_sparsity_loss_scaled": scaled_tanh_sparsity_loss.item(),
                 "train/lambda_s": lambda_s,
-                #
                 "train/pre_act_loss": pre_act_loss.item(),
                 "train/pre_act_loss_scaled": scaled_pre_act_loss.item(),
                 "train/lambda_p": self.cfg.lambda_p,
-                #
                 "train/loss": loss.item(),
-                #
                 **fvu_dict,
                 **get_l0_stats(hidden_B3h),
-                #
-                "media/jumprelu_threshold_distribution_single": thresholds_single_hist,
-                "media/jumprelu_threshold_distribution_both": thresholds_both_hist,
-                "train/epoch": self.epoch,
-                "train/unique_tokens_trained": self.unique_tokens_trained,
-                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
-                #
-                "media/cc1_t1_pre_biases": cc1_t1_pre_biases_hist,
-                "media/cc1_t2_pre_biases": cc1_t2_pre_biases_hist,
-                "media/cc2_pre_biases": cc2_pre_biases_hist,
-                "media/nonzero_activations": nonzero_activations_hist,
-                #
-                "train/tokens_since_fired": wandb_histogram(self.firing_tracker.examples_since_fired_A),
+                **self._common_logs(),
             }
+
+            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
+                log_dict.update(
+                    {
+                        "media/tokens_since_fired": wandb_histogram(self.firing_tracker.examples_since_fired_A),
+                    }
+                )
 
             self.wandb_run.log(log_dict, step=self.step)
 
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+        if self.lr_scheduler is not None:
+            self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""

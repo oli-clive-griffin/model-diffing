@@ -40,12 +40,13 @@ class ScheduleFreeSigNumConfig(BaseModel):
     momentum: float = 0.95
 
 
+OptimizerCfg = AdamConfig | ScheduleFreeSigNumConfig
 # Specific config classes for each loader type
 class HuggingfaceTextDatasetConfig(BaseModel):
     type: Literal["HuggingfaceTextDatasetTokenSequenceLoader"] = "HuggingfaceTextDatasetTokenSequenceLoader"
     hf_dataset_name: str
     sequence_length: int
-    shuffle_buffer_size: int
+    shuffle_buffer_size: int | None = None
 
 
 class ConnorGemma2Config(BaseModel):
@@ -85,7 +86,7 @@ class DataConfig(BaseModel):
 
 class BaseTrainConfig(BaseModel):
     batch_size: int
-    optimizer: AdamConfig | ScheduleFreeSigNumConfig = Field(discriminator="type")
+    optimizer: OptimizerCfg = Field(discriminator="type", default_factory=AdamConfig)
     epochs: int | None = None
     num_steps_per_epoch: int | None = None
     num_steps: int | None = None
