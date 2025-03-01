@@ -75,7 +75,7 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
         cfg: TConfig,
         activations_dataloader: BaseTokenHookpointActivationsDataloader,
         crosscoders: BiTokenCCWrapper[TAct],
-        wandb_run: Run | None,
+        wandb_run: Run,
         device: t.device,
         hookpoints: list[str],
         save_dir: Path | str,
@@ -120,7 +120,7 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             for batch_BTPD in tqdm(
-                islice(self.activations_dataloader.get_activations_iterator_BTPD(), self.num_steps_per_epoch),
+                islice(self.activations_dataloader.get_shuffled_activations_iterator_BTPD(), self.num_steps_per_epoch),
                 desc="Epoch Train Steps",
                 total=self.num_steps_per_epoch,
             ):
@@ -143,12 +143,11 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                     with self.crosscoders.double_cc.temporarily_fold_activation_scaling(scaling_factors_TP):
                         save_model(self.crosscoders.double_cc, step_dir_double)
 
-                    if self.wandb_run is not None:
-                        artifact = create_checkpoint_artifact(step_dir_single, self.wandb_run.id, self.step, self.epoch)
-                        self.wandb_run.log_artifact(artifact)
+                    artifact = create_checkpoint_artifact(step_dir_single, self.wandb_run.id, self.step, self.epoch)
+                    self.wandb_run.log_artifact(artifact)
 
-                        artifact = create_checkpoint_artifact(step_dir_double, self.wandb_run.id, self.step, self.epoch)
-                        self.wandb_run.log_artifact(artifact)
+                    artifact = create_checkpoint_artifact(step_dir_double, self.wandb_run.id, self.step, self.epoch)
+                    self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BTPD.shape[0]

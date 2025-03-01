@@ -62,14 +62,13 @@ def wandb_histogram(data_X: torch.Tensor | np.ndarray[Any, Any], bins: int = 100
     return wandb.Histogram(np_histogram=np.histogram(data_X, bins=bins))
 
 
-def build_wandb_run(config: BaseExperimentConfig) -> Run | None:
-    if config.wandb == "disabled":
-        return None
+def build_wandb_run(config: BaseExperimentConfig) -> Run:
     return wandb.init(
         name=config.experiment_name,
         project=config.wandb.project,
         entity=config.wandb.entity,
         config=config.model_dump(),
+        mode=config.wandb.mode,
     )
 
 

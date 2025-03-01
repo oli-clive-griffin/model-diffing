@@ -42,14 +42,9 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
         if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
             clip_grad_norm_(self.crosscoder.parameters(), 1.0)
             self.optimizer.step()
+            self._lr_step()
 
-        self._lr_step()
-
-        if (
-            self.wandb_run is not None
-            and self.cfg.log_every_n_steps is not None
-            and self.step % self.cfg.log_every_n_steps == 0
-        ):
+        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
                 batch_BMPD,
                 train_res.output_BXD,
@@ -70,15 +65,19 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
                 **get_l0_stats(train_res.hidden_BH),
                 **self._common_logs(),
             }
-            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
-                log_dict.update(
-                    {
-                        "media/jumprelu_threshold_distribution": wandb_histogram(
-                            self.crosscoder.hidden_activation.log_threshold_H.exp()
-                        ),
-                    }
-                )
 
+            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
+                try:
+                    log_dict.update(
+                        {
+                            "media/jumprelu_threshold_distribution": wandb_histogram(
+                                self.crosscoder.hidden_activation.log_threshold_H.exp()
+                            ),
+                        }
+                    )
+                except Exception as e:
+                    ...
+                    # logger.error(f"Error logging jumprelu_threshold_distribution: {e}")
             self.wandb_run.log(log_dict, step=self.step)
 
     def _lambda_s_scheduler(self) -> float:

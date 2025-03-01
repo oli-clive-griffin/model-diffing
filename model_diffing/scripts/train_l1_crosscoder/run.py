@@ -22,7 +22,6 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         dtype=cfg.data.activations_harvester.inference_dtype,
     )
 
-    
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,

@@ -1,33 +1,41 @@
 data:
   sequence_iterator:
+    # type: MathDatasetTokenSequenceLoader
+    # max_sequence_length: 1024
+    # include_base_answers: yes
+    # include_reasoning_answers: yes
     type: HuggingfaceTextDatasetTokenSequenceLoader
     hf_dataset_name: "monology/pile-uncopyrighted"
     sequence_length: 2048
-    shuffle_buffer_size: 4096
   activations_harvester:
     llms:
+      # - base_archicteture_name: Qwen/Qwen2.5-1.5B
+      #   hf_model_name: Qwen/Qwen2.5-Math-1.5B
+      # - base_archicteture_name: Qwen/Qwen2.5-1.5B
+      #   hf_model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
       - name: EleutherAI/pythia-160M
         revision: step143000
-    harvesting_batch_size: 4
-    cache_mode: "cache"
+    harvesting_batch_size: 16
   n_tokens_for_norm_estimate: 100_000
 crosscoder:
-  hidden_dim: 6144
+  hidden_dim: 16_384
   jumprelu:
     backprop_through_jumprelu_input: true
   initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!
+  n_tokens_for_threshold_setting: 100_000
 train:
   optimizer:
     type: adam
-    learning_rate: 0.00006
+    learning_rate: 0.001
     betas: [0.0, 0.999]
-  num_steps: 10_000
-  batch_size: 1024
-  gradient_accumulation_steps_per_batch: 8
-  save_every_n_steps: 9999999999
-  log_every_n_steps: 16
+  num_steps: 60_000
+  batch_size: 65_536
+  gradient_accumulation_steps_per_batch: 16 # for a minibatch size of 4096
+  save_every_n_steps: 6000
+  log_every_n_steps: 8
   c: 4.0
-  final_lambda_s: 1.5
+  final_lambda_s: 4.0
   lambda_p: 0.000003
-experiment_name: pythia-160M-10k-adam
+experiment_name: reasoning-diff
+# hookpoints: ["blocks.20.hook_resid_post"]
 hookpoints: ["blocks.8.hook_resid_post"]

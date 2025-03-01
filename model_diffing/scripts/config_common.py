@@ -64,6 +64,8 @@ class ToyOverfittingConfig(BaseModel):
 class MathDatasetConfig(BaseModel):
     type: Literal["MathDatasetTokenSequenceLoader"] = "MathDatasetTokenSequenceLoader"
     max_sequence_length: int
+    include_base_answers: bool = False
+    include_reasoning_answers: bool = False
 
 
 class ActivationsHarvesterConfig(BaseModel):
@@ -81,7 +83,7 @@ class DataConfig(BaseModel):
     activations_harvester: ActivationsHarvesterConfig
     activations_shuffle_buffer_size: int | None = None
     """if this is None, we will not shuffle the activations"""
-    n_tokens_for_norm_estimate: int = 100_000
+    n_tokens_for_norm_estimate: int
 
 
 class BaseTrainConfig(BaseModel):
@@ -112,13 +114,13 @@ class BaseTrainConfig(BaseModel):
 class WandbConfig(BaseModel):
     entity: str = "mars-model-diffing"
     project: str = "model-diffing"
-
+    mode: Literal["disabled", "online", "offline"] = "online"
 
 class BaseExperimentConfig(BaseModel):
     seed: int = 42
     cache_dir: str = ".cache"
     base_save_dir: str = ".checkpoints"
-    wandb: WandbConfig | Literal["disabled"] = WandbConfig()
+    wandb: WandbConfig= WandbConfig()
     experiment_name: str
 
     @property

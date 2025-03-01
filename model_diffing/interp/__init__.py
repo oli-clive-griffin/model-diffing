@@ -31,7 +31,7 @@ def iterate_activations_with_text(
     activations_harvester: ActivationsHarvester,
 ) -> Iterator[ActivationsWithText]:
     for seq in token_sequence_loader.get_sequences_batch_iterator():
-        activations_BSMPD = activations_harvester.get_activations_BSMPD(seq.tokens_BS, seq.attention_mask_BS)
+        activations_BSMPD = activations_harvester.get_activations_BSMPD(seq.tokens_BS)  # , seq.attention_mask_BS)
         yield ActivationsWithText(
             activations_BSMPD=activations_BSMPD,
             tokens_BS=seq.tokens_BS,
@@ -153,6 +153,7 @@ def top_and_bottom_logits(
     latent_indices_iter = latent_indices if latent_indices is not None else list(range(sae_W_dec_HD.shape[0]))
 
     for latent_idx in latent_indices_iter:
+        # TODO use act cache and ln stuff here
         logits = sae_W_dec_HD[latent_idx] @ llm.W_U
         pos_logits, pos_token_ids = logits.topk(k)
         pos_tokens = llm.to_str_tokens(pos_token_ids)

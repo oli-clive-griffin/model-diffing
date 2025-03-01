@@ -315,7 +315,7 @@ def beep_macos():
         logger.error(f"Failed to play alarm sound: {e}")
 
 
-def iter_into_batches(
+def change_batch_size(
     iterator_BX: Iterator[torch.Tensor],
     yield_batch_size: int,
 ) -> Iterator[torch.Tensor]:

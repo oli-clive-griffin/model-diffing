@@ -46,7 +46,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         init_strategy=JanUpdateInitStrategy(
             activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
             initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
-            n_examples_to_sample=100_000,
+            n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
         ),
         hidden_activation=JumpReLUActivation(
             size=cfg.crosscoder.hidden_dim,
@@ -75,16 +75,16 @@ class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
         self,
         activations_iterator_BXD: Iterator[torch.Tensor],
         initial_approx_firing_pct: float,
-        n_examples_to_sample: int = 100_000,
+        n_tokens_for_threshold_setting: int = 100_000,
     ):
         """
         Args:
             activations_iterator_BXD: iterator over activations with which to calibrate the initial jumprelu threshold
             initial_approx_firing_pct: percentage of examples that should fire. In the update, this value is 10_000 / n. But we're often training with n << 10_000, so we allow setting this value directly.
-            n_examples_to_sample: number of examples to sample
+            n_tokens_for_threshold_setting: number of examples to sample
         """
         self.activations_iterator_BXD = activations_iterator_BXD
-        self.n_examples_to_sample = n_examples_to_sample
+        self.n_tokens_for_threshold_setting = n_tokens_for_threshold_setting
 
         if initial_approx_firing_pct < 0 or initial_approx_firing_pct > 1:
             raise ValueError(f"initial_approx_firing_pct must be between 0 and 1, got {initial_approx_firing_pct}")
@@ -107,7 +107,7 @@ class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
             cc.W_enc_XDH,
             cc.hidden_activation.log_threshold_H.exp(),
             self.initial_approx_firing_pct,
-            self.n_examples_to_sample,
+            self.n_tokens_for_threshold_setting,
         )
 
         cc.b_enc_H.copy_(calibrated_b_enc_H)
@@ -122,12 +122,12 @@ def compute_b_enc_H(
     W_enc_XDH: torch.Tensor,
     initial_jumprelu_threshold_H: torch.Tensor,
     initial_approx_firing_pct: float,
-    n_examples_to_sample: int,
+    n_tokens_for_threshold_setting: int,
 ) -> torch.Tensor:
-    logger.info(f"Harvesting pre-bias for {n_examples_to_sample} examples")
+    logger.info(f"Harvesting pre-bias for {n_tokens_for_threshold_setting} examples")
 
     # pre-bias is just x @ W
-    pre_bias_NH = _harvest_pre_bias_NH(W_enc_XDH, activations_iterator_BXD, n_examples_to_sample)
+    pre_bias_NH = _harvest_pre_bias_NH(W_enc_XDH, activations_iterator_BXD, n_tokens_for_threshold_setting)
 
     pre_bias_firing_threshold_quantile_H = torch.quantile(
         pre_bias_NH,
@@ -148,7 +148,7 @@ def compute_b_enc_H(
 def _harvest_pre_bias_NH(
     W_enc_XDH: torch.Tensor,
     activations_iterator_BXD: Iterator[torch.Tensor],
-    n_examples_to_sample: int,
+    n_tokens_for_threshold_setting: int,
 ) -> torch.Tensor:
     cc_device = W_enc_XDH.device
 
@@ -162,17 +162,17 @@ def _harvest_pre_bias_NH(
     sample_BH = get_batch_pre_bias()
     batch_size, hidden_size = sample_BH.shape
 
-    rounded_n_examples_to_sample = round_up(n_examples_to_sample, to_multiple_of=batch_size)
+    rounded_n_tokens_for_threshold_setting = round_up(n_tokens_for_threshold_setting, to_multiple_of=batch_size)
 
-    if rounded_n_examples_to_sample > n_examples_to_sample:
+    if rounded_n_tokens_for_threshold_setting > n_tokens_for_threshold_setting:
         logger.warning(
-            f"rounded n_examples_to_sample from {n_examples_to_sample} to {rounded_n_examples_to_sample} "
+            f"rounded n_tokens_for_threshold_setting from {n_tokens_for_threshold_setting} to {rounded_n_tokens_for_threshold_setting} "
             f"to be divisible by the batch size {batch_size}"
         )
 
-    num_batches = rounded_n_examples_to_sample // batch_size
+    num_batches = rounded_n_tokens_for_threshold_setting // batch_size
 
-    pre_bias_buffer_NH = torch.empty(rounded_n_examples_to_sample, hidden_size, device=cc_device)
+    pre_bias_buffer_NH = torch.empty(rounded_n_tokens_for_threshold_setting, hidden_size, device=cc_device)
     logger.info(f"pre_bias_buffer_NH: {inspect(pre_bias_buffer_NH)}")
 
     pre_bias_buffer_NH[:batch_size] = sample_BH

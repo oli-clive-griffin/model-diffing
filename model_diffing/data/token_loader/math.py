@@ -6,6 +6,7 @@ from datasets import IterableDataset, load_dataset  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.token_loader.base import TokenSequenceLoader, TokensSequenceBatch
+from model_diffing.log import logger
 
 
 class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
@@ -21,14 +22,14 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
         batch_size: int,
         max_sequence_length: int,
         cache_dir: str,
-        base_answers: bool = False,
-        reasoning_answers: bool = False,
+        include_base_answers: bool = False,
+        include_reasoning_answers: bool = False,
     ):
         self._tokenizer = tokenizer
         self._batch_size = batch_size
         self._max_sequence_length = max_sequence_length
-        self._base_answers = base_answers
-        self._reasoning_answers = reasoning_answers
+        self._include_base_answers = include_base_answers
+        self._include_reasoning_answers = include_reasoning_answers
         self._base_ds = cast(
             IterableDataset,
             load_dataset(
@@ -43,7 +44,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:
         special_ids = torch.tensor(self._tokenizer.all_special_ids)
 
-        def map_fn(batch: dict[str, Any]) -> dict[str, Any]:
+        def tensorize_batch(batch: dict[str, Any]) -> dict[str, Any]:
             batch_conversations = batch["reannotated_messages"]  # list(batch) of list(user, assistant) of message dicts
             batch_base_convs = batch["messages"]
 
@@ -61,44 +62,85 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                 assert thinking_response["role"] == "assistant"
                 reasoning = thinking_response["content"]
 
-                if self._base_answers:
-                    sequences.append(question + base_answer)
-                elif self._reasoning_answers:
-                    sequences.append(question + reasoning)
-                else:
-                    sequences.append(question)
+                match self._include_base_answers, self._include_reasoning_answers:
+                    case (True, True):
+                        sequences.append(question + base_answer)
+                        sequences.append(question + reasoning)
+                    case (True, False):
+                        sequences.append(question + base_answer)
+                    case (False, True):
+                        sequences.append(question + reasoning)
+                    case (False, False):
+                        sequences.append(question)
+                    case _:
+                        raise ValueError(
+                            f"Invalid combination of base_answers and reasoning_answers: {self._include_base_answers}, {self._include_reasoning_answers}"
+                        )
 
             tok_res = self._tokenizer.__call__(
                 sequences,
                 return_tensors="pt",
-                padding="max_length",
-                padding_side="left",  # type: ignore # this type is just plain wrong for some reason
+                padding="longest",
+                padding_side="right",  # type: ignore # this type is just plain wrong for some reason
                 max_length=self._max_sequence_length,
             )
 
-            batch["tokens_BS"] = cast(torch.Tensor, tok_res["input_ids"])
-            batch["attention_mask_BS"] = cast(torch.Tensor, tok_res["attention_mask"]).bool()
-            batch["special_tokens_mask_BS"] = torch.isin(batch["tokens_BS"], special_ids)
-            return batch
+            return {
+                "tokens_BS": cast(torch.Tensor, tok_res["input_ids"]),
+                # "attention_mask_BS": cast(torch.Tensor, tok_res["attention_mask"]).bool(),
+                "special_tokens_mask_BS": torch.isin(cast(torch.Tensor, tok_res["input_ids"]), special_ids),
+                # "is_valid": torch.ones(len(sequences), dtype=torch.bool),
+            }
 
+        assert self._batch_size % 2 == 0
+        will_double_example_count = self._include_base_answers and self._include_reasoning_answers
+        tensorize_batch_size = self._batch_size // 2 if will_double_example_count else self._batch_size
+
+        print(f"{self._base_ds.column_names=}")
         tokens_dataset = (
-            self._base_ds.map(map_fn, batched=True, batch_size=self._batch_size)
-            .select_columns(["tokens_BS", "attention_mask_BS", "special_tokens_mask_BS"])
-            .with_format(type="torch")
-            .batch(
-                batch_size=self._batch_size * 2
-                if (self._base_answers and self._reasoning_answers)
-                else self._batch_size
+            self._base_ds.map(
+                tensorize_batch,
+                batched=True,
+                batch_size=tensorize_batch_size,
+                remove_columns=self._base_ds.column_names,
             )
+            # .filter(lambda example: example["is_valid"])
+            # .remove_columns(["is_valid"])  # Remove the flag after filtering
+            .with_format(type="torch")
+            .batch(batch_size=self._batch_size)
         )
+
+        # if self._include_base_answers and self._include_reasoning_answers:
+        #     tokens_dataset = tokens_dataset.map(
+        #         lambda batch: {
+        #             "tokens_BS": torch.cat([batch["tokens_BS"], batch["tokens_BS"]], dim=0),
+        #         },
+        #         batched=True,
+        #     )
 
         for batch in tokens_dataset:
             batch = cast(dict[str, torch.Tensor], batch)
+
+            try:
+                assert batch["tokens_BS"].shape == batch["special_tokens_mask_BS"].shape
+            except AssertionError:
+                breakpoint()
+
             yield TokensSequenceBatch(
                 tokens_BS=batch["tokens_BS"],
                 special_tokens_mask_BS=batch["special_tokens_mask_BS"],
-                attention_mask_BS=batch["attention_mask_BS"],
+                # attention_mask_BS=batch["attention_mask_BS"],
             )
 
     def num_batches(self) -> int | None:
         return None
+
+
+if __name__ == "__main__":
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B")
+    loader = MathDatasetTokenSequenceLoader(tokenizer, 16, 2048, ".cache")
+    for batch in loader.get_sequences_batch_iterator():
+        print(batch)
+        break

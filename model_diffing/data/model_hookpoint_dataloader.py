@@ -12,7 +12,7 @@ from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_se
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
-from model_diffing.utils import iter_into_batches
+from model_diffing.utils import change_batch_size
 
 
 class BaseModelHookpointActivationsDataloader(ABC):
@@ -59,11 +59,16 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
 
     @torch.no_grad()
     def _activations_iterator_BsMPD(self) -> Iterator[torch.Tensor]:
+        # i = 0
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
-            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS, seq.attention_mask_BS)
+            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)  # , seq.attention_mask_BS)
             activations_BsMPD = rearrange(activations_BSMPD, "b s m p d -> (b s) m p d")
-            special_tokens_mask_Bs = rearrange(seq.special_tokens_mask_BS, "b s -> (b s)")
-            yield activations_BsMPD[~special_tokens_mask_Bs]
+            # special_tokens_mask_Bs = rearrange(seq.special_tokens_mask_BS, "b s -> (b s)")
+            # print(special_tokens_mask_Bs.sum() / special_tokens_mask_Bs.numel())
+            # i += 1
+            # if i > 10:
+            #     breakpoint()
+            yield activations_BsMPD # [~special_tokens_mask_Bs]
 
     @torch.no_grad()
     def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
@@ -76,7 +81,7 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         else:
             scaling_factors_MP1 = rearrange(scaling_factors_MP, "m p -> m p 1").to(device)
         
-        for batch_BMPD in iter_into_batches(iterator_BsMPD, self._yield_batch_size):
+        for batch_BMPD in change_batch_size(iterator_BsMPD, self._yield_batch_size):
             yield batch_BMPD * scaling_factors_MP1
 
 

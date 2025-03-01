@@ -37,7 +37,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         cfg: TConfig,
         activations_dataloader: BaseModelHookpointActivationsDataloader,
         crosscoder: AcausalCrosscoder[TAct],
-        wandb_run: Run | None,
+        wandb_run: Run,
         device: torch.device,
         hookpoints: list[str],
         save_dir: Path | str,
@@ -84,9 +84,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         if self.lr_scheduler is not None:
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
-    def tokens_since_fired_hist_ASDF(self) -> wandb.Histogram:
-        return wandb_histogram(self.firing_tracker.examples_since_fired_A)
-
     def train(self) -> None:
         epoch_iter = (
             tqdm(range(self.cfg.epochs), desc="Epochs")
@@ -117,9 +114,8 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                     ):
                         save_model(self.crosscoder, checkpoint_path)
 
-                    if self.wandb_run is not None:
-                        artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
-                        self.wandb_run.log_artifact(artifact)
+                    artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
+                    self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BMPD.shape[0]
@@ -127,8 +123,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 self.step += 1
             self.epoch += 1
 
-        if self.wandb_run is not None:
-            self.wandb_run.finish()
+        self.wandb_run.finish()
 
     def _common_logs(self) -> dict[str, Any]:
         logs = {
