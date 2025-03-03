@@ -5,7 +5,7 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.topk import TopkActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import wandb_histogram

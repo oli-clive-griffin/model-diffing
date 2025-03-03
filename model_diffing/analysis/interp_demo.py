@@ -15,7 +15,7 @@ from model_diffing.interp import (
     gather_max_activating_examples,
     iterate_activations_with_text,
 )
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
 from model_diffing.scripts.wandb_scripts.main import download_experiment_checkpoint

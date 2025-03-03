@@ -5,7 +5,7 @@ import fire  # type: ignore
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
 from model_diffing.models.activations import JumpReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.run import JanUpdateInitStrategy

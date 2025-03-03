@@ -14,7 +14,7 @@ from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.log import logger
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import (

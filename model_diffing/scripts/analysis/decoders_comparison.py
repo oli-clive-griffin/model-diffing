@@ -4,7 +4,7 @@ from typing import Any
 import torch
 
 from model_diffing.analysis import metrics, visualization
-from model_diffing.models import crosscoder
+from model_diffing.models import acausal_crosscoder
 from model_diffing.models.activations.jumprelu import JumpReLUActivation
 
 torch.set_grad_enabled(False)
@@ -25,7 +25,7 @@ state_dict["folded_scaling_factors_MP"]
 
 n_models = 2
 n_hookpoints = 4
-cc = crosscoder.AcausalCrosscoder(
+cc = acausal_crosscoder.AcausalCrosscoder(
     crosscoding_dims=(n_models, n_hookpoints),
     d_model=768,
     hidden_dim=32_768,
@@ -34,7 +34,7 @@ cc = crosscoder.AcausalCrosscoder(
 cc.load_state_dict(state_dict)
 
 
-def vis(cc: crosscoder.AcausalCrosscoder[Any]):
+def vis(cc: acausal_crosscoder.AcausalCrosscoder[Any]):
     n_models, n_hookpoints = cc.crosscoding_dims
     for hookpoint_idx in range(n_hookpoints):
         W_dec_a_HD = cc.W_dec_HXD[:, 0, hookpoint_idx]

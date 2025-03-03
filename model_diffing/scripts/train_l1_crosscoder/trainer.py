@@ -5,7 +5,7 @@ from einops import rearrange
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
 from model_diffing.scripts.utils import get_l0_stats
