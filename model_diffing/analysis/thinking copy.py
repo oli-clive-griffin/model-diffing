@@ -261,7 +261,7 @@ def visualize_results(
                 linestyle="",
             )
 
-    plt.title("zero shot accuracy with elipsis-only thinking")
+    plt.title("zero shot accuracy with single-token thinking")
     plt.xlabel("n_elipses")
     plt.ylabel("pct of times correct answer given")
     plt.legend()
@@ -279,9 +279,6 @@ def visualize_results(
 
 # %%
 
-visualize_results(results_shared, "r1")  # type: ignore
-# %%
-
 elip_toks = enc_str("...")
 assert elip_toks.shape == (1,)
 ellipis_idx = cast(int, elip_toks[0].item())
@@ -296,7 +293,7 @@ results_focused = run_token_filler_experiment_multiple(
     filler_token_idx=ellipis_idx,
 )
 # %%
-# visualize_results(results_focused, "r1")
+
 # %%
 results_focused_math = run_token_filler_experiment_multiple(
     llm_math,
@@ -306,8 +303,6 @@ results_focused_math = run_token_filler_experiment_multiple(
     filler_token_idx=ellipis_idx,
 )
 # %%
-del results_focused_math[(34, 74)]
-del results_focused_math[(562, 34)]
 visualize_results([("math", results_focused_math), ("r1", results_focused)])
 # %%
 
@@ -548,7 +543,6 @@ for i, (user_toks_S, prefixes_toks) in enumerate(islice(iter_thinking_prefixes()
 
     psuedocorrect_tok_idx = answer_logits_SL[-1, :].argmax()
     logit = answer_logits_SL[-1].softmax(dim=-1)[psuedocorrect_tok_idx]
-    del answer_logits_SL  # make sure we don't use it, it's got the wrong suffix
 
     psuedocorrect_tok = tokenizer_r1.decode([psuedocorrect_tok_idx])
     print(f"\npsuedo-correct token: {psuedocorrect_tok}, (with prob: {logit.item():.2f})")

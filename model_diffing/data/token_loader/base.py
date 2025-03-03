@@ -9,7 +9,6 @@ import torch
 class TokensSequenceBatch:
     tokens_BS: torch.Tensor
     special_tokens_mask_BS: torch.Tensor
-    # attention_mask_BS: torch.Tensor | None = None
 
     def __post_init__(self):
         if self.special_tokens_mask_BS.sum() / self.special_tokens_mask_BS.numel() > 0.1:
@@ -23,16 +22,6 @@ class TokensSequenceBatch:
             raise ValueError(
                 f"special_tokens_mask_BS should be a boolean tensor, got {self.special_tokens_mask_BS.dtype}"
             )
-
-        # if self.attention_mask_BS is not None:
-        #     # all attention masks positions should also be special tokens
-        #     if self.attention_mask_BS.dtype != torch.bool:
-        #         raise ValueError(f"attention_mask_BS should be a boolean tensor, got {self.attention_mask_BS.dtype}")
-
-        #     attn_ignored_tokens = ~self.attention_mask_BS
-        #     if (attn_ignored_tokens & self.special_tokens_mask_BS).sum() != attn_ignored_tokens.sum():
-        #         breakpoint()
-        #         raise ValueError("all special tokens positions should also be in the attention mask")
 
 
 class TokenSequenceLoader(ABC):

@@ -31,7 +31,7 @@ def iterate_activations_with_text(
     activations_harvester: ActivationsHarvester,
 ) -> Iterator[ActivationsWithText]:
     for seq in token_sequence_loader.get_sequences_batch_iterator():
-        activations_BSMPD = activations_harvester.get_activations_BSMPD(seq.tokens_BS)  # , seq.attention_mask_BS)
+        activations_BSMPD = activations_harvester.get_activations_BSMPD(seq.tokens_BS)
         yield ActivationsWithText(
             activations_BSMPD=activations_BSMPD,
             tokens_BS=seq.tokens_BS,

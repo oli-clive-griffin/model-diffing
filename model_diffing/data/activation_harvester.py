@@ -52,11 +52,9 @@ class ActivationsHarvester:
         self,
         model: HookedTransformer,
         sequence_BS: torch.Tensor,
-        # attention_mask_BS: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Compute activations by running the model. No caching involved."""
         _, cache =model.run_with_cache( sequence_BS, names_filter=self._names_filter, stop_at_layer=self._layer_to_stop_at,) 
-            # attention_mask=attention_mask_BS,
         # cache[name] is shape BSD, so stacking on dim 2 = BSPD
         activations_BSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
         return activations_BSPD
@@ -65,7 +63,6 @@ class ActivationsHarvester:
         self,
         model: HookedTransformer,
         sequence_BS: torch.Tensor,
-        # attention_mask_BS: torch.Tensor | None,
     ) -> torch.Tensor:
         # Check if we can load from cache
         if self._cache:
@@ -73,22 +70,21 @@ class ActivationsHarvester:
             activations_BSPD = self._cache.load_activations(cache_key, sequence_BS.device)
 
             if activations_BSPD is None:
-                activations_BSPD = self.compute_model_activations(model, sequence_BS)  # , attention_mask_BS)
+                activations_BSPD = self.compute_model_activations(model, sequence_BS)
                 self._cache.save_activations(cache_key, activations_BSPD)
 
             return activations_BSPD
 
         # Compute activations if not cached or cache loading failed
-        activations_BSPD = self.compute_model_activations(model, sequence_BS)  # , attention_mask_BS)
+        activations_BSPD = self.compute_model_activations(model, sequence_BS)
 
         return activations_BSPD
 
     def get_activations_BSMPD(
         self,
         sequence_BS: torch.Tensor,
-        # attention_mask_BS: torch.Tensor | None,
     ) -> torch.Tensor:
-        activations = [self._get_model_activations_BSPD(model, sequence_BS)  # , attention_mask_BS)
+        activations = [self._get_model_activations_BSPD(model, sequence_BS)
                        for model in self._llms]
         activations_BSMPD = torch.stack(activations, dim=2)
         return activations_BSMPD

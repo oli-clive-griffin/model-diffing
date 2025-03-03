@@ -59,16 +59,11 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
 
     @torch.no_grad()
     def _activations_iterator_BsMPD(self) -> Iterator[torch.Tensor]:
-        # i = 0
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
-            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)  # , seq.attention_mask_BS)
+            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)
             activations_BsMPD = rearrange(activations_BSMPD, "b s m p d -> (b s) m p d")
-            # special_tokens_mask_Bs = rearrange(seq.special_tokens_mask_BS, "b s -> (b s)")
-            # print(special_tokens_mask_Bs.sum() / special_tokens_mask_Bs.numel())
-            # i += 1
-            # if i > 10:
-            #     breakpoint()
-            yield activations_BsMPD # [~special_tokens_mask_Bs]
+            special_tokens_mask_Bs = rearrange(seq.special_tokens_mask_BS, "b s -> (b s)")
+            yield activations_BsMPD[~special_tokens_mask_Bs]
 
     @torch.no_grad()
     def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:

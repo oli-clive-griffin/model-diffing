@@ -1,0 +1,3864 @@
+
+
+
+# RUNNING |What is 83 * 22?|
+
+
+
+n_filler_tokens: 0
+output: |1816}\).
+</think>
+
+|
+correct=False
+output: |1782}\).
+</think>
+
+|
+correct=False
+output: |1766}\). Here's|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1848}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1786}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1,826}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1833}\).)<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1848}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 1
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1786}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,826}\).  
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\). Step-by|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+
+
+n_filler_tokens: 2
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).  
+**|
+correct=False
+output: |1846}\).  
+Step|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1766}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,\!826}\).|
+correct=False
+output: |1846}\).  
+This|
+correct=False
+output: |1846}\).)<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 3
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\)
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\).
+
+</think>
+
+|
+correct=True
+output: |1846}\).  
+Step|
+correct=False
+output: |1846}\). 
+</think>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1780}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1822}\).
+</think>
+
+|
+correct=False
+output: |1826}\). The product|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 4
+output: |1818}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1848\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |178}\).
+Step-by-step|
+correct=False
+output: |1,826}\).
+</think>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,\!830}\).
+|
+correct=False
+output: |178}\).
+</think>
+
+To|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+
+
+n_filler_tokens: 5
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1836}\).
+</think>
+
+|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1,826}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).  
+*|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1814}\).<｜end▁of▁sentence｜>|
+correct=False
+
+
+n_filler_tokens: 6
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1836}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |17}’s.t.8|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1786}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 7
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1838}\).
+</think>
+
+|
+correct=False
+output: |1816}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |176}\).
+</think>
+
+To|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |178}\).
+</think>
+
+Certainly|
+correct=False
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\)
+</think>
+
+|
+correct=True
+output: |1844}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 8
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1760}).\)<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1,826}\).
+</think>|
+correct=False
+output: |1,826}\).
+</think>|
+correct=False
+output: |1786}\).
+</think>
+
+|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 9
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1766\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |178}\).
+</think>
+
+To|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1836}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1,\!826}\).|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 10
+output: |1846}.\).
+</think>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 11
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |83 \times 22 =|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1816}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1806}\).
+
+**Step|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 12
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1816}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1836}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\). This is|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1766}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}
+</think>
+
+According|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 13
+output: |1746}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1834}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\)。
+</think>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 14
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\)
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1776}\)
+</think>
+
+|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+
+**Step|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 15
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\) because |
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1842}\)
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1844}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1848}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1806}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 16
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1833}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\)
+</think>
+
+|
+correct=True
+output: |176}\).
+</think>
+
+The|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1834}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1786}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+
+
+n_filler_tokens: 17
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1806}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\), since |
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1843}\).
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1,826}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 18
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\)。
+</think>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1828}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\) because |
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+
+
+n_filler_tokens: 19
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |176}\).
+</think>
+
+To|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\), written as|
+correct=True
+output: |1826}\). This is|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 20
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\)……|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1834}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1834}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\) because when|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\) eighty|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 21
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 22
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\)
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 23
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1834}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\)
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}
+</think>
+
+To|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 24
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\)
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1766}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1,826}\).
+</think>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\). 
+</think>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 25
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\). 
+Step|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\) because |
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\) eight twelve|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1806}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+
+
+n_filler_tokens: 26
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |178}\).
+</think>
+
+The|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}.
+</think>
+
+The|
+correct=True
+
+
+n_filler_tokens: 27
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1834}\). 
+Step|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 28
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\) when multiplying|
+correct=True
+output: |1786}\). You can|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 29
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\). If you|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).]<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 30
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+
+**Step|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1806}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\) if you|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\)
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 31
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1834}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}.
+</think>
+
+The|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 32
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826\) (eighty|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1844}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1834}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1844}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 33
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\) because |
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1848}\) with |
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1,826}\) because|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1844}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1844}\).<｜end▁of▁sentence｜>|
+correct=False
+
+
+n_filler_tokens: 34
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,826}\).
+</think>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |174}\).
+</think>
+
+To|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |178}\).
+</think>
+
+The|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 35
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).  
+</think>|
+correct=True
+output: |1834}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).  
+**|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1766}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |176\).
+</think>
+
+The|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\) because |
+correct=True
+
+
+n_filler_tokens: 36
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1834}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 37
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\) because |
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 38
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\). 
+</think>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1833}\).  
+</think>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+
+
+n_filler_tokens: 39
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 40
+output: |1826}\). 
+</think>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1822}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1766}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1833}\).
+</think>
+
+|
+correct=False
+output: |1826}\)
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 41
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1822}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).</answer|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |176}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 42
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}.\)<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1,826}\) because|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 43
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |17} \)
+</think>
+
+To|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |176}\).
+</think>
+
+Yes|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826.}\).<｜end▁of▁sentence｜>|
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\))<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 44
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}.\)
+</think>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+
+
+n_filler_tokens: 45
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1834}\).
+</think>
+
+|
+correct=False
+output: |1826}\). Because |
+correct=True
+
+
+n_filler_tokens: 46
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |183}\).
+</think>
+
+The|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\)  
+</think>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+
+
+n_filler_tokens: 47
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\). This comes|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}.
+</think>
+
+The|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1846}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1846}\).
+</think>
+
+|
+correct=False
+output: |1806}\).
+</think>
+
+|
+correct=False
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\) because |
+correct=True
+
+
+n_filler_tokens: 48
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1838}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+
+
+n_filler_tokens: 49
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).  
+Step|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1,826}\).<｜end▁of▁sentence｜>|
+correct=False
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}\).
+</think>
+
+|
+correct=True
+output: |1826}\).<｜end▁of▁sentence｜>|
+correct=True
+output: |1826}.\)<｜end▁of▁sentence｜>|
+correct=True

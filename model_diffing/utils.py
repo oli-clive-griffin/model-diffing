@@ -305,7 +305,6 @@ def torch_batch_iterator(tensor_iterator_X: Iterator[torch.Tensor], yield_batch_
         ptr += 1
 
 
-
 # admin function for alerting on finishing long-running cells in notebooks
 def beep_macos():
     try:
@@ -321,8 +320,7 @@ def change_batch_size(
 ) -> Iterator[torch.Tensor]:
     leftover_BX: torch.Tensor | None = None
     for activations_BX in iterator_BX:
-        # first one - check for prepend
-        if leftover_BX is not None:
+        if leftover_BX is not None and activations_BX.shape[0] > 0:
             needed = yield_batch_size - leftover_BX.shape[0]
 
             grabbed_BX = activations_BX[:needed]

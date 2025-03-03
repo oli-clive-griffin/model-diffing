@@ -61,10 +61,7 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsData
     @torch.no_grad()
     def _activations_iterator_TPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
-            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(
-                seq.tokens_BS,
-                # attention_mask_BS=seq.attention_mask_BS,
-            )
+            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)
 
             # pick only the first (and only) model's activations
             assert activations_BSMPD.shape[2] == 1, "should only be doing 1 model at a time for sliding window"

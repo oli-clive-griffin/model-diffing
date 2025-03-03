@@ -6,7 +6,6 @@ from datasets import IterableDataset, load_dataset  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.token_loader.base import TokenSequenceLoader, TokensSequenceBatch
-from model_diffing.log import logger
 
 
 class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
@@ -87,9 +86,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
             return {
                 "tokens_BS": cast(torch.Tensor, tok_res["input_ids"]),
-                # "attention_mask_BS": cast(torch.Tensor, tok_res["attention_mask"]).bool(),
                 "special_tokens_mask_BS": torch.isin(cast(torch.Tensor, tok_res["input_ids"]), special_ids),
-                # "is_valid": torch.ones(len(sequences), dtype=torch.bool),
             }
 
         assert self._batch_size % 2 == 0
@@ -104,19 +101,9 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                 batch_size=tensorize_batch_size,
                 remove_columns=self._base_ds.column_names,
             )
-            # .filter(lambda example: example["is_valid"])
-            # .remove_columns(["is_valid"])  # Remove the flag after filtering
             .with_format(type="torch")
             .batch(batch_size=self._batch_size)
         )
-
-        # if self._include_base_answers and self._include_reasoning_answers:
-        #     tokens_dataset = tokens_dataset.map(
-        #         lambda batch: {
-        #             "tokens_BS": torch.cat([batch["tokens_BS"], batch["tokens_BS"]], dim=0),
-        #         },
-        #         batched=True,
-        #     )
 
         for batch in tokens_dataset:
             batch = cast(dict[str, torch.Tensor], batch)
@@ -129,7 +116,6 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
             yield TokensSequenceBatch(
                 tokens_BS=batch["tokens_BS"],
                 special_tokens_mask_BS=batch["special_tokens_mask_BS"],
-                # attention_mask_BS=batch["attention_mask_BS"],
             )
 
     def num_batches(self) -> int | None:
