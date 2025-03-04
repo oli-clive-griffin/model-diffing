@@ -31,7 +31,7 @@ def test_compute_b_enc_H():
         W_enc_XDH,
         initial_jumprelu_threshold_H,
         initial_approx_firing_pct,
-        n_examples_to_sample=8,  # just the size of the dataset (2 batches of 4 examples each)
+        n_tokens_for_threshold_setting=8,  # just the size of the dataset (2 batches of 4 examples each)
     )
 
     assert b_enc_H.shape == (hidden_dim,)
@@ -66,7 +66,7 @@ def test_compute_b_enc_H_batches_rounding():
         W_enc_XDH,
         initial_jumprelu_threshold_H,
         initial_approx_firing_pct,
-        n_examples_to_sample=5,  # should round up to 6 (taking in both batches)
+        n_tokens_for_threshold_setting=5,  # should round up to 6 (taking in both batches)
     )
 
     assert b_enc_H.shape == (hidden_dim,)

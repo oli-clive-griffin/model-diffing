@@ -1,5 +1,6 @@
 from typing import Any
 
+from einops import reduce
 import torch as t
 from torch.nn.utils import clip_grad_norm_
 
@@ -25,23 +26,23 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         # losses
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BMD)
 
-        # # shared features sparsity loss:
-        # decoder_norms_Hs = l2_norm(self.crosscoder._W_dec_shared_HsD, dim=-1)
-        # shared_sparsity_loss_BHs = train_res.hidden_BHs * decoder_norms_Hs
-        # # take L1 across the features
-        # l1_sparsity_loss_B = einsum(shared_sparsity_loss_BHs, "b h_shared -> b")
-        # lambda_s = self._lambda_s_scheduler()
-        # weighted_shared_sparsity_loss = lambda_s * l1_sparsity_loss_B.mean()
+        # shared features sparsity loss:
+        decoder_norms_Hs = l2_norm(self.crosscoder._W_dec_shared_HsD, dim=-1)
+        shared_sparsity_loss_BHs = train_res.hidden_BHs * decoder_norms_Hs
+        # take L1 across the features
+        l1_sparsity_loss_B = reduce(shared_sparsity_loss_BHs, "b h_shared -> b", l1_norm)
+        lambda_s = self._lambda_s_scheduler()
+        weighted_shared_sparsity_loss = lambda_s * l1_sparsity_loss_B.mean()
 
-        # # independent features sparsity loss:
-        # decoder_norms_HiM = l2_norm(self.crosscoder._W_dec_indep_HiMD, dim=-1)
-        # independent_sparsity_loss_BHiM = train_res.hidden_BHi[..., None] * decoder_norms_HiM
-        # # take L1 across the features and models
-        # independent_sparsity_loss_B = einsum(independent_sparsity_loss_BHiM, "b h_indep m -> b")
-        # lambda_f = self._lambda_f_scheduler()
-        # weighted_independent_sparsity_loss = lambda_f * independent_sparsity_loss_B.mean()
+        # independent features sparsity loss:
+        decoder_norms_HiM = l2_norm(self.crosscoder._W_dec_indep_HiMD, dim=-1)
+        independent_sparsity_loss_BHiM = train_res.hidden_BHi[..., None] * decoder_norms_HiM
+        # take L1 across the features and models
+        independent_sparsity_loss_B = reduce(independent_sparsity_loss_BHiM, "b h_indep m -> b", l1_norm)
+        lambda_f = self._lambda_f_scheduler()
+        weighted_independent_sparsity_loss = lambda_f * independent_sparsity_loss_B.mean()
 
-        # loss = reconstruction_loss + weighted_shared_sparsity_loss + weighted_independent_sparsity_loss
+        loss = reconstruction_loss + weighted_shared_sparsity_loss + weighted_independent_sparsity_loss
 
         # backward
         loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()

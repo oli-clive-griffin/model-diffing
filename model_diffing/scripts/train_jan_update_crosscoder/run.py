@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from math import prod
+from typing import Generic, TypeVar, cast
 
 import fire  # type: ignore
 import torch
@@ -10,12 +11,13 @@ from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations import AnthropicJumpReLUActivation
+from model_diffing.models.diffing_crosscoder import DiffingCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import JanUpdateCrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run
-from model_diffing.utils import get_device, inspect, round_up
+from model_diffing.utils import SaveableModule, get_device, inspect, round_up
 
 
 def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUpdateCrosscoderTrainer:
@@ -70,7 +72,16 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
     )
 
 
-class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReLUActivation]]):
+TModel = TypeVar("TModel", bound=SaveableModule)
+
+
+class BaseJumpReLUInitStrategy(Generic[TModel], InitStrategy[TModel]):
+    """
+    Base class for data-dependent JumpReLU initialization strategies.
+    
+    This class provides common functionality for initializing models 
+    with JumpReLU activation functions based on activation data.
+    """
     def __init__(
         self,
         activations_iterator_BXD: Iterator[torch.Tensor],
@@ -90,6 +101,20 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
             raise ValueError(f"initial_approx_firing_pct must be between 0 and 1, got {initial_approx_firing_pct}")
         self.initial_approx_firing_pct = initial_approx_firing_pct
 
+
+    def get_calibrated_b_enc_H(self, W_enc_XDH: torch.Tensor, hidden_activation: AnthropicJumpReLUActivation):
+        return compute_b_enc_H(
+            self.activations_iterator_BXD,
+            W_enc_XDH,
+            hidden_activation.log_threshold_H.exp(),
+            self.initial_approx_firing_pct,
+            self.n_tokens_for_threshold_setting,
+        )
+
+
+class DataDependentJumpReLUInitStrategy(BaseJumpReLUInitStrategy[AcausalCrosscoder[AnthropicJumpReLUActivation]]):
+    """Implementation for AcausalCrosscoder models."""
+    
     @torch.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[AnthropicJumpReLUActivation]) -> None:
         n = prod(cc.crosscoding_dims) * cc.d_model
@@ -101,18 +126,8 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
             * (n / m)
         )
 
-        calibrated_b_enc_H = compute_b_enc_H(
-            self.activations_iterator_BXD,
-            cc.W_enc_XDH,
-            cc.hidden_activation.log_threshold_H.exp(),
-            self.initial_approx_firing_pct,
-            self.n_tokens_for_threshold_setting,
-        )
-
-        cc.b_enc_H.copy_(calibrated_b_enc_H)
-
+        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_XDH, cc.hidden_activation))
         cc.b_dec_XD.zero_()
-
 
 def compute_b_enc_H(
     activations_iterator_BXD: Iterator[torch.Tensor],
