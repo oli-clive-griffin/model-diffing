@@ -3,19 +3,19 @@ from typing import Any
 import torch as t
 from torch.nn.utils import clip_grad_norm_
 
-from model_diffing.models.activations.jumprelu import JumpReLUActivation
-from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTrainConfig
+from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
+from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
-    calculate_reconstruction_loss,
+    calculate_reconstruction_loss_summed_MSEs,
     get_decoder_norms_H,
     get_fvu_dict,
 )
 
 
 class JumpReLUSlidingWindowCrosscoderTrainer(
-    BaseSlidingWindowCrosscoderTrainer[JumpReLUActivation, JanUpdateTrainConfig]
+    BaseSlidingWindowCrosscoderTrainer[AnthropicJumpReLUActivation, TanHSparsityTrainConfig]
 ):
     def _train_step(self, batch_BTPD: t.Tensor) -> None:
         if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
@@ -28,7 +28,7 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
         assert reconstructed_acts_BTPD.shape == batch_BTPD.shape, "fuck"
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss(batch_BTPD, reconstructed_acts_BTPD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BTPD, reconstructed_acts_BTPD)
 
         hidden_B3h = t.cat([res.hidden_BH_single1, res.hidden_BH_double, res.hidden_BH_single2], dim=-1)
 

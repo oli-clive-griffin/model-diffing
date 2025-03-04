@@ -75,8 +75,11 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
             scaling_factors_MP1 = torch.ones((1, 1, 1), device=device)
         else:
             scaling_factors_MP1 = rearrange(scaling_factors_MP, "m p -> m p 1").to(device)
-        
+
         for batch_BMPD in change_batch_size(iterator_BsMPD, self._yield_batch_size):
+            assert batch_BMPD.shape[0] == self._yield_batch_size, (
+                f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
+            )  # REMOVE ME
             yield batch_BMPD * scaling_factors_MP1
 
 
@@ -97,7 +100,7 @@ def build_dataloader(
 
     # first, get an iterator over sequences of tokens
     token_sequence_loader = build_tokens_sequence_loader(
-        cfg=cfg.sequence_iterator,
+        cfg=cfg.token_sequence_loader,
         cache_dir=cache_dir,
         tokenizer=tokenizer,
         batch_size=cfg.activations_harvester.harvesting_batch_size,

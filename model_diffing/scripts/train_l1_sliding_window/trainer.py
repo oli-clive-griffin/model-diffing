@@ -9,7 +9,7 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
 from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
 from model_diffing.utils import (
-    calculate_reconstruction_loss,
+    calculate_reconstruction_loss_summed_MSEs,
     get_fvu_dict,
     l0_norm,
     l1_norm,
@@ -28,7 +28,7 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         reconstructed_acts_BTPD = t.cat([res.recon_B1PD_single1, res.recon_B1PD_single2], dim=1) + res.recon_B2PD_double
         assert reconstructed_acts_BTPD.shape == batch_BTPD.shape, "fuck"
 
-        reconstruction_loss = calculate_reconstruction_loss(batch_BTPD, reconstructed_acts_BTPD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BTPD, reconstructed_acts_BTPD)
 
         sparsity_loss_fn = partial(
             weighted_l1_sparsity_loss,
@@ -115,6 +115,6 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""
         if self.step < self.cfg.lambda_s_n_steps:
-            return (self.step / self.cfg.lambda_s_n_steps) * self.cfg.lambda_s_max
+            return (self.step / self.cfg.lambda_s_n_steps) * self.cfg.final_lambda_s
 
-        return self.cfg.lambda_s_max
+        return self.cfg.final_lambda_s

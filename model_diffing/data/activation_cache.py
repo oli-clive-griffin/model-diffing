@@ -32,15 +32,15 @@ class ActivationsCache:
                 "Model does not have a model_diffing_model_key buffer. "
                 "Please use the build_llms function to create the model."
             )
-            
+
         # Convert tensor of ASCII values back to string
         model_key_tensor = model.model_diffing_model_key
         model_key = "".join(chr(i) for i in model_key_tensor.tolist())
-        
+
         # Create a deterministic hash of the input tokens
         sequence_bytes = sequence_BS.cpu().numpy().tobytes()
         input_hash = hashlib.md5(sequence_bytes).hexdigest()
-        
+
         return f"{model_key}_{input_hash}"
 
     def get_cache_path(self, cache_key: str) -> Path:
@@ -85,7 +85,7 @@ class ActivationsCache:
             True if saving was successful, False otherwise
         """
         cache_path = self.get_cache_path(cache_key)
-        
+
         # Ensure the parent directory exists
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 

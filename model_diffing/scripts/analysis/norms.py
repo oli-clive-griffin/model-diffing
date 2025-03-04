@@ -40,9 +40,10 @@ activations_harvester_config = config_common.ActivationsHarvesterConfig(
 hookpoints = [f"block.{i}.hook_resid_post" for i in [0, 3, 7, 9, 11]]
 
 data_config = config_common.DataConfig(
-    sequence_iterator=sequence_iterator_config,
+    token_sequence_loader=sequence_iterator_config,
     activations_harvester=activations_harvester_config,
     activations_shuffle_buffer_size=1000,
+    n_tokens_for_norm_estimate=100_000,
 )
 
 cache_dir = "./.cache/norms"

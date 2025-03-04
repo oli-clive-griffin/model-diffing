@@ -31,7 +31,7 @@ class JanUpdateCrosscoderConfig(BaseModel):
             raise ValueError(f"initial_approx_firing_pct must be between 0 and 1, got {self.initial_approx_firing_pct}")
 
 
-class JanUpdateTrainConfig(BaseTrainConfig):
+class TanHSparsityTrainConfig(BaseTrainConfig):
     c: float = 4.0
 
     final_lambda_s: float = 20.0
@@ -43,5 +43,5 @@ class JanUpdateTrainConfig(BaseTrainConfig):
 class JanUpdateExperimentConfig(BaseExperimentConfig):
     data: DataConfig
     crosscoder: JanUpdateCrosscoderConfig
-    train: JanUpdateTrainConfig
+    train: TanHSparsityTrainConfig
     hookpoints: list[str]

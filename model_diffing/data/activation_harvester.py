@@ -54,7 +54,11 @@ class ActivationsHarvester:
         sequence_BS: torch.Tensor,
     ) -> torch.Tensor:
         """Compute activations by running the model. No caching involved."""
-        _, cache =model.run_with_cache( sequence_BS, names_filter=self._names_filter, stop_at_layer=self._layer_to_stop_at,) 
+        _, cache = model.run_with_cache(
+            sequence_BS,
+            names_filter=self._names_filter,
+            stop_at_layer=self._layer_to_stop_at,
+        )
         # cache[name] is shape BSD, so stacking on dim 2 = BSPD
         activations_BSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
         return activations_BSPD
@@ -84,8 +88,7 @@ class ActivationsHarvester:
         self,
         sequence_BS: torch.Tensor,
     ) -> torch.Tensor:
-        activations = [self._get_model_activations_BSPD(model, sequence_BS)
-                       for model in self._llms]
+        activations = [self._get_model_activations_BSPD(model, sequence_BS) for model in self._llms]
         activations_BSMPD = torch.stack(activations, dim=2)
         return activations_BSMPD
 

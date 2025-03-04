@@ -1,10 +1,10 @@
 from typing import Any
-import pytest
+
 import torch as t
 
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.activations.topk import BatchTopkActivation
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 from model_diffing.utils import l2_norm
 
@@ -35,9 +35,9 @@ def test_return_shapes():
 
 def test_batch_topk_activation():
     batch_topk_activation = BatchTopkActivation(k_per_example=2)
-    hidden_preactivation_BH = t.tensor([[1, 2, 3, 4, 10], [1, 2, 11, 12, 13]])
-    hidden_BH = batch_topk_activation.forward(hidden_preactivation_BH)
-    assert hidden_BH.shape == hidden_preactivation_BH.shape
+    hidden_preact_BH = t.tensor([[1, 2, 3, 4, 10], [1, 2, 11, 12, 13]])
+    hidden_BH = batch_topk_activation.forward(hidden_preact_BH)
+    assert hidden_BH.shape == hidden_preact_BH.shape
     assert t.all(hidden_BH == t.tensor([[0, 0, 0, 0, 10], [0, 0, 11, 12, 13]]))
 
 
@@ -112,7 +112,7 @@ def test_weights_folding_scales_output_correctly():
     )
 
 
-class RandomInit(InitStrategy[Any]):
+class RandomInit(InitStrategy[AcausalCrosscoder[Any]]):
     @t.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
         cc.W_dec_HXD.random_()

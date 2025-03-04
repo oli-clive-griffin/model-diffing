@@ -5,7 +5,7 @@ import torch
 
 from model_diffing.analysis import metrics, visualization
 from model_diffing.models import acausal_crosscoder
-from model_diffing.models.activations.jumprelu import JumpReLUActivation
+from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 
 torch.set_grad_enabled(False)
 
@@ -29,7 +29,7 @@ cc = acausal_crosscoder.AcausalCrosscoder(
     crosscoding_dims=(n_models, n_hookpoints),
     d_model=768,
     hidden_dim=32_768,
-    hidden_activation=JumpReLUActivation(size=32_768, bandwidth=0.1, log_threshold_init=0.1),
+    hidden_activation=AnthropicJumpReLUActivation(size=32_768, bandwidth=0.1, log_threshold_init=0.1),
 )
 cc.load_state_dict(state_dict)
 

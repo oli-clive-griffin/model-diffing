@@ -10,13 +10,13 @@ from model_diffing.scripts.config_common import (
     ConnorGemma2Config,
     HuggingfaceTextDatasetConfig,
     MathDatasetConfig,
-    SequenceIteratorCfg,
+    TokenSequenceLoaderCfg,
     ToyOverfittingConfig,
 )
 
 
 def build_tokens_sequence_loader(
-    cfg: SequenceIteratorCfg,
+    cfg: TokenSequenceLoaderCfg,
     cache_dir: str,
     tokenizer: PreTrainedTokenizerBase,
     batch_size: int,

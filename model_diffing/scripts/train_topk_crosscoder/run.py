@@ -2,8 +2,8 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
@@ -22,7 +22,7 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
         device,
         dtype=cfg.data.activations_harvester.inference_dtype,
     )
-    
+
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,

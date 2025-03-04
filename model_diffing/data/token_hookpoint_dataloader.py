@@ -18,7 +18,7 @@ from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
 
 class BaseTokenHookpointActivationsDataloader(ABC):
     @abstractmethod
-    def get_shuffled_activations_iterator_BTPD(self) -> Iterator[torch.Tensor]: ...
+    def get_activations_iterator_BTPD(self) -> Iterator[torch.Tensor]: ...
 
     @abstractmethod
     def num_batches(self) -> int | None: ...
@@ -119,7 +119,7 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsData
     def num_batches(self) -> int | None:
         return self._token_sequence_loader.num_batches()
 
-    def get_shuffled_activations_iterator_BTPD(self) -> Iterator[torch.Tensor]:
+    def get_activations_iterator_BTPD(self) -> Iterator[torch.Tensor]:
         return self._shuffled_activations_iterator_BTPD
 
 
@@ -137,7 +137,7 @@ def build_sliding_window_dataloader(
 
     # first, get an iterator over sequences of tokens
     token_sequence_loader = build_tokens_sequence_loader(
-        cfg=cfg.sequence_iterator,
+        cfg=cfg.token_sequence_loader,
         cache_dir=cache_dir,
         tokenizer=tokenizer,
         batch_size=cfg.activations_harvester.harvesting_batch_size,

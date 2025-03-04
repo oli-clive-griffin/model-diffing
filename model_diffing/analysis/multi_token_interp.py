@@ -76,7 +76,7 @@ tokenizer = cast(PreTrainedTokenizerBase, llms[0].tokenizer)
 if not isinstance(tokenizer, PreTrainedTokenizerBase):
     raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")
 
-assert exp_config.data.sequence_iterator.type == "MathDatasetTokenSequenceLoader"
+assert exp_config.data.token_sequence_loader.type == "MathDatasetTokenSequenceLoader"
 
 # %%
 
@@ -84,7 +84,7 @@ assert exp_config.data.sequence_iterator.type == "MathDatasetTokenSequenceLoader
 examples_iterator = iterate_activations_with_text(
     token_sequence_loader=MathDatasetTokenSequenceLoader(
         tokenizer=tokenizer,
-        max_sequence_length=exp_config.data.sequence_iterator.max_sequence_length,
+        max_sequence_length=exp_config.data.token_sequence_loader.max_sequence_length,
         cache_dir=cache_dir,
         batch_size=2,
     ),

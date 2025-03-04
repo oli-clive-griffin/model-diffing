@@ -120,15 +120,13 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             for batch_BTPD in tqdm(
-                islice(self.activations_dataloader.get_shuffled_activations_iterator_BTPD(), self.num_steps_per_epoch),
+                islice(self.activations_dataloader.get_activations_iterator_BTPD(), self.num_steps_per_epoch),
                 desc="Epoch Train Steps",
                 total=self.num_steps_per_epoch,
             ):
                 batch_BTPD = batch_BTPD.to(self.device)
 
                 self._train_step(batch_BTPD)
-
-                # TODO(oli): get wandb checkpoint saving working
 
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     scaling_factors_TP = self.activations_dataloader.get_norm_scaling_factors_TP()

@@ -1,10 +1,8 @@
 # %%
 
-from collections import defaultdict
+import textwrap
 from datetime import datetime
 from itertools import islice
-import sys
-import textwrap
 from typing import cast
 
 import torch
@@ -12,10 +10,7 @@ from tqdm.notebook import tqdm
 from transformer_lens import HookedTransformer  # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
 
-from model_diffing.data.activation_harvester import ActivationsHarvester
-from model_diffing.data.model_hookpoint_dataloader import ScaledModelHookpointActivationsDataloader
-from model_diffing.data.token_loader import MathDatasetTokenSequenceLoader
-from model_diffing.utils import get_device, inspect
+from model_diffing.utils import get_device
 
 # %%
 
@@ -480,8 +475,10 @@ def create_thinking_prefixes(context_S: torch.Tensor) -> list[torch.Tensor]:
 
 
 # %%
-from datasets import load_dataset  # type: ignore
-from datasets import IterableDataset  # type: ignore
+from datasets import (
+    IterableDataset,  # type: ignore
+    load_dataset,  # type: ignore
+)
 
 DATASET_PATH = "ServiceNow-AI/R1-Distill-SFT"
 DATASET_NAME = "v1"

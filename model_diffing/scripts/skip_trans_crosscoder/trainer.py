@@ -4,15 +4,15 @@ from typing import Any
 import torch
 from torch.nn.utils import clip_grad_norm_
 
-from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
+from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import wandb_histogram
-from model_diffing.utils import calculate_reconstruction_loss, get_fvu_dict, l2_norm
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict
 
 
-class ZeroDecSkipTranscoderInit(InitStrategy[TopkActivation]):
+class ZeroDecSkipTranscoderInit(InitStrategy[AcausalCrosscoder[TopkActivation]]):
     def __init__(self, activation_iterator_BMPD: Iterator[torch.Tensor], n_samples_for_dec_mean: int):
         self.activation_iterator_BMPD = activation_iterator_BMPD
         self.n_samples_for_dec_mean = n_samples_for_dec_mean
@@ -43,8 +43,9 @@ class ZeroDecSkipTranscoderInit(InitStrategy[TopkActivation]):
         return mean_samples_MPD
 
 
-class OrthogonalSkipTranscoderInit(InitStrategy[TopkActivation]):
+class OrthogonalSkipTranscoderInit(InitStrategy[AcausalCrosscoder[TopkActivation]]):
     def __init__(self, dec_init_norm: float):
+        raise NotImplementedError("not confident in this implementation yet")
         self.dec_init_norm = dec_init_norm
 
     @torch.no_grad()
@@ -53,9 +54,6 @@ class OrthogonalSkipTranscoderInit(InitStrategy[TopkActivation]):
         cc.b_enc_H.zero_()
 
         torch.nn.init.orthogonal_(cc.W_dec_HXD)
-        W_dec_HXD_norm_HX1 = l2_norm(cc.W_dec_HXD, dim=-1, keepdim=True)
-        cc.W_dec_HXD.div_(W_dec_HXD_norm_HX1)
-        cc.W_dec_HXD.mul_(self.dec_init_norm)
 
         assert cc.W_skip_XdXd is not None, "W_skip_XdXd should not be None"
         cc.W_skip_XdXd.zero_()
@@ -82,7 +80,7 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
         train_res = self.crosscoder.forward_train(batch_x_BMPiD)
         self.firing_tracker.add_batch(train_res.hidden_BH)
 
-        reconstruction_loss = calculate_reconstruction_loss(train_res.output_BXD, batch_y_BMPoD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(train_res.output_BXD, batch_y_BMPoD)
 
         reconstruction_loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
 
@@ -92,11 +90,7 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
 
         self._lr_step()
 
-        if (
-            self.wandb_run is not None
-            and self.cfg.log_every_n_steps is not None
-            and self.step % self.cfg.log_every_n_steps == 0
-        ):
+        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             assert batch_y_BMPoD.shape[2] == len(self.hookpoints[1::2])
             assert train_res.output_BXD.shape[2] == len(self.hookpoints[::2])
             names = [" - ".join(pair) for pair in zip(self.hookpoints[::2], self.hookpoints[1::2], strict=True)]

@@ -7,7 +7,7 @@ from model_diffing.log import logger
 from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
-from model_diffing.utils import calculate_reconstruction_loss, get_fvu_dict
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict
 
 
 class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
@@ -24,7 +24,7 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
         self.firing_tracker.add_batch(train_res.hidden_BH)
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss(batch_BMPD, train_res.output_BXD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.output_BXD)
 
         # backward
         reconstruction_loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()

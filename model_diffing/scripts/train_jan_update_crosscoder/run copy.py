@@ -40,7 +40,6 @@ def main(config_path: Path):
         trainer.train()
 
 
-
 if __name__ == "__main__":
     logger.info("Starting...")
     fire.Fire(main)

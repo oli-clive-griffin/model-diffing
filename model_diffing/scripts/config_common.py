@@ -31,7 +31,7 @@ class AdamConfig(BaseModel):
     warmup_pct: float = 0.05
     learning_rate: float = 5e-5
     warmdown_pct: float = 0.2
-    betas: tuple[float, float] = (0.9, 0.999)
+    betas: tuple[float, float] = (0.0, 0.999)  # beta0 = 0.0 seems to work better in many peoples' experience
 
 
 class ScheduleFreeSigNumConfig(BaseModel):
@@ -41,6 +41,8 @@ class ScheduleFreeSigNumConfig(BaseModel):
 
 
 OptimizerCfg = AdamConfig | ScheduleFreeSigNumConfig
+
+
 # Specific config classes for each loader type
 class HuggingfaceTextDatasetConfig(BaseModel):
     type: Literal["HuggingfaceTextDatasetTokenSequenceLoader"] = "HuggingfaceTextDatasetTokenSequenceLoader"
@@ -75,15 +77,25 @@ class ActivationsHarvesterConfig(BaseModel):
     cache_mode: CacheMode = "no_cache"
 
 
-SequenceIteratorCfg = HuggingfaceTextDatasetConfig | ConnorGemma2Config | ToyOverfittingConfig | MathDatasetConfig
+TokenSequenceLoaderCfg = HuggingfaceTextDatasetConfig | ConnorGemma2Config | ToyOverfittingConfig | MathDatasetConfig
+
+
+def default_sequence_iterator():
+    return HuggingfaceTextDatasetConfig(
+        hf_dataset_name="monology/pile-uncopyrighted",
+        sequence_length=2048,
+        shuffle_buffer_size=None,
+    )
 
 
 class DataConfig(BaseModel):
-    sequence_iterator: SequenceIteratorCfg = Field(discriminator="type")
+    token_sequence_loader: TokenSequenceLoaderCfg = Field(
+        discriminator="type", default_factory=default_sequence_iterator
+    )
     activations_harvester: ActivationsHarvesterConfig
     activations_shuffle_buffer_size: int | None = None
     """if this is None, we will not shuffle the activations"""
-    n_tokens_for_norm_estimate: int
+    n_tokens_for_norm_estimate: int = 100_000
 
 
 class BaseTrainConfig(BaseModel):
@@ -94,7 +106,7 @@ class BaseTrainConfig(BaseModel):
     num_steps: int | None = None
     save_every_n_steps: int | None = None
     log_every_n_steps: int | None = None
-    gradient_accumulation_steps_per_batch: int = 1  
+    gradient_accumulation_steps_per_batch: int = 1
 
     def minibatch_size(self) -> int:
         return self.batch_size // self.gradient_accumulation_steps_per_batch
@@ -116,11 +128,12 @@ class WandbConfig(BaseModel):
     project: str = "model-diffing"
     mode: Literal["disabled", "online", "offline"] = "online"
 
+
 class BaseExperimentConfig(BaseModel):
     seed: int = 42
     cache_dir: str = ".cache"
     base_save_dir: str = ".checkpoints"
-    wandb: WandbConfig= WandbConfig()
+    wandb: WandbConfig = WandbConfig()
     experiment_name: str
 
     @property

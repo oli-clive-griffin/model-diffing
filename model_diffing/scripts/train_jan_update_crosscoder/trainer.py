@@ -3,14 +3,14 @@ from typing import Any
 import torch as t
 from torch.nn.utils import clip_grad_norm_
 
-from model_diffing.models.activations.jumprelu import JumpReLUActivation
+from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
-from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateTrainConfig
+from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
-from model_diffing.utils import calculate_reconstruction_loss, get_decoder_norms_H, get_fvu_dict
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_decoder_norms_H, get_fvu_dict
 
 
-class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig, JumpReLUActivation]):
+class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConfig, AnthropicJumpReLUActivation]):
     def _train_step(self, batch_BMPD: t.Tensor) -> None:
         if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
             self.optimizer.zero_grad()
@@ -20,7 +20,7 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
         self.firing_tracker.add_batch(train_res.hidden_BH)
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss(batch_BMPD, train_res.output_BXD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.output_BXD)
 
         decoder_norms_H = get_decoder_norms_H(self.crosscoder.W_dec_HXD)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.hidden_BH, decoder_norms_H)
@@ -75,7 +75,7 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[JanUpdateTrainConfig,
                             ),
                         }
                     )
-                except Exception as e:
+                except Exception:
                     ...
                     # logger.error(f"Error logging jumprelu_threshold_distribution: {e}")
             self.wandb_run.log(log_dict, step=self.step)

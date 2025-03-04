@@ -1,15 +1,11 @@
-from abc import ABC, abstractmethod
-from contextlib import contextmanager
 from dataclasses import dataclass
-from math import prod
-from typing import Any, Generic, TypeVar, cast
+from typing import Generic, TypeVar
 
 import torch as t
-from einops import einsum, reduce
+from einops import einsum
 from torch import nn
 
-from model_diffing.models.activations import ACTIVATIONS_MAP
-from model_diffing.utils import SaveableModule, l2_norm
+from model_diffing.utils import SaveableModule
 
 """
 Dimensions:
@@ -37,7 +33,7 @@ class MLPSAEcausalCrosscoder(SaveableModule, Generic[TActivation]):
         self.W_dec_HD = nn.Parameter(t.empty((hidden_dim, d_model)))
         self.b_enc_H = nn.Parameter(t.empty((hidden_dim,)))
         self.W_enc_DH = nn.Parameter(t.empty((d_model, hidden_dim)))
-        self.b_dec_D = nn.Parameter(t.empty((d_model)))
+        self.b_dec_D = nn.Parameter(t.empty(d_model))
 
     def _encode_BH(self, activation_BD: t.Tensor) -> t.Tensor:
         pre_bias_BH = einsum(activation_BD, self.W_enc_DH, "b d, d h -> b h")

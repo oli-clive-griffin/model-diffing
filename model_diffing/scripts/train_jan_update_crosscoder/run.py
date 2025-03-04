@@ -3,13 +3,13 @@ from math import prod
 
 import fire  # type: ignore
 import torch
-from einops import rearrange
+from einops import einsum, rearrange
 from tqdm import tqdm  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models.activations import JumpReLUActivation
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
+from model_diffing.models.activations import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
@@ -43,12 +43,12 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=llms[0].cfg.d_model,
         hidden_dim=cfg.crosscoder.hidden_dim,
-        init_strategy=JanUpdateInitStrategy(
+        init_strategy=DataDependentJumpReLUInitStrategy(
             activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
             initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
             n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
         ),
-        hidden_activation=JumpReLUActivation(
+        hidden_activation=AnthropicJumpReLUActivation(
             size=cfg.crosscoder.hidden_dim,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
             log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
@@ -70,7 +70,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
     )
 
 
-class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
+class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReLUActivation]]):
     def __init__(
         self,
         activations_iterator_BXD: Iterator[torch.Tensor],
@@ -91,8 +91,7 @@ class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
         self.initial_approx_firing_pct = initial_approx_firing_pct
 
     @torch.no_grad()
-    def init_weights(self, cc: AcausalCrosscoder[JumpReLUActivation]) -> None:
-        ## cc is on CPU atm, but the dataloader is on GPU
+    def init_weights(self, cc: AcausalCrosscoder[AnthropicJumpReLUActivation]) -> None:
         n = prod(cc.crosscoding_dims) * cc.d_model
         m = cc.hidden_dim
 
@@ -111,8 +110,6 @@ class JanUpdateInitStrategy(InitStrategy[JumpReLUActivation]):
         )
 
         cc.b_enc_H.copy_(calibrated_b_enc_H)
-        # TODO remove me
-        assert isinstance(cc.b_enc_H, torch.nn.Parameter), "sanity check failed"
 
         cc.b_dec_XD.zero_()
 
@@ -156,7 +153,7 @@ def _harvest_pre_bias_NH(
         # this is essentially the first step of the crosscoder forward pass, but not worth
         # creating a new method for it, just (easily) reimplementing it here
         batch_BXD = next(activations_iterator_BXD).to(cc_device)
-        x_BH = torch.einsum("b ... d, ... d h -> b h", batch_BXD, W_enc_XDH)
+        x_BH = einsum(batch_BXD, W_enc_XDH, "b ... d, ... d h -> b h")
         return x_BH
 
     sample_BH = get_batch_pre_bias()

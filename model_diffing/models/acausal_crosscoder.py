@@ -9,7 +9,6 @@ from einops import einsum, reduce
 from torch import nn
 
 from model_diffing.models.activations import ACTIVATIONS_MAP
-from model_diffing.models.activations.jumprelu import JumpReLUActivation
 from model_diffing.utils import SaveableModule, l2_norm
 
 """
@@ -21,11 +20,12 @@ Dimensions:
 """
 
 TActivation = TypeVar("TActivation", bound=SaveableModule)
+TModel = TypeVar("TModel", bound=SaveableModule)
 
 
-class InitStrategy(ABC, Generic[TActivation]):
+class InitStrategy(ABC, Generic[TModel]):
     @abstractmethod
-    def init_weights(self, cc: "AcausalCrosscoder[TActivation]") -> None: ...
+    def init_weights(self, cc: TModel) -> None: ...
 
 
 class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
@@ -39,7 +39,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         hidden_dim: int,
         hidden_activation: TActivation,
         skip_linear: bool = False,
-        init_strategy: InitStrategy[TActivation] | None = None,
+        init_strategy: InitStrategy["AcausalCrosscoder[TActivation]"] | None = None,
     ):
         super().__init__()
         self.crosscoding_dims = crosscoding_dims
@@ -181,7 +181,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         """
         scales the decoder weights such that the model makes the same predictions, but for
         each latent, the maximum norm of it's decoder vectors is 1.
-        
+
         For example, in a 2-model, 3-hookpoint crosscoder, the norms for a given latent might be scaled to:
 
         [[1, 0.2],

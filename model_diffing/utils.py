@@ -141,7 +141,7 @@ sparsity_loss_l1_of_norms = partial(
 )
 
 
-def calculate_reconstruction_loss(activation_BXD: torch.Tensor, target_BXD: torch.Tensor) -> torch.Tensor:
+def calculate_reconstruction_loss_summed_MSEs(activation_BXD: torch.Tensor, target_BXD: torch.Tensor) -> torch.Tensor:
     """This is a little weird because we have both model and hookpoint (aka layer) dimensions, so it's worth explaining deeply:
 
     The reconstruction loss is a sum of squared L2 norms of the error for each activation space being reconstructed.
@@ -317,25 +317,29 @@ def beep_macos():
 def change_batch_size(
     iterator_BX: Iterator[torch.Tensor],
     yield_batch_size: int,
+    yield_final_batch: bool = False,
 ) -> Iterator[torch.Tensor]:
     leftover_BX: torch.Tensor | None = None
     for activations_BX in iterator_BX:
-        if leftover_BX is not None and activations_BX.shape[0] > 0:
-            needed = yield_batch_size - leftover_BX.shape[0]
-
-            grabbed_BX = activations_BX[:needed]
-            activations_BX = activations_BX[needed:]
-
-            batch_BX = torch.cat([leftover_BX, grabbed_BX], dim=0)
-            yield batch_BX
-
+        if leftover_BX is not None:
+            activations_BX = torch.cat([leftover_BX, activations_BX], dim=0)
             leftover_BX = None
 
-        n_batches = activations_BX.shape[0] // yield_batch_size
+        n_batches, remaining_examples = divmod(activations_BX.shape[0], yield_batch_size)
         for i in range(0, n_batches):
             batch_BX = activations_BX[i * yield_batch_size : (i + 1) * yield_batch_size]
+            assert batch_BX.shape[0] == yield_batch_size
             yield batch_BX
 
-        leftover_BX = activations_BX[n_batches * yield_batch_size :]
+        if remaining_examples > 0:
+            leftover_BX = activations_BX[-remaining_examples:]
 
-    # drop any leftover
+    if leftover_BX is not None and yield_final_batch:
+        yield leftover_BX
+
+
+@torch.no_grad()
+def random_direction_init_(tensor: torch.Tensor, norm: float) -> None:
+    tensor.normal_()
+    tensor.div_(l2_norm(tensor, dim=-1, keepdim=True))
+    tensor.mul_(norm)

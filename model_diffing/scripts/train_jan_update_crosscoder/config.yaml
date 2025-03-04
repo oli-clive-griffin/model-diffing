@@ -1,5 +1,5 @@
 data:
-  sequence_iterator:
+  token_sequence_loader:
     type: 
     max_sequence_length: 1024
   activations_harvester:

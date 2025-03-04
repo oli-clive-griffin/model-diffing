@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import torch
-import wandb
 import yaml  # type: ignore
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
@@ -26,7 +25,6 @@ from model_diffing.scripts.utils import (
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
 from model_diffing.utils import SaveableModule
 
-# using python3.11 generics because it's better supported by GPU providers
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=SaveableModule)
 
@@ -85,10 +83,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
     def train(self) -> None:
-        epoch_iter = (
-            tqdm(range(self.cfg.epochs), desc="Epochs")
-            if self.cfg.epochs is not None else range(1)
-        )
+        epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
             epoch_dataloader_BMPD = islice(epoch_dataloader_BMPD, self.num_steps_per_epoch)
@@ -103,8 +98,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 batch_BMPD = batch_BMPD.to(self.device)
 
                 self._train_step(batch_BMPD)
-
-                # TODO(oli): get wandb checkpoint saving working
 
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"

@@ -2,8 +2,8 @@ import fire  # type: ignore
 
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
-from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
@@ -27,7 +27,6 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
     assert len({llm.cfg.d_model for llm in llms}) == 1, "all models must have the same d_model"
     d_model = llms[0].cfg.d_model
 
-    
     dataloader = build_sliding_window_dataloader(
         cfg=cfg.data,
         llms=llms,
