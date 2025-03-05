@@ -20,7 +20,7 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
         cfg.data.activations_harvester.llms,
         cfg.cache_dir,
         device,
-        dtype=cfg.data.activations_harvester.inference_dtype,
+        inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
     dataloader = build_dataloader(

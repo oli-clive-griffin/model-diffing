@@ -1,5 +1,6 @@
 import hashlib
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import torch
@@ -34,7 +35,7 @@ class ActivationsCache:
             )
 
         # Convert tensor of ASCII values back to string
-        model_key_tensor = model.model_diffing_model_key
+        model_key_tensor = cast(torch.Tensor, model.model_diffing_model_key)
         model_key = "".join(chr(i) for i in model_key_tensor.tolist())
 
         # Create a deterministic hash of the input tokens

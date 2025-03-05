@@ -6,6 +6,7 @@ from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_d
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations import AnthropicJumpReLUActivation
+from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.run import DataDependentJumpReLUInitStrategy
@@ -13,9 +14,9 @@ from model_diffing.scripts.train_jumprelu_sliding_window.config import SlidingWi
 from model_diffing.scripts.train_jumprelu_sliding_window.trainer import JumpReLUSlidingWindowCrosscoderTrainer
 from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.utils import build_wandb_run
-from model_diffing.utils import SaveableModule, get_device
+from model_diffing.utils import get_device
 
-TAct = TypeVar("TAct", bound=SaveableModule)
+TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
 def _build_sliding_window_crosscoder_trainer(
@@ -27,7 +28,7 @@ def _build_sliding_window_crosscoder_trainer(
         cfg.data.activations_harvester.llms,
         cfg.cache_dir,
         device,
-        dtype=cfg.data.activations_harvester.inference_dtype,
+        inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
     assert all("hook_resid" in hp for hp in cfg.hookpoints), "we should be training on the residual stream"
@@ -56,6 +57,7 @@ def _build_sliding_window_crosscoder_trainer(
             init_strategy=DataDependentJumpReLUInitStrategy(
                 activations_iterator_BXD=dataloader.get_activations_iterator_BTPD(),
                 initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
+                device=device
             ),
         )
         for window_size in [1, 2]

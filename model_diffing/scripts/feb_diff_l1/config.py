@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import BaseExperimentConfig, DataConfig
@@ -30,6 +30,7 @@ class L1ModelDiffingFebUpdateTrainConfig(L1TrainConfig):
 
 
 class L1ModelDiffingFebUpdateExperimentConfig(BaseExperimentConfig):
+    type: Literal["L1ModelDiffingFebUpdate"]
     data: DataConfig
     crosscoder: L1ModelDiffingFebUpdateCrosscoderConfig
     train: L1ModelDiffingFebUpdateTrainConfig

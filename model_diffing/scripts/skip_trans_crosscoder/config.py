@@ -1,3 +1,5 @@
+from typing import Literal
+
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, DataConfig
 from model_diffing.utils import BaseModel
 
@@ -9,6 +11,7 @@ class TopkSkipTransCrosscoderConfig(BaseModel):
 
 
 class TopkSkipTransCrosscoderExperimentConfig(BaseExperimentConfig):
+    type: Literal["TopkSkipTransCrosscoder"]
     data: DataConfig
     crosscoder: TopkSkipTransCrosscoderConfig
     train: BaseTrainConfig

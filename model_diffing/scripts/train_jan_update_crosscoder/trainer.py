@@ -7,7 +7,7 @@ from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivatio
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_decoder_norms_H, get_fvu_dict
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H
 
 
 class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConfig, AnthropicJumpReLUActivation]):
@@ -22,7 +22,7 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
         # losses
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.output_BXD)
 
-        decoder_norms_H = get_decoder_norms_H(self.crosscoder.W_dec_HXD)
+        decoder_norms_H = get_summed_decoder_norms_H(self.crosscoder.W_dec_HXD)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.hidden_BH, decoder_norms_H)
         pre_act_loss = self._pre_act_loss(train_res.hidden_BH, decoder_norms_H)
 
@@ -85,10 +85,17 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
         return (self.step / self.total_steps) * self.cfg.final_lambda_s
 
     def _tanh_sparsity_loss(self, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
-        loss_BH = t.tanh(self.cfg.c * hidden_BH * decoder_norms_H)
-        return loss_BH.sum(-1).mean()
+        return tanh_sparsity_loss(self.cfg.c, hidden_BH, decoder_norms_H)
 
     def _pre_act_loss(self, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
-        t_H = self.crosscoder.hidden_activation.log_threshold_H
-        loss_BH = t.relu(t_H.exp() - hidden_BH) * decoder_norms_H
-        return loss_BH.sum(-1).mean()
+        return pre_act_loss(self.crosscoder.hidden_activation.log_threshold_H, hidden_BH, decoder_norms_H)
+
+
+def pre_act_loss(log_threshold_H: t.Tensor, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
+    loss_BH = t.relu(log_threshold_H.exp() - hidden_BH) * decoder_norms_H
+    return loss_BH.sum(-1).mean()
+
+
+def tanh_sparsity_loss(c: float, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
+    loss_BH = t.tanh(c * hidden_BH * decoder_norms_H)
+    return loss_BH.sum(-1).mean()

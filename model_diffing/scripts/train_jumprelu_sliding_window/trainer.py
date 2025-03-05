@@ -9,8 +9,8 @@ from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer i
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
     calculate_reconstruction_loss_summed_MSEs,
-    get_decoder_norms_H,
     get_fvu_dict,
+    get_summed_decoder_norms_H,
 )
 
 
@@ -32,8 +32,8 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
 
         hidden_B3h = t.cat([res.hidden_BH_single1, res.hidden_BH_double, res.hidden_BH_single2], dim=-1)
 
-        decoder_norms_single_H = get_decoder_norms_H(self.crosscoders.single_cc.W_dec_HXD)
-        decoder_norms_both_H = get_decoder_norms_H(self.crosscoders.double_cc.W_dec_HXD)
+        decoder_norms_single_H = get_summed_decoder_norms_H(self.crosscoders.single_cc.W_dec_HXD)
+        decoder_norms_both_H = get_summed_decoder_norms_H(self.crosscoders.double_cc.W_dec_HXD)
 
         decoder_norms_3h = t.cat([decoder_norms_single_H, decoder_norms_both_H, decoder_norms_single_H], dim=-1)
 

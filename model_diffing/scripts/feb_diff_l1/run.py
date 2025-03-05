@@ -6,7 +6,7 @@ from einops import rearrange
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import InitStrategy
+from model_diffing.models import InitStrategy
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.diffing_crosscoder import DiffingCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
@@ -28,7 +28,7 @@ def build_feb_update_crosscoder_trainer(cfg: L1ModelDiffingFebUpdateExperimentCo
         cfg.data.activations_harvester.llms,
         cfg.cache_dir,
         device,
-        dtype=cfg.data.activations_harvester.inference_dtype,
+        inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
     dataloader = build_dataloader(
@@ -73,7 +73,7 @@ class ModelDiffingAnthropicTransposeInit(InitStrategy[DiffingCrosscoder[Any]]):
 
     @torch.no_grad()
     def init_weights(self, cc: DiffingCrosscoder[Any]) -> None:
-        # First, initialize the decoder weights to point in random directions, and have 
+        # First, initialize the decoder weights to point in random directions, and have
         random_direction_init_(cc._W_dec_shared_HsD, self.dec_init_norm)
         random_direction_init_(cc._W_dec_indep_HiMD, self.dec_init_norm)
 
@@ -81,6 +81,7 @@ class ModelDiffingAnthropicTransposeInit(InitStrategy[DiffingCrosscoder[Any]]):
 
         cc.b_enc_H.zero_()
         cc.b_dec_MD.zero_()
+
 
 if __name__ == "__main__":
     logger.info("Starting...")

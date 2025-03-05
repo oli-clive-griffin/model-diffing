@@ -12,15 +12,13 @@ from wandb.sdk.wandb_run import Run
 from model_diffing.data.token_hookpoint_dataloader import BaseTokenHookpointActivationsDataloader
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.scripts.base_trainer import TConfig, save_model, validate_num_steps_per_epoch
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
-from model_diffing.utils import (
-    SaveableModule,
-)
 
-TAct = TypeVar("TAct", bound=SaveableModule)
+TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
 class BiTokenCCWrapper(nn.Module, Generic[TAct]):

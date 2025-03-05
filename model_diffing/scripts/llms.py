@@ -8,15 +8,17 @@ from model_diffing.log import logger
 from model_diffing.scripts.config_common import LLMConfig
 
 
-def build_llms(llms: list[LLMConfig], cache_dir: str, device: torch.device, dtype: str) -> list[HookedTransformer]:
-    return [build_llm(llm, cache_dir, device, dtype) for llm in llms]
+def build_llms(
+    llms: list[LLMConfig], cache_dir: str, device: torch.device, inferenced_type: str
+) -> list[HookedTransformer]:
+    return [build_llm(llm, cache_dir, device, inferenced_type) for llm in llms]
 
 
 def build_llm(
     llm: LLMConfig,
     cache_dir: str,
     device: torch.device,
-    dtype: str,
+    inference_dtype: str,
 ) -> HookedTransformer:
     if llm.name is not None:
         # Case 1: Loading directly from transformer-lens model name
@@ -28,7 +30,7 @@ def build_llm(
             llm.name,
             revision=llm.revision,
             cache_dir=cache_dir,
-            dtype=dtype,
+            dtype=inference_dtype,
         )
     else:
         # Case 2: Loading from HuggingFace model
@@ -45,7 +47,7 @@ def build_llm(
             llm.base_archicteture_name,
             hf_model=AutoModelForCausalLM.from_pretrained(llm.hf_model_name, cache_dir=cache_dir),
             cache_dir=cache_dir,
-            dtype=dtype,
+            dtype=inference_dtype,
         )
 
     # Replace any slashes with underscores to avoid potential path issues

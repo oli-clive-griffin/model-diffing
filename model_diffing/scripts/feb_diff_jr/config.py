@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import BaseExperimentConfig, DataConfig
@@ -16,6 +16,7 @@ class JumpReLUModelDiffingFebUpdateCrosscoderConfig(JanUpdateCrosscoderConfig):
                 f"got {self.n_shared_latents} and {self.hidden_dim}"
             )
 
+
 class JumpReLUModelDiffingFebUpdateTrainConfig(TanHSparsityTrainConfig):
     final_lambda_f: float
 
@@ -27,8 +28,10 @@ class JumpReLUModelDiffingFebUpdateTrainConfig(TanHSparsityTrainConfig):
                 "Is this intentional? Anthropic use lambda_s / lambda_f ≈ 0.1 - 0.2"
             )
 
+
 class JumpReLUModelDiffingFebUpdateExperimentConfig(BaseExperimentConfig):
+    type: Literal["JumpReLUModelDiffingFebUpdate"]
     data: DataConfig
     crosscoder: JumpReLUModelDiffingFebUpdateCrosscoderConfig
     train: JumpReLUModelDiffingFebUpdateTrainConfig
-    hookpoints: list[str]
+    hookpoint: str

@@ -17,7 +17,7 @@ def test_MP():
         [LLMConfig(name="EleutherAI/pythia-160M", revision="step142000")],
         cache_dir=".cache",
         device=get_device(),
-        dtype="float32",
+        inferenced_type="float32",
     )
 
     sequence_len = 16
@@ -62,7 +62,7 @@ def test_TPD():
         [LLMConfig(name="EleutherAI/pythia-160M", revision="step142000")],
         cache_dir=".cache",
         device=get_device(),
-        dtype="float32",
+        inferenced_type="float32",
     )
 
     sequence_len = 16

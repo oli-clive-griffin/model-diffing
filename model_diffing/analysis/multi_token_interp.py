@@ -67,7 +67,7 @@ visualization.plot_cosine_sim(
 llms = build_llms(
     exp_config.data.activations_harvester.llms,
     cache_dir=cache_dir,
-    dtype=exp_config.data.activations_harvester.inference_dtype,
+    inferenced_type=exp_config.data.activations_harvester.inference_dtype,
     device=device,
 )
 

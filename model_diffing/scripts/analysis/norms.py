@@ -50,7 +50,7 @@ cache_dir = "./.cache/norms"
 
 # %%
 device = get_device()
-llms = build_llms(llm_configs, cache_dir, device, dtype=activations_harvester_config.inference_dtype)
+llms = build_llms(llm_configs, cache_dir, device, inferenced_type=activations_harvester_config.inference_dtype)
 
 # %%
 dataloader = build_dataloader(data_config, llms, hookpoints, 16, cache_dir)

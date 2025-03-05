@@ -1,3 +1,5 @@
+from typing import Literal
+
 from datasets import load_dataset  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
@@ -6,14 +8,43 @@ from model_diffing.data.token_loader.connor import ConnorGemma2TokenSequenceLoad
 from model_diffing.data.token_loader.huggingface import HuggingfaceTextDatasetTokenSequenceLoader
 from model_diffing.data.token_loader.math import MathDatasetTokenSequenceLoader
 from model_diffing.data.token_loader.toy import ToyOverfittingTokenSequenceLoader
-from model_diffing.scripts.config_common import (
-    ConnorGemma2Config,
-    HuggingfaceTextDatasetConfig,
-    MathDatasetConfig,
-    TokenSequenceLoaderCfg,
-    ToyOverfittingConfig,
-)
+from model_diffing.utils import BaseModel
 
+
+class HuggingfaceTextDatasetConfig(BaseModel):
+    type: Literal["HuggingfaceTextDatasetTokenSequenceLoader"] = "HuggingfaceTextDatasetTokenSequenceLoader"
+    hf_dataset_name: str
+    sequence_length: int
+    shuffle_buffer_size: int | None = None
+
+
+class ConnorGemma2Config(BaseModel):
+    type: Literal["ConnorGemma2TokenSequenceLoader"] = "ConnorGemma2TokenSequenceLoader"
+    # No additional parameters needed
+
+
+class ToyOverfittingConfig(BaseModel):
+    type: Literal["ToyOverfittingTokenSequenceLoader"] = "ToyOverfittingTokenSequenceLoader"
+    sequence_length: int
+    vocab_size: int = 10
+    first_n_tokens_special: int = 2
+
+
+class MathDatasetConfig(BaseModel):
+    type: Literal["MathDatasetTokenSequenceLoader"] = "MathDatasetTokenSequenceLoader"
+    max_sequence_length: int
+    include_base_answers: bool = False
+    include_reasoning_answers: bool = False
+
+
+TokenSequenceLoaderCfg = HuggingfaceTextDatasetConfig | ConnorGemma2Config | ToyOverfittingConfig | MathDatasetConfig
+
+def default_tokens_sequence_iterator():
+    return HuggingfaceTextDatasetConfig(
+        hf_dataset_name="monology/pile-uncopyrighted",
+        sequence_length=2048,
+        shuffle_buffer_size=None,
+    )
 
 def build_tokens_sequence_loader(
     cfg: TokenSequenceLoaderCfg,

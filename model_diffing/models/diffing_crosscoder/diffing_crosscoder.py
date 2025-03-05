@@ -6,7 +6,7 @@ from einops import einsum, repeat
 from torch import nn
 
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import InitStrategy
+from model_diffing.models import InitStrategy
 from model_diffing.models.activations import ACTIVATIONS_MAP
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.utils import SaveableModule
@@ -87,9 +87,12 @@ class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
 
     @dataclass
     class ForwardResult:
-        hidden_BHs: t.Tensor
-        hidden_BHi: t.Tensor
+        hidden_shared_BHs: t.Tensor
+        hidden_indep_BHi: t.Tensor
         recon_acts_BMD: t.Tensor
+
+        def get_hidden_BH(self) -> t.Tensor:
+            return t.cat([self.hidden_shared_BHs, self.hidden_indep_BHi], dim=-1)
 
     def forward_train(
         self,
@@ -103,8 +106,8 @@ class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
         recon_BMD = self._decode(latents_shared_BHs, latents_indep_BHi)
 
         res = self.ForwardResult(
-            hidden_BHs=latents_shared_BHs,
-            hidden_BHi=latents_indep_BHi,
+            hidden_shared_BHs=latents_shared_BHs,
+            hidden_indep_BHi=latents_indep_BHi,
             recon_acts_BMD=recon_BMD,
         )
 

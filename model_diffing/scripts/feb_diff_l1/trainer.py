@@ -8,11 +8,13 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.feb_diff_l1.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_l1.config import L1ModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.utils import get_l0_stats
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, l2_norm
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, l1_norm, l2_norm
 
 
 class ModelDiffingFebUpdateL1Trainer(BaseDiffingTrainer[L1ModelDiffingFebUpdateTrainConfig, ReLUActivation]):
-    """https://transformer-circuits.pub/2025/crosscoder-diffing-update/index.html"""
+    """
+    implementation of https://transformer-circuits.pub/2025/crosscoder-diffing-update/index.html with l1 sparsity loss
+    """
 
     def _train_step(self, batch_BMD: t.Tensor) -> None:
         if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
@@ -26,21 +28,23 @@ class ModelDiffingFebUpdateL1Trainer(BaseDiffingTrainer[L1ModelDiffingFebUpdateT
 
         # shared features sparsity loss:
         decoder_norms_Hs = l2_norm(self.crosscoder._W_dec_shared_HsD, dim=-1)
-        shared_sparsity_loss_BHs = train_res.hidden_BHs * decoder_norms_Hs
-        # take L1 across the features
-        l1_sparsity_loss = reduce(shared_sparsity_loss_BHs, "b h_shared -> b", t.sum).mean()
+        sparsity_loss_shared_BHs = train_res.hidden_shared_BHs * decoder_norms_Hs
+        sparsity_loss_shared = reduce(sparsity_loss_shared_BHs, "b h_shared -> b", l1_norm).mean()
         lambda_s = self._lambda_s_scheduler()
-        weighted_shared_sparsity_loss = lambda_s * l1_sparsity_loss
+        scaled_sparsity_loss_shared = lambda_s * sparsity_loss_shared
 
-        # independent features sparsity loss:
+        # indep features sparsity loss:
         decoder_norms_HiM = l2_norm(self.crosscoder._W_dec_indep_HiMD, dim=-1)
-        independent_sparsity_loss_BHiM = train_res.hidden_BHi[..., None] * decoder_norms_HiM
-        # take L1 across the features and models
-        independent_sparsity_loss = reduce(independent_sparsity_loss_BHiM, "b h_indep m -> b", t.sum).mean()
+        sparsity_loss_indep_BHiM = train_res.hidden_indep_BHi[..., None] * decoder_norms_HiM
+        sparsity_loss_indep = reduce(sparsity_loss_indep_BHiM, "b h_indep m -> b", l1_norm).mean()  # across models too!
         lambda_f = self._lambda_f_scheduler()
-        weighted_independent_sparsity_loss = lambda_f * independent_sparsity_loss
+        scaled_sparsity_loss_indep = lambda_f * sparsity_loss_indep
 
-        loss = reconstruction_loss + weighted_shared_sparsity_loss + weighted_independent_sparsity_loss
+        loss = (
+            reconstruction_loss  #
+            + scaled_sparsity_loss_shared
+            + scaled_sparsity_loss_indep
+        )
 
         # backward
         loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
@@ -49,7 +53,7 @@ class ModelDiffingFebUpdateL1Trainer(BaseDiffingTrainer[L1ModelDiffingFebUpdateT
             self.optimizer.step()
             self._lr_step()
 
-        hidden_BH = t.cat([train_res.hidden_BHi, train_res.hidden_BHs], dim=-1)
+        hidden_BH = train_res.get_hidden_BH()
         self.firing_tracker.add_batch(hidden_BH)
 
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
@@ -61,13 +65,13 @@ class ModelDiffingFebUpdateL1Trainer(BaseDiffingTrainer[L1ModelDiffingFebUpdateT
 
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
+                "train/loss": loss.item(),
                 "train/lambda_s": lambda_s,
                 "train/lambda_f": lambda_f,
-                "train/weighted_shared_sparsity_loss": weighted_shared_sparsity_loss.item(),
-                "train/weighted_independent_sparsity_loss": weighted_independent_sparsity_loss.item(),
-                "train/shared_sparsity_loss": l1_sparsity_loss.item(),
-                "train/independent_sparsity_loss": independent_sparsity_loss.item(),
-                "train/loss": loss.item(),
+                "train/scaled_sparsity_loss_shared": scaled_sparsity_loss_shared.item(),
+                "train/scaled_sparsity_loss_indep": scaled_sparsity_loss_indep.item(),
+                "train/sparsity_loss_shared": sparsity_loss_shared.item(),
+                "train/sparsity_loss_indep": sparsity_loss_indep.item(),
                 **fvu_dict,
                 **get_l0_stats(hidden_BH),
                 **self._common_logs(),

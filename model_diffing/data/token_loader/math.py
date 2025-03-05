@@ -93,7 +93,6 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
         will_double_example_count = self._include_base_answers and self._include_reasoning_answers
         tensorize_batch_size = self._batch_size // 2 if will_double_example_count else self._batch_size
 
-        print(f"{self._base_ds.column_names=}")
         tokens_dataset = (
             self._base_ds.map(
                 tensorize_batch,

@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
 from math import prod
@@ -8,7 +7,9 @@ import torch as t
 from einops import einsum, reduce
 from torch import nn
 
+from model_diffing.models import InitStrategy
 from model_diffing.models.activations import ACTIVATIONS_MAP
+from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.utils import SaveableModule, l2_norm
 
 """
@@ -19,14 +20,7 @@ Dimensions:
 - D: Autoencoder d dimension
 """
 
-TActivation = TypeVar("TActivation", bound=SaveableModule)
-TModel = TypeVar("TModel", bound=SaveableModule)
-
-
-class InitStrategy(ABC, Generic[TModel]):
-    @abstractmethod
-    def init_weights(self, cc: TModel) -> None: ...
-
+TActivation = TypeVar("TActivation", bound=ActivationFunction)
 
 class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
     is_folded: t.Tensor
@@ -73,7 +67,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             "b ..., ... h -> b h",
         )
         pre_activation_BH = pre_bias_BH + self.b_enc_H
-        return self.hidden_activation(pre_activation_BH)
+        return self.hidden_activation.forward(pre_activation_BH)
 
     def _decode_BXD(self, hidden_BH: t.Tensor) -> t.Tensor:
         # if isinstance(self.hidden_activation, JumpReLUActivation):
