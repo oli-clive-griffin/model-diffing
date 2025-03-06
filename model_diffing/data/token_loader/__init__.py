@@ -39,12 +39,14 @@ class MathDatasetConfig(BaseModel):
 
 TokenSequenceLoaderCfg = HuggingfaceTextDatasetConfig | ConnorGemma2Config | ToyOverfittingConfig | MathDatasetConfig
 
+
 def default_tokens_sequence_iterator():
     return HuggingfaceTextDatasetConfig(
         hf_dataset_name="monology/pile-uncopyrighted",
         sequence_length=2048,
         shuffle_buffer_size=None,
     )
+
 
 def build_tokens_sequence_loader(
     cfg: TokenSequenceLoaderCfg,

@@ -1,4 +1,3 @@
-
 import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
@@ -65,7 +64,6 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         hookpoints=cfg.hookpoints,
         save_dir=cfg.save_dir,
     )
-
 
 
 if __name__ == "__main__":

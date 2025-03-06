@@ -2,11 +2,10 @@ from operator import xor
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Discriminator, Field
+from pydantic import Field
 
 from model_diffing.data.activation_harvester import CacheMode
 from model_diffing.data.token_loader import (
-    HuggingfaceTextDatasetConfig,
     TokenSequenceLoaderCfg,
     default_tokens_sequence_iterator,
 )

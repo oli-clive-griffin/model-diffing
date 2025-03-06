@@ -8,13 +8,12 @@ from model_diffing.models.utils.jan_update_init import BaseDataDependentJumpReLU
 
 
 class ModelDiffingDataDependentJumpReLUInitStrategy(
-    BaseDataDependentJumpReLUInitStrategy,
-    InitStrategy[DiffingCrosscoder[AnthropicJumpReLUActivation]]
+    BaseDataDependentJumpReLUInitStrategy, InitStrategy[DiffingCrosscoder[AnthropicJumpReLUActivation]]
 ):
     """
     Implementation of the initialization scheme described in:
         https://transformer-circuits.pub/2025/january-update/index.html.
-    
+
     Adapted for the model-diffing crosscoder case described in:
         https://transformer-circuits.pub/2025/crosscoder-diffing-update/index.html
     """

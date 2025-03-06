@@ -1,5 +1,3 @@
-from typing import Literal
-
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, DataConfig
 from model_diffing.utils import BaseModel
 

@@ -57,7 +57,7 @@ def _build_sliding_window_crosscoder_trainer(
             init_strategy=DataDependentJumpReLUInitStrategy(
                 activations_iterator_BXD=dataloader.get_activations_iterator_BTPD(),
                 initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
-                device=device
+                device=device,
             ),
         )
         for window_size in [1, 2]

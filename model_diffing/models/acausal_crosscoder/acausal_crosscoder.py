@@ -22,6 +22,7 @@ Dimensions:
 
 TActivation = TypeVar("TActivation", bound=ActivationFunction)
 
+
 class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
     is_folded: t.Tensor
     folded_scaling_factors_X: t.Tensor | None
