@@ -204,8 +204,9 @@ def run_exp(build_trainer: Callable[[TCfg], Any], cfg_cls: type[TCfg]) -> Callab
         logger.info("Loading config...")
         with open(config_path) as f:
             config_dict = yaml.safe_load(f)
+        logger.info(f"Loaded config (raw):\n{config_dict}")
         config = cfg_cls(**config_dict)
-        logger.info(f"Loaded config:\n{config.model_dump_json(indent=2)}")
+        logger.info(f"Loaded config (parsed):\n{config.model_dump_json(indent=2)}")
         config.experiment_name += f"_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         logger.info(f"over-wrote experiment_name: {config.experiment_name}")
         logger.info(f"saving in save_dir: {config.save_dir}")

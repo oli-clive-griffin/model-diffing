@@ -41,7 +41,6 @@ class TanHSparsityTrainConfig(BaseTrainConfig):
 
 
 class JanUpdateExperimentConfig(BaseExperimentConfig):
-    type: Literal["JanUpdate"]
     data: DataConfig
     crosscoder: JanUpdateCrosscoderConfig
     train: TanHSparsityTrainConfig

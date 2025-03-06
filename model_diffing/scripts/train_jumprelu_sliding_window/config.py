@@ -5,7 +5,6 @@ from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateCr
 
 
 class SlidingWindowExperimentConfig(BaseExperimentConfig):
-    type: Literal["SlidingWindow"]
     crosscoder: JanUpdateCrosscoderConfig
     train: TanHSparsityTrainConfig
     data: DataConfig

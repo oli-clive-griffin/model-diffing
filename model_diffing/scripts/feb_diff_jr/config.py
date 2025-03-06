@@ -30,7 +30,6 @@ class JumpReLUModelDiffingFebUpdateTrainConfig(TanHSparsityTrainConfig):
 
 
 class JumpReLUModelDiffingFebUpdateExperimentConfig(BaseExperimentConfig):
-    type: Literal["JumpReLUModelDiffingFebUpdate"]
     data: DataConfig
     crosscoder: JumpReLUModelDiffingFebUpdateCrosscoderConfig
     train: JumpReLUModelDiffingFebUpdateTrainConfig

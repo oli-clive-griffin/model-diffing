@@ -30,7 +30,6 @@ class L1ModelDiffingFebUpdateTrainConfig(L1TrainConfig):
 
 
 class L1ModelDiffingFebUpdateExperimentConfig(BaseExperimentConfig):
-    type: Literal["L1ModelDiffingFebUpdate"]
     data: DataConfig
     crosscoder: L1ModelDiffingFebUpdateCrosscoderConfig
     train: L1ModelDiffingFebUpdateTrainConfig

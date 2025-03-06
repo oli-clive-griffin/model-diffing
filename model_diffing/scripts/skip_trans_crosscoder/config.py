@@ -11,7 +11,6 @@ class TopkSkipTransCrosscoderConfig(BaseModel):
 
 
 class TopkSkipTransCrosscoderExperimentConfig(BaseExperimentConfig):
-    type: Literal["TopkSkipTransCrosscoder"]
     data: DataConfig
     crosscoder: TopkSkipTransCrosscoderConfig
     train: BaseTrainConfig
