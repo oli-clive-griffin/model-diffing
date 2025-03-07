@@ -1,6 +1,5 @@
 from typing import Literal
 
-from regex import R
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
 
@@ -63,7 +62,8 @@ class ActivationsHarvester:
             stop_at_layer=self._layer_to_stop_at,
         )
         # cache[name] is shape HSD, so stacking on dim 2 = HSPD
-        activations_HSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
+        activations_HSPD = torch.stack([cache[name].clone() for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
+        del cache
         return activations_HSPD
 
     def _get_model_activations_HSPD(
