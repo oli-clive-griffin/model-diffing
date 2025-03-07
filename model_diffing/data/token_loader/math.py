@@ -85,8 +85,8 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
             )
 
             return {
-                "tokens_BS": cast(torch.Tensor, tok_res["input_ids"]),
-                "special_tokens_mask_BS": torch.isin(cast(torch.Tensor, tok_res["input_ids"]), special_ids),
+                "tokens_HS": cast(torch.Tensor, tok_res["input_ids"]),
+                "special_tokens_mask_HS": torch.isin(cast(torch.Tensor, tok_res["input_ids"]), special_ids),
             }
 
         assert self._batch_size % 2 == 0
@@ -108,13 +108,13 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
             batch = cast(dict[str, torch.Tensor], batch)
 
             try:
-                assert batch["tokens_BS"].shape == batch["special_tokens_mask_BS"].shape
+                assert batch["tokens_HS"].shape == batch["special_tokens_mask_HS"].shape
             except AssertionError:
                 breakpoint()
 
             yield TokensSequenceBatch(
-                tokens_BS=batch["tokens_BS"],
-                special_tokens_mask_BS=batch["special_tokens_mask_BS"],
+                tokens_HS=batch["tokens_HS"],
+                special_tokens_mask_HS=batch["special_tokens_mask_HS"],
             )
 
     def num_batches(self) -> int | None:

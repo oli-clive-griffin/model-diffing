@@ -47,8 +47,8 @@ class ConnorGemma2TokenSequenceLoader(TokenSequenceLoader):
             tokens_S = example["input_ids"]
             logger.warning(f"special token exclusion not yet implemented for {self.__class__.__name__}")
             yield TokensSequenceBatch(
-                tokens_BS=torch.tensor(tokens_S),
-                special_tokens_mask_BS=torch.zeros(len(tokens_S), dtype=torch.bool),
+                tokens_HS=torch.tensor(tokens_S),
+                special_tokens_mask_HS=torch.zeros(len(tokens_S), dtype=torch.bool),
             )
 
     def num_batches(self) -> int | None:

@@ -88,7 +88,7 @@ def _harvest_pre_bias_NH(
         # this is essentially the first step of the crosscoder forward pass, but not worth
         # creating a new method for it, just (easily) reimplementing it here
         batch_BXD = next(activations_iterator_BXD)
-        x_BH = einsum(batch_BXD, W_enc_XDH, "b ... d, ... d h -> b h")
+        x_BH = einsum(batch_BXD, W_enc_XDH.to(device), "b ... d, ... d h -> b h")
         return x_BH
 
     sample_BH = get_batch_pre_bias()
@@ -98,8 +98,8 @@ def _harvest_pre_bias_NH(
 
     if rounded_n_tokens_for_threshold_setting > n_tokens_for_threshold_setting:
         logger.warning(
-            f"rounded n_tokens_for_threshold_setting from {n_tokens_for_threshold_setting} to {rounded_n_tokens_for_threshold_setting} "
-            f"to be divisible by the batch size {batch_size}"
+            f"rounded n_tokens_for_threshold_setting from {n_tokens_for_threshold_setting} "
+            f"to {rounded_n_tokens_for_threshold_setting} to be divisible by the batch size {batch_size}"
         )
 
     num_batches = rounded_n_tokens_for_threshold_setting // batch_size

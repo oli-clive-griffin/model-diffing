@@ -1,5 +1,4 @@
 data:
-
   token_sequence_loader:
     type: MathDatasetTokenSequenceLoader
     max_sequence_length: 1024
@@ -12,7 +11,7 @@ data:
       - base_archicteture_name: Qwen/Qwen2.5-1.5B
         hf_model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
     harvesting_batch_size: 32
-    inference_dtype: bfloat16
+    # inference_dtype: bfloat16
   n_tokens_for_norm_estimate: 40_000
 crosscoder:
   hidden_dim: 65_536
@@ -24,12 +23,14 @@ crosscoder:
 train:
   num_steps: 10_000
   batch_size: 32_768
-  gradient_accumulation_steps_per_batch: 8 # for a minibatch size of 8192
+  gradient_accumulation_steps_per_batch: 8 # for a minibatch size of 4096
   save_every_n_steps: 1000
   log_every_n_steps: 4
   c: 4.0
   final_lambda_s: 0.5
   final_lambda_f: 5.0
   lambda_p: 0.000003
-experiment_name: feb_update_test
+experiment_name: base
 hookpoint: "blocks.20.hook_resid_post"
+wandb:
+  project: memory_leak_debug

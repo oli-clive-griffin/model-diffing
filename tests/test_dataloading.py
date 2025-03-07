@@ -31,7 +31,7 @@ def test_MP():
     )
 
     sample_batch = next(sequence_loader.get_sequences_batch_iterator())
-    assert sample_batch.tokens_BS.shape == (harvesting_batch_size, sequence_len)
+    assert sample_batch.tokens_HS.shape == (harvesting_batch_size, sequence_len)
 
     hookpoints = ["blocks.6.hook_resid_post"]
     activations_harvester = ActivationsHarvester(
@@ -77,7 +77,7 @@ def test_TPD():
     )
 
     sample_batch = next(sequence_loader.get_sequences_batch_iterator())
-    assert sample_batch.tokens_BS.shape == (harvesting_batch_size, sequence_len)
+    assert sample_batch.tokens_HS.shape == (harvesting_batch_size, sequence_len)
 
     hookpoints = ["blocks.6.hook_resid_post"]
     activations_harvester = ActivationsHarvester(

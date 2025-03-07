@@ -61,7 +61,7 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsData
     @torch.no_grad()
     def _activations_iterator_TPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
-            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)
+            activations_BSMPD = self._activations_harvester.get_activations_HSMPD(seq.tokens_HS)
 
             # pick only the first (and only) model's activations
             assert activations_BSMPD.shape[2] == 1, "should only be doing 1 model at a time for sliding window"
@@ -69,8 +69,8 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsData
 
             # flatten across batch and sequence dimensions, and filter out special tokens
             activations_BsPD = rearrange(activations_BSPD, "b s p d -> (b s) p d")
-            special_tokens_mask_Bs = rearrange(seq.special_tokens_mask_BS, "b s -> (b s)")
-            activations_BsPD = activations_BsPD[~special_tokens_mask_Bs]
+            special_tokens_mask_HS = rearrange(seq.special_tokens_mask_HS, "b s -> (b s)")
+            activations_BsPD = activations_BsPD[~special_tokens_mask_HS]
 
             # sliding window over the sequence dimension, adding a new token dimension
             # new_seq_len = S - (self._window_size_tokens - 1)

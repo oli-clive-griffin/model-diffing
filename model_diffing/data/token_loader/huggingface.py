@@ -69,34 +69,34 @@ class HuggingfaceTextDatasetTokenSequenceLoader(TokenSequenceLoader):
         # this shuffler returns batches of sequences of tokens.
         special_ids = torch.tensor(self._tokenizer.all_special_ids)
         if self._shuffle_buffer_size is not None:
-            for tokens_BS in batch_shuffle_tensor_iterator_BX(
+            for tokens_HS in batch_shuffle_tensor_iterator_BX(
                 tensor_iterator_X=self._get_sequence_iterator_S(),
                 shuffle_buffer_size=self._shuffle_buffer_size,
                 yield_batch_size=self._batch_size,
                 name="token sequence loader",
             ):
-                special_tokens_mask_BS = torch.isin(tokens_BS, special_ids)
+                special_tokens_mask_HS = torch.isin(tokens_HS, special_ids)
                 yield TokensSequenceBatch(
-                    tokens_BS=tokens_BS,
-                    special_tokens_mask_BS=special_tokens_mask_BS,
+                    tokens_HS=tokens_HS,
+                    special_tokens_mask_HS=special_tokens_mask_HS,
                 )
         else:
             iterator_S = self._get_sequence_iterator_S()
             sample_S = next(iterator_S)
-            tokens_BS = torch.empty((self._batch_size, *sample_S.shape), dtype=torch.long, device=sample_S.device)
-            tokens_BS[0] = sample_S
+            tokens_HS = torch.empty((self._batch_size, *sample_S.shape), dtype=torch.long, device=sample_S.device)
+            tokens_HS[0] = sample_S
             ptr = 1
 
             for sample_S in iterator_S:
                 if ptr == self._batch_size:
-                    special_tokens_mask_BS = torch.isin(tokens_BS, special_ids)
+                    special_tokens_mask_HS = torch.isin(tokens_HS, special_ids)
                     yield TokensSequenceBatch(
-                        tokens_BS=tokens_BS,
-                        special_tokens_mask_BS=special_tokens_mask_BS,
+                        tokens_HS=tokens_HS,
+                        special_tokens_mask_HS=special_tokens_mask_HS,
                     )
                     ptr = 0
 
-                tokens_BS[ptr] = sample_S
+                tokens_HS[ptr] = sample_S
                 ptr += 1
 
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:

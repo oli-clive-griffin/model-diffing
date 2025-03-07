@@ -22,7 +22,7 @@ from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 @dataclass
 class ActivationsWithText:
     activations_BSMPD: torch.Tensor
-    tokens_BS: torch.Tensor
+    tokens_HS: torch.Tensor
 
 
 @torch.no_grad()
@@ -31,10 +31,10 @@ def iterate_activations_with_text(
     activations_harvester: ActivationsHarvester,
 ) -> Iterator[ActivationsWithText]:
     for seq in token_sequence_loader.get_sequences_batch_iterator():
-        activations_BSMPD = activations_harvester.get_activations_BSMPD(seq.tokens_BS)
+        activations_BSMPD = activations_harvester.get_activations_HSMPD(seq.tokens_HS)
         yield ActivationsWithText(
             activations_BSMPD=activations_BSMPD,
-            tokens_BS=seq.tokens_BS,
+            tokens_HS=seq.tokens_HS,
         )
 
 
@@ -110,7 +110,7 @@ def gather_max_activating_examples(
                         not_skipped_firings += 1
 
                         example = LatentExample(
-                            tokens_S=activations_with_text.tokens_BS[batch_idx, ctx_start : pos + 1],
+                            tokens_S=activations_with_text.tokens_HS[batch_idx, ctx_start : pos + 1],
                             last_tok_hidden_act=hidden_BSH[batch_idx, pos, latent_idx].item(),
                         )
                         examples_by_latent_idx[latent_idx].append(example)

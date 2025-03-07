@@ -55,7 +55,7 @@ device = get_device()
 
 # %%
 
-# toks_S = first.tokens_BS[0][~first.special_tokens_mask_BS[0]].to(device)
+# toks_S = first.tokens_HS[0][~first.special_tokens_mask_HS[0]].to(device)
 # inspect(toks_S)
 # # %%
 # tokenizer_r1.decode(toks_S)

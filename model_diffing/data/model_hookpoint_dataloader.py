@@ -12,7 +12,7 @@ from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_se
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
-from model_diffing.utils import change_batch_size
+from model_diffing.utils import change_batch_size_BX
 
 
 class BaseModelHookpointActivationsDataloader(ABC):
@@ -24,6 +24,25 @@ class BaseModelHookpointActivationsDataloader(ABC):
 
     @abstractmethod
     def get_norm_scaling_factors_MP(self) -> torch.Tensor: ...
+
+
+class DummyModelHookpointActivationsDataloader(BaseModelHookpointActivationsDataloader):
+    def __init__(self, batch_size: int, n_models: int, n_hookpoints: int, d_model: int, device: torch.device):
+        self._batch_size = batch_size
+        self._n_models = n_models
+        self._n_hookpoints = n_hookpoints
+        self._d_model = d_model
+        self._device = device
+
+    def get_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]:
+        while True:
+            yield torch.randn(self._batch_size, self._n_models, self._n_hookpoints, self._d_model, device=self._device)
+
+    def num_batches(self) -> int | None:
+        return None
+
+    def get_norm_scaling_factors_MP(self) -> torch.Tensor:
+        return torch.ones(self._n_models, self._n_hookpoints)
 
 
 class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDataloader):
@@ -58,25 +77,31 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         return self._norm_scaling_factors_MP
 
     @torch.no_grad()
-    def _activations_iterator_BsMPD(self) -> Iterator[torch.Tensor]:
+    def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
-            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)
-            activations_BsMPD = rearrange(activations_BSMPD, "b s m p d -> (b s) m p d")
-            special_tokens_mask_Bs = rearrange(seq.special_tokens_mask_BS, "b s -> (b s)")
-            yield activations_BsMPD[~special_tokens_mask_Bs]
+            activations_HSMPD = self._activations_harvester.get_activations_HSMPD(seq.tokens_HS)
+            activations_HsMPD = rearrange(activations_HSMPD, "h s m p d -> (h s) m p d")
+            special_tokens_mask_Hs = rearrange(seq.special_tokens_mask_HS, "h s -> (h s)")
+            yield activations_HsMPD[~special_tokens_mask_Hs]
 
     @torch.no_grad()
     def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
-        iterator_BsMPD = self._activations_iterator_BsMPD()
+        iterator_HsMPD = self._activations_iterator_HsMPD()
 
-        device = next(iterator_BsMPD).device
+        device = next(iterator_HsMPD).device
 
         if scaling_factors_MP is None:
             scaling_factors_MP1 = torch.ones((1, 1, 1), device=device)
         else:
             scaling_factors_MP1 = rearrange(scaling_factors_MP, "m p -> m p 1").to(device)
 
-        for batch_BMPD in change_batch_size(iterator_BsMPD, self._yield_batch_size):
+        # for batch_HsMPD in iterator_HsMPD:
+        #     n_batches = batch_HsMPD.shape[0] // self._yield_batch_size
+        #     for i in range(n_batches):
+        #         batch_BMPD = batch_HsMPD[i * self._yield_batch_size : (i + 1) * self._yield_batch_size]
+        #         yield batch_BMPD * scaling_factors_MP1
+
+        for batch_BMPD in change_batch_size_BX(iterator_HX=iterator_HsMPD, B=self._yield_batch_size):
             assert batch_BMPD.shape[0] == self._yield_batch_size, (
                 f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
             )  # REMOVE ME

@@ -313,25 +313,26 @@ def beep_macos():
         logger.error(f"Failed to play alarm sound: {e}")
 
 
-def change_batch_size(
-    iterator_BX: Iterator[torch.Tensor],
-    yield_batch_size: int,
+def change_batch_size_BX(
+    iterator_HX: Iterator[torch.Tensor],
+    B: int,
     yield_final_batch: bool = False,
 ) -> Iterator[torch.Tensor]:
     leftover_BX: torch.Tensor | None = None
-    for activations_BX in iterator_BX:
+    for activations_HX in iterator_HX:
         if leftover_BX is not None:
-            activations_BX = torch.cat([leftover_BX, activations_BX], dim=0)
+            activations_HX = torch.cat([leftover_BX, activations_HX], dim=0)
             leftover_BX = None
 
-        n_batches, remaining_examples = divmod(activations_BX.shape[0], yield_batch_size)
+        n_batches, remaining_examples = divmod(activations_HX.shape[0], B)
         for i in range(0, n_batches):
-            batch_BX = activations_BX[i * yield_batch_size : (i + 1) * yield_batch_size]
-            assert batch_BX.shape[0] == yield_batch_size
+            batch_BX = activations_HX[i * B : (i + 1) * B].clone()
+            assert batch_BX.shape[0] == B
             yield batch_BX
 
         if remaining_examples > 0:
-            leftover_BX = activations_BX[-remaining_examples:]
+            # Create a clone to avoid holding a reference to the full tensor
+            leftover_BX = activations_HX[-remaining_examples:].clone()
 
     if leftover_BX is not None and yield_final_batch:
         yield leftover_BX

@@ -1,5 +1,6 @@
 from typing import Literal
 
+from regex import R
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
 
@@ -7,7 +8,7 @@ from model_diffing.data.activation_cache import ActivationsCache
 from model_diffing.log import logger
 
 # shapes:
-# B: batch size
+# H: (harvesting) batch size
 # S: sequence length
 # P: hookpoints
 # D: model d_model
@@ -48,49 +49,50 @@ class ActivationsHarvester:
     def _names_filter(self, name: str) -> bool:
         return name in self._hookpoints  # not doing any fancy hash/set usage as this list is tiny
 
-    def compute_model_activations(
+    def _compute_model_activations_HSPD(
         self,
         model: HookedTransformer,
-        sequence_BS: torch.Tensor,
+        sequence_HS: torch.Tensor,
     ) -> torch.Tensor:
         """Compute activations by running the model. No caching involved."""
+
         _, cache = model.run_with_cache(
-            sequence_BS,
+            sequence_HS,
             names_filter=self._names_filter,
             stop_at_layer=self._layer_to_stop_at,
         )
-        # cache[name] is shape BSD, so stacking on dim 2 = BSPD
-        activations_BSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
-        return activations_BSPD
+        # cache[name] is shape HSD, so stacking on dim 2 = HSPD
+        activations_HSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
+        return activations_HSPD
 
-    def _get_model_activations_BSPD(
+    def _get_model_activations_HSPD(
         self,
         model: HookedTransformer,
-        sequence_BS: torch.Tensor,
+        sequence_HS: torch.Tensor,
     ) -> torch.Tensor:
         # Check if we can load from cache
         if self._cache:
-            cache_key = self._cache.get_cache_key(model, sequence_BS)
-            activations_BSPD = self._cache.load_activations(cache_key, sequence_BS.device)
+            cache_key = self._cache.get_cache_key(model, sequence_HS)
+            activations_HSPD = self._cache.load_activations(cache_key, sequence_HS.device)
 
-            if activations_BSPD is None:
-                activations_BSPD = self.compute_model_activations(model, sequence_BS)
-                self._cache.save_activations(cache_key, activations_BSPD)
+            if activations_HSPD is None:
+                activations_HSPD = self._compute_model_activations_HSPD(model, sequence_HS)
+                self._cache.save_activations(cache_key, activations_HSPD)
 
-            return activations_BSPD
+            return activations_HSPD
 
         # Compute activations if not cached or cache loading failed
-        activations_BSPD = self.compute_model_activations(model, sequence_BS)
+        activations_HSPD = self._compute_model_activations_HSPD(model, sequence_HS)
 
-        return activations_BSPD
+        return activations_HSPD
 
-    def get_activations_BSMPD(
+    def get_activations_HSMPD(
         self,
-        sequence_BS: torch.Tensor,
+        sequence_HS: torch.Tensor,
     ) -> torch.Tensor:
-        activations = [self._get_model_activations_BSPD(model, sequence_BS) for model in self._llms]
-        activations_BSMPD = torch.stack(activations, dim=2)
-        return activations_BSMPD
+        activations = [self._get_model_activations_HSPD(model, sequence_HS) for model in self._llms]
+        activations_HSMPD = torch.stack(activations, dim=2)
+        return activations_HSMPD
 
 
 def _get_layer(hookpoint: str) -> int:
