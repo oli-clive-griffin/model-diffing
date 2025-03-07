@@ -5,7 +5,7 @@ from einops import reduce
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.scripts.feb_diff_l1.base_diffing_trainer import BaseDiffingTrainer
+from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_l1.config import L1ModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.utils import get_l0_stats
 from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, l1_norm, l2_norm

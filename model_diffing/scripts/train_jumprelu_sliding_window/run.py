@@ -12,7 +12,7 @@ from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.run import DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.train_jumprelu_sliding_window.config import SlidingWindowExperimentConfig
 from model_diffing.scripts.train_jumprelu_sliding_window.trainer import JumpReLUSlidingWindowCrosscoderTrainer
-from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BiTokenCCWrapper
+from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import get_device
 

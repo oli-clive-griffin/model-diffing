@@ -12,14 +12,14 @@ data:
         hf_model_name: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
     harvesting_batch_size: 32
     # inference_dtype: bfloat16
-  n_tokens_for_norm_estimate: 40_000
+  n_tokens_for_norm_estimate: 4_000
 crosscoder:
   hidden_dim: 65_536
   n_shared_latents: 4096 # 1/16 explicitly shared latents
   jumprelu:
     backprop_through_jumprelu_input: true
   initial_approx_firing_pct: 0.2
-  n_tokens_for_threshold_setting: 40_000
+  n_tokens_for_threshold_setting: 4_000
 train:
   num_steps: 10_000
   batch_size: 32_768

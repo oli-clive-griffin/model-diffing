@@ -58,7 +58,6 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsData
     def get_norm_scaling_factors_TP(self) -> torch.Tensor:
         return self._norm_scaling_factors_TP
 
-    @torch.no_grad()
     def _activations_iterator_TPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
             activations_BSMPD = self._activations_harvester.get_activations_HSMPD(seq.tokens_HS)
@@ -80,7 +79,6 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsData
             yield from activations_BsTPD
 
     @cached_property
-    @torch.no_grad()
     def _shuffled_raw_activations_iterator_BTPD(self) -> Iterator[torch.Tensor]:
         activations_iterator_TPD = self._activations_iterator_TPD()
 
@@ -109,7 +107,6 @@ class SlidingWindowScaledActivationsDataloader(BaseTokenHookpointActivationsData
                 ptr = 0
 
     @cached_property
-    @torch.no_grad()
     def _shuffled_activations_iterator_BTPD(self) -> Iterator[torch.Tensor]:
         raw_activations_iterator_BTPD = self._shuffled_raw_activations_iterator_BTPD
         scaling_factors_TP1 = rearrange(self.get_norm_scaling_factors_TP(), "t p -> t p 1")

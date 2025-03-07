@@ -7,7 +7,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
-from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
+from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
 from model_diffing.utils import (
     calculate_reconstruction_loss_summed_MSEs,
     get_fvu_dict,

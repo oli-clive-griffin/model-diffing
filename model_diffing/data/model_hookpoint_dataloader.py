@@ -76,7 +76,6 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
     def get_norm_scaling_factors_MP(self) -> torch.Tensor:
         return self._norm_scaling_factors_MP
 
-    @torch.no_grad()
     def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
             activations_HSMPD = self._activations_harvester.get_activations_HSMPD(seq.tokens_HS)
@@ -84,7 +83,6 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
             special_tokens_mask_Hs = rearrange(seq.special_tokens_mask_HS, "h s -> (h s)")
             yield activations_HsMPD[~special_tokens_mask_Hs]
 
-    @torch.no_grad()
     def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
         iterator_HsMPD = self._activations_iterator_HsMPD()
 
@@ -95,13 +93,7 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         else:
             scaling_factors_MP1 = rearrange(scaling_factors_MP, "m p -> m p 1").to(device)
 
-        # for batch_HsMPD in iterator_HsMPD:
-        #     n_batches = batch_HsMPD.shape[0] // self._yield_batch_size
-        #     for i in range(n_batches):
-        #         batch_BMPD = batch_HsMPD[i * self._yield_batch_size : (i + 1) * self._yield_batch_size]
-        #         yield batch_BMPD * scaling_factors_MP1
-
-        for batch_BMPD in change_batch_size_BX(iterator_HX=iterator_HsMPD, B=self._yield_batch_size):
+        for batch_BMPD in change_batch_size_BX(iterator_HX=iterator_HsMPD, new_batch_size_B=self._yield_batch_size):
             assert batch_BMPD.shape[0] == self._yield_batch_size, (
                 f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
             )  # REMOVE ME

@@ -5,7 +5,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
-from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
+from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
     calculate_reconstruction_loss_summed_MSEs,

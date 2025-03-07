@@ -102,7 +102,6 @@ def build_lr_scheduler(cfg: AdamConfig, num_steps: int) -> Callable[[int], float
     return _lr_scheduler
 
 
-@torch.no_grad()
 def estimate_norm_scaling_factor_X(
     dataloader_BXD: Iterator[torch.Tensor],
     n_tokens_for_norm_estimate: int,
@@ -113,7 +112,6 @@ def estimate_norm_scaling_factor_X(
     return scaling_factors_X
 
 
-@torch.no_grad()
 # adapted from SAELens https://github.com/jbloomAus/SAELens/blob/6d6eaef343fd72add6e26d4c13307643a62c41bf/sae_lens/training/activations_store.py#L370
 def _estimate_mean_norms_X(
     dataloader_BMPD: Iterator[torch.Tensor],

@@ -7,7 +7,7 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
-from model_diffing.scripts.train_l1_sliding_window.base_sliding_window_trainer import BiTokenCCWrapper
+from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.train_l1_sliding_window.config import L1SlidingWindowExperimentConfig
 from model_diffing.scripts.train_l1_sliding_window.trainer import L1SlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run
