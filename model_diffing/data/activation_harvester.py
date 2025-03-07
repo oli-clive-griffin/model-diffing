@@ -48,6 +48,7 @@ class ActivationsHarvester:
     def _names_filter(self, name: str) -> bool:
         return name in self._hookpoints  # not doing any fancy hash/set usage as this list is tiny
 
+
     def _compute_model_activations_HSPD(
         self,
         model: HookedTransformer,
@@ -56,11 +57,12 @@ class ActivationsHarvester:
         """Compute activations by running the model. No caching involved."""
         # return torch.rand(*sequence_HS.shape, self._num_hookpoints, model.cfg.d_model)
 
-        _, cache = model.run_with_cache(
-            sequence_HS,
-            names_filter=self._names_filter,
-            stop_at_layer=self._layer_to_stop_at,
-        )
+        with torch.no_grad():
+            _, cache = model.run_with_cache(
+                sequence_HS,
+                names_filter=self._names_filter,
+                stop_at_layer=self._layer_to_stop_at,
+            )
         # cache[name] is shape HSD, so stacking on dim 2 = HSPD
         activations_HSPD = torch.stack([cache[name].clone() for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
         del cache
