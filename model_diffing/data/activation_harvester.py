@@ -55,7 +55,7 @@ class ActivationsHarvester:
         sequence_HS: torch.Tensor,
     ) -> torch.Tensor:
         """Compute activations by running the model. No caching involved."""
-        return torch.rand(*sequence_HS.shape, self._num_hookpoints, model.cfg.d_model)
+        # return torch.rand(*sequence_HS.shape, self._num_hookpoints, model.cfg.d_model)
 
         _, cache = model.run_with_cache(
             sequence_HS,
