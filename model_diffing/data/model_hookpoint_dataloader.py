@@ -95,17 +95,17 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         else:
             scaling_factors_MP1 = rearrange(scaling_factors_MP, "m p -> m p 1").to(device)
 
-        # for batch_HsMPD in iterator_HsMPD:
-        #     n_batches = batch_HsMPD.shape[0] // self._yield_batch_size
-        #     for i in range(n_batches):
-        #         batch_BMPD = batch_HsMPD[i * self._yield_batch_size : (i + 1) * self._yield_batch_size]
-        #         yield batch_BMPD * scaling_factors_MP1
+        for batch_HsMPD in iterator_HsMPD:
+            n_batches = batch_HsMPD.shape[0] // self._yield_batch_size
+            for i in range(n_batches):
+                batch_BMPD = batch_HsMPD[i * self._yield_batch_size : (i + 1) * self._yield_batch_size]
+                yield batch_BMPD * scaling_factors_MP1
 
-        for batch_BMPD in change_batch_size_BX(iterator_HX=iterator_HsMPD, B=self._yield_batch_size):
-            assert batch_BMPD.shape[0] == self._yield_batch_size, (
-                f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
-            )  # REMOVE ME
-            yield batch_BMPD * scaling_factors_MP1
+        # for batch_BMPD in change_batch_size_BX(iterator_HX=iterator_HsMPD, B=self._yield_batch_size):
+        #     assert batch_BMPD.shape[0] == self._yield_batch_size, (
+        #         f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
+        #     )  # REMOVE ME
+        #     yield batch_BMPD * scaling_factors_MP1
 
 
 def build_dataloader(
