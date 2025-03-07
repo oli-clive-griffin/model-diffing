@@ -59,8 +59,6 @@ class DataConfig(BaseModel):
         discriminator="type", default_factory=default_tokens_sequence_iterator
     )
     activations_harvester: ActivationsHarvesterConfig
-    activations_shuffle_buffer_size: int | None = None
-    """if this is None, we will not shuffle the activations"""
     n_tokens_for_norm_estimate: int = 100_000
 
 

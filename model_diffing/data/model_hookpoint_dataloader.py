@@ -26,44 +26,22 @@ class BaseModelHookpointActivationsDataloader(ABC):
     def get_norm_scaling_factors_MP(self) -> torch.Tensor: ...
 
 
-class DummyModelHookpointActivationsDataloader(BaseModelHookpointActivationsDataloader):
-    def __init__(self, batch_size: int, n_models: int, n_hookpoints: int, d_model: int, device: torch.device):
-        self._batch_size = batch_size
-        self._n_models = n_models
-        self._n_hookpoints = n_hookpoints
-        self._d_model = d_model
-        self._device = device
-
-    def get_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]:
-        while True:
-            yield torch.randn(self._batch_size, self._n_models, self._n_hookpoints, self._d_model, device=self._device)
-
-    def num_batches(self) -> int | None:
-        return None
-
-    def get_norm_scaling_factors_MP(self) -> torch.Tensor:
-        return torch.ones(self._n_models, self._n_hookpoints)
-
-
 class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDataloader):
     def __init__(
         self,
         token_sequence_loader: TokenSequenceLoader,
         activations_harvester: ActivationsHarvester,
-        activations_shuffle_buffer_size: int | None,
         yield_batch_size: int,
         n_tokens_for_norm_estimate: int,
     ):
         self._token_sequence_loader = token_sequence_loader
         self._activations_harvester = activations_harvester
-        self._activations_shuffle_buffer_size = activations_shuffle_buffer_size
         self._yield_batch_size = yield_batch_size
 
         norm_scaling_factors_MP = estimate_norm_scaling_factor_X(
-            self._activations_iterator_BMPD(),  # don't pass the scaling factors here (becuase we're computing them!)
+            self._activations_iterator_BMPD(),  # don't pass the scaling factors here (because we're computing them!)
             n_tokens_for_norm_estimate,
         )
-
         self._norm_scaling_factors_MP = norm_scaling_factors_MP
         self._iterator = self._activations_iterator_BMPD(norm_scaling_factors_MP)
 
@@ -140,7 +118,6 @@ def build_dataloader(
     activations_dataloader = ScaledModelHookpointActivationsDataloader(
         token_sequence_loader=token_sequence_loader,
         activations_harvester=activations_harvester,
-        activations_shuffle_buffer_size=cfg.activations_shuffle_buffer_size,
         yield_batch_size=batch_size,
         n_tokens_for_norm_estimate=cfg.n_tokens_for_norm_estimate,
     )

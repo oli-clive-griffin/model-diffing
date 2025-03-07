@@ -2,16 +2,14 @@ from typing import TypeVar
 
 import fire  # type: ignore
 
-from model_diffing.data.model_hookpoint_dataloader import DummyModelHookpointActivationsDataloader, build_dataloader
+from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.models.diffing_crosscoder import DiffingCrosscoder, ModelDiffingDataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
 from model_diffing.scripts.feb_diff_jr.trainer import ModelDiffingFebUpdateJumpReLUTrainer
-from model_diffing.scripts.feb_diff_l1.run import ModelDiffingAnthropicTransposeInit
 from model_diffing.scripts.llms import build_llms
-from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import SaveableModule, get_device
 
@@ -32,13 +30,6 @@ def build_feb_update_crosscoder_trainer(
         inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
-    # dataloader = DummyModelHookpointActivationsDataloader(
-    #     batch_size=cfg.train.minibatch_size(),
-    #     n_models=len(llms),
-    #     n_hookpoints=1,
-    #     d_model=llms[0].cfg.d_model,
-    #     device=device,
-    # )
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,
@@ -51,13 +42,12 @@ def build_feb_update_crosscoder_trainer(
         d_model=llms[0].cfg.d_model,
         hidden_dim=cfg.crosscoder.hidden_dim,
         n_explicitly_shared_latents=cfg.crosscoder.n_shared_latents,
-        init_strategy=ModelDiffingAnthropicTransposeInit(dec_init_norm=0.01),
-        # ModelDiffingDataDependentJumpReLUInitStrategy(
-        #     activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
-        #     initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
-        #     n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
-        #     device=device,
-        # ),
+        init_strategy=ModelDiffingDataDependentJumpReLUInitStrategy(
+            activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
+            initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
+            n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
+            device=device,
+        ),
         hidden_activation=AnthropicJumpReLUActivation(
             size=cfg.crosscoder.hidden_dim,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
