@@ -29,5 +29,5 @@ class DataDependentJumpReLUInitStrategy(
             * (n / m)
         )
 
-        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_XDH, cc.hidden_activation))
+        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_XDH, cc.hidden_activation).to(cc.b_enc_H.device))
         cc.b_dec_XD.zero_()

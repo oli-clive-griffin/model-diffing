@@ -24,7 +24,7 @@ class ModelDiffingDataDependentJumpReLUInitStrategy(
         m = cc.hidden_dim
 
         # initialise W_dec from U(-1/n, 1/n)
-        cc._W_dec_shared_HsD.uniform_(-1.0 / n, 1.0 / n)
+        cc._W_dec_shared_m0_HsD.uniform_(-1.0 / n, 1.0 / n)
         cc._W_dec_indep_HiMD.uniform_(-1.0 / n, 1.0 / n)
 
         cc.W_enc_MDH.copy_(
@@ -32,5 +32,5 @@ class ModelDiffingDataDependentJumpReLUInitStrategy(
             * (n / m)
         )
 
-        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_MDH, cc.hidden_activation))
+        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_MDH, cc.hidden_activation).to(cc.b_enc_H.device))
         cc.b_dec_MD.zero_()

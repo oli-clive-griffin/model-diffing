@@ -12,14 +12,17 @@ from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActi
 from model_diffing.log import logger
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.models.diffing_crosscoder import DiffingCrosscoder
-from model_diffing.scripts.base_trainer import validate_num_steps_per_epoch
+from model_diffing.scripts.base_trainer import save_model, validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import (
     build_lr_scheduler,
     build_optimizer,
+    create_cosine_sim_and_relative_norm_histograms,
+    create_cosine_sim_and_relative_norm_histograms_diffing,
     wandb_histogram,
 )
+from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=ActivationFunction)
@@ -74,6 +77,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
     def train(self) -> None:
+        scaling_factors_M = self.activations_dataloader.get_norm_scaling_factors_MP()[:, 0]
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
@@ -87,7 +91,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
             )
             torch.cuda.memory._record_memory_history()
             for batch_BMPD in batch_iter:
-                if self.step % 10 == 0:
+                if self.step % 100 == 0:
                     torch.cuda.memory._dump_snapshot(f"snapshot_{self.step}.pickle")
                     torch.cuda.memory._record_memory_history(enabled=None)
                     torch.cuda.memory._record_memory_history()
@@ -99,16 +103,14 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
 
                 self._train_step(batch_BMD)
 
-                # if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
-                #     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+                if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
+                    checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+                    with self.crosscoder.temporarily_fold_activation_scaling(scaling_factors_M.to(self.device)):
+                        save_model(self.crosscoder, checkpoint_path)
 
-                # with self.crosscoder.temporarily_fold_activation_scaling(
-                #     self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
-                # ):
-                #     save_model(self.crosscoder, checkpoint_path)
-
-                # artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
-                # self.wandb_run.log_artifact(artifact)
+                    if self.cfg.upload_saves_to_wandb:
+                        artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
+                        self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BMD.shape[0]
@@ -129,10 +131,8 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
             tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
             logs.update({"media/tokens_since_fired": tokens_since_fired_hist})
 
-            # if self.n_models == 2:
-            #     W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
-            #     assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
-            #     logs.update(create_cosine_sim_and_relative_norm_histograms(W_dec_HXD, self.hookpoints))
+            W_dec_HiMD = self.crosscoder._W_dec_indep_HiMD.detach()
+            logs.update(create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_HMD=W_dec_HiMD))
 
         return logs
 

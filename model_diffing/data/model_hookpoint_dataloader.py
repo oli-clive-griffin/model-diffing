@@ -1,6 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from typing import cast
 
 import torch
 from einops import rearrange
@@ -9,6 +10,7 @@ from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
+from model_diffing.data.token_loader.math import MathDatasetTokenSequenceLoader
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
@@ -37,6 +39,7 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         self._token_sequence_loader = token_sequence_loader
         self._activations_harvester = activations_harvester
         self._yield_batch_size = yield_batch_size
+        self._device = self._activations_harvester._llms[0].W_E.device
 
         norm_scaling_factors_MP = estimate_norm_scaling_factor_X(
             self._activations_iterator_BMPD(),  # don't pass the scaling factors here (because we're computing them!)
@@ -64,18 +67,20 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
     def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
         iterator_HsMPD = self._activations_iterator_HsMPD()
 
-        device = next(iterator_HsMPD).device
-
         if scaling_factors_MP is None:
-            scaling_factors_MP1 = torch.ones((1, 1, 1), device=device)
+            scaling_factors_MP1 = torch.ones((1, 1, 1), device=self._device)
         else:
-            scaling_factors_MP1 = rearrange(scaling_factors_MP, "m p -> m p 1").to(device)
+            scaling_factors_MP1 = rearrange(scaling_factors_MP.to(self._device), "m p -> m p 1")
 
-        for batch_BMPD in change_batch_size_BX(iterator_HX=iterator_HsMPD, new_batch_size_B=self._yield_batch_size):
+        for i, batch_BMPD in enumerate(
+            change_batch_size_BX(iterator_HX=iterator_HsMPD, new_batch_size_B=self._yield_batch_size)
+        ):
             assert batch_BMPD.shape[0] == self._yield_batch_size, (
                 f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
             )  # REMOVE ME
             yield batch_BMPD * scaling_factors_MP1
+            if i % 5 == 0:
+                torch.cuda.empty_cache()
 
 
 def build_dataloader(

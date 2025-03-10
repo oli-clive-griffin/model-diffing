@@ -1,6 +1,6 @@
 import torch
 
-from model_diffing.scripts.train_jan_update_crosscoder.run import compute_b_enc_H
+from model_diffing.models.utils.jan_update_init import compute_b_enc_H
 
 
 def test_compute_b_enc_H():
@@ -41,9 +41,6 @@ def test_compute_b_enc_H():
     # - the jumprelu threshold is 1.0, so the threshold is 1 - [2.25, 6.25]
     expected_b_enc_H = torch.tensor([1 - 2.25, 1 - 6.25])
     assert torch.allclose(b_enc_H, expected_b_enc_H), f"b_enc_H: {b_enc_H}, expected_b_enc_H: {expected_b_enc_H}"
-
-
-test_compute_b_enc_H()
 
 
 def test_compute_b_enc_H_batches_rounding():

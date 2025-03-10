@@ -16,11 +16,48 @@ from model_diffing.interp import (
     iterate_activations_with_text,
 )
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.diffing_crosscoder.diffing_crosscoder import DiffingCrosscoder
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
 from model_diffing.scripts.wandb_scripts.main import download_experiment_checkpoint
 from model_diffing.utils import get_device
 
+# %%
+
+import textwrap
+from datetime import datetime
+from itertools import islice
+from typing import cast
+
+import torch
+from tqdm.notebook import tqdm  # type: ignore
+from transformer_lens import HookedTransformer  # type: ignore
+from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
+
+from model_diffing.utils import get_device
+
+# %%
+
+BASE = "Qwen/Qwen2.5-Math-1.5B"
+R1 = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+CACHE_DIR = ".cache"
+DTYPE = torch.bfloat16
+
+# %%
+
+llm_math = HookedTransformer.from_pretrained_no_processing(
+    "Qwen/Qwen2.5-1.5B",
+    hf_model=AutoModelForCausalLM.from_pretrained(BASE, cache_dir=CACHE_DIR),
+    dtype=DTYPE,
+    cache_dir=CACHE_DIR,
+)
+
+llm_r1 = HookedTransformer.from_pretrained_no_processing(
+    "Qwen/Qwen2.5-1.5B",
+    hf_model=AutoModelForCausalLM.from_pretrained(R1, cache_dir=CACHE_DIR),
+    dtype=DTYPE,
+    cache_dir=CACHE_DIR,
+)
 # %% Setup
 
 print(f"Current working directory: {Path.cwd()}")
@@ -32,14 +69,14 @@ cache_dir = ".cache"
 
 DOWNLOAD_DIR = ".data/local"
 download_experiment_checkpoint(
-    run_id="bganjcqn",
-    version="v3",
+    run_id="gmiyehyq",
+    version="v6",
     destination_dir=DOWNLOAD_DIR,
 )
 
 # %%
 
-sae = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "epoch_0_step_15000").to(device)
+sae = DiffingCrosscoder.load(Path(DOWNLOAD_DIR) / "model").to(device)
 assert sae.is_folded.item()
 sae.make_decoder_max_unit_norm_()
 

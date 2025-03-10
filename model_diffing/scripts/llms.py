@@ -20,20 +20,20 @@ def build_llm(
     device: torch.device,
     inference_dtype: str,
 ) -> HookedTransformer:
+    dtype = DTYPE_FROM_STRING[inference_dtype]
+
     if llm.name is not None:
-        # Case 1: Loading directly from transformer-lens model name
         model_key = f"tl-{llm.name}"
         if llm.revision:
             model_key += f"_rev-{llm.revision}"
 
-        llm_out = HookedTransformer.from_pretrained(
+        llm_out = HookedTransformer.from_pretrained_no_processing(
             llm.name,
             revision=llm.revision,
             cache_dir=cache_dir,
-            dtype=inference_dtype,
+            dtype=dtype,
         )
     else:
-        # Case 2: Loading from HuggingFace model
         assert llm.base_archicteture_name is not None
         assert llm.hf_model_name is not None
 
@@ -43,11 +43,11 @@ def build_llm(
             f"Loading HuggingFace model {llm.hf_model_name} into transformer-lens model {llm.base_archicteture_name}"
         )
 
-        llm_out = HookedTransformer.from_pretrained(
+        llm_out = HookedTransformer.from_pretrained_no_processing(
             llm.base_archicteture_name,
-            hf_model=AutoModelForCausalLM.from_pretrained(llm.hf_model_name, cache_dir=cache_dir),
+            hf_model=AutoModelForCausalLM.from_pretrained(llm.hf_model_name, cache_dir=cache_dir, dtype=dtype),
             cache_dir=cache_dir,
-            dtype=inference_dtype,
+            dtype=dtype,
         )
 
     # Replace any slashes with underscores to avoid potential path issues
@@ -60,3 +60,12 @@ def build_llm(
     logger.info(f"Assigned model key: {model_key} to model {llm_out.cfg.model_name}")
 
     return cast(HookedTransformer, llm_out.to(device))
+
+DTYPE_FROM_STRING = {
+    "float32": torch.float32,
+    "fp32": torch.float32,
+    "float16": torch.float16,
+    "fp16": torch.float16,
+    "bfloat16": torch.bfloat16,
+    "bf16": torch.bfloat16,
+}

@@ -71,11 +71,6 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         return self.hidden_activation.forward(pre_activation_BH)
 
     def _decode_BXD(self, hidden_BH: t.Tensor) -> t.Tensor:
-        # if isinstance(self.hidden_activation, JumpReLUActivation):
-        #     with t.no_grad():
-        #         threshold_H = (self.hidden_activation.log_threshold_H.exp() - self.hidden_activation.bandwidth)
-        #         hidden_BH = t.where(hidden_BH > threshold_H, hidden_BH, threshold_H)
-
         pre_bias_BXD = einsum(hidden_BH, self.W_dec_HXD, "b h, h ... d -> b ... d")
         return pre_bias_BXD + self.b_dec_XD
 
@@ -172,6 +167,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
 
         return cc
 
+    @t.no_grad()
     def make_decoder_max_unit_norm_(self) -> None:
         """
         scales the decoder weights such that the model makes the same predictions, but for
@@ -183,20 +179,19 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
          [0.2, 0.4],
          [0.1, 0.3]]
         """
-        with t.no_grad():
-            output_space_norms_HX = reduce(self.W_dec_HXD, "h ... d -> h ...", l2_norm)
-            assert output_space_norms_HX.shape[1:] == self.crosscoding_dims
-            cc_dim_indices = list(range(1, len(self.crosscoding_dims) + 1))
-            max_norms_per_latent_H = output_space_norms_HX.amax(dim=cc_dim_indices)  # all but the first dimension
-            assert max_norms_per_latent_H.shape == (self.hidden_dim,)
-            # XD_dim_nones = [None, None, None]  # [None] * (len(self.crosscoding_dims) + 1)
+        output_space_norms_HX = reduce(self.W_dec_HXD, "h ... d -> h ...", l2_norm)
+        assert output_space_norms_HX.shape[1:] == self.crosscoding_dims
+        cc_dim_indices = list(range(1, len(self.crosscoding_dims) + 1))
+        max_norms_per_latent_H = output_space_norms_HX.amax(dim=cc_dim_indices)  # all but the first dimension
+        assert max_norms_per_latent_H.shape == (self.hidden_dim,)
+        # XD_dim_nones = [None, None, None]  # [None] * (len(self.crosscoding_dims) + 1)
 
-            # this means that the maximum norm of the decoder vectors into a given output space is 1
-            # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
-            self.W_dec_HXD.copy_(self.W_dec_HXD / max_norms_per_latent_H[..., None, None, None])  # this is broken!
-            self.W_enc_XDH.copy_(self.W_enc_XDH * max_norms_per_latent_H[None, None, None, ...])
-            self.b_enc_H.copy_(self.b_enc_H * max_norms_per_latent_H)
-            # no alteration needed for self.b_dec_XD
+        # this means that the maximum norm of the decoder vectors into a given output space is 1
+        # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
+        self.W_dec_HXD.copy_(self.W_dec_HXD / max_norms_per_latent_H[..., None, None, None])  # this is broken!
+        self.W_enc_XDH.copy_(self.W_enc_XDH * max_norms_per_latent_H[None, None, None, ...])
+        self.b_enc_H.copy_(self.b_enc_H * max_norms_per_latent_H)
+        # no alteration needed for self.b_dec_XD
 
     @t.no_grad()
     def _scale_weights(self, scaling_factors_X: t.Tensor) -> None:

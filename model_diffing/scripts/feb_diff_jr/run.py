@@ -1,6 +1,7 @@
 from typing import TypeVar
 
 import fire  # type: ignore
+import torch  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger

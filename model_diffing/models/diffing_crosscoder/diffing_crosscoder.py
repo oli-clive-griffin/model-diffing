@@ -1,15 +1,16 @@
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, cast
 
 import torch as t
-from einops import einsum, repeat
+from einops import einsum, reduce, repeat
 from torch import nn
 
 from model_diffing.log import logger
 from model_diffing.models import InitStrategy
 from model_diffing.models.activations import ACTIVATIONS_MAP
 from model_diffing.models.activations.activation_function import ActivationFunction
-from model_diffing.utils import SaveableModule
+from model_diffing.utils import SaveableModule, l2_norm
 
 """
 Dimensions:
@@ -28,8 +29,8 @@ N_MODELS = 2
 class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
     """Model-Diffing Crosscoder from"""
 
-    # is_folded: t.Tensor
-    # folded_scaling_factors_M: t.Tensor | None
+    is_folded: t.Tensor
+    folded_scaling_factors_M: t.Tensor | None
 
     def __init__(
         self,
@@ -57,7 +58,8 @@ class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
 
         self.hidden_activation = hidden_activation
 
-        self._W_dec_shared_HsD = nn.Parameter(t.empty((n_explicitly_shared_latents, d_model)))
+        self._W_dec_shared_m0_HsD = nn.Parameter(t.empty((n_explicitly_shared_latents, d_model)))
+        self._W_dec_shared_m1_HsD = self._W_dec_shared_m0_HsD
         """decoder weights for the shared features"""
 
         self._W_dec_indep_HiMD = nn.Parameter(t.empty((hidden_dim - n_explicitly_shared_latents, N_MODELS, d_model)))
@@ -68,20 +70,21 @@ class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
         if init_strategy is not None:
             init_strategy.init_weights(self)
 
-        # # Initialize the buffer with a zero tensor of the correct shape, this means it's always serialized
-        # self.register_buffer("folded_scaling_factors_M", t.zeros(N_MODELS))
-        # # However, track whether it's actually holding a meaningful value by using this boolean flag.
-        # # Represented as a tensor so that it's serialized by torch.save
-        # self.register_buffer("is_folded", t.tensor(False, dtype=t.bool))
+        # Initialize the buffer with a zero tensor of the correct shape, this means it's always serialized
+        self.register_buffer("folded_scaling_factors_M", t.zeros(N_MODELS))
+        # However, track whether it's actually holding a meaningful value by using this boolean flag.
+        # Represented as a tensor so that it's serialized by torch.save
+        self.register_buffer("is_folded", t.tensor(False, dtype=t.bool))
 
     def theoretical_decoder_W_dec_HMD(self) -> t.Tensor:
         """
         This is not a real weight matrix, it's theoretically what the decoder WOULD be without the weight sharing
         """
-        W_dec_shared_HsMD = repeat(self._W_dec_shared_HsD, "h_shared d -> h_shared model d", model=2)
+        W_dec_shared_HsMD = t.stack([self._W_dec_shared_m0_HsD, self._W_dec_shared_m1_HsD], dim=1)
 
         # IMPORTANT: shared latents are the FIRST `n_shared_latents` along the hidden dim, ordering matters
-        W_dec_HMD = t.cat([W_dec_shared_HsMD, self._W_dec_indep_HiMD], dim=0)
+        W_dec_HMD = self._join_shared_indep(shared=W_dec_shared_HsMD, indep=self._W_dec_indep_HiMD, dim=0)
+        assert W_dec_HMD.shape == (self.hidden_dim, N_MODELS, self.d_model)
 
         return W_dec_HMD
 
@@ -118,15 +121,28 @@ class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
 
         return res
 
+    def _join_shared_indep(self, shared: t.Tensor, indep: t.Tensor, dim: int) -> t.Tensor:
+        assert shared.shape[dim] == self.n_shared_latents
+        assert indep.shape[dim] == self.hidden_dim - self.n_shared_latents
+        return t.cat([shared, indep], dim=dim)
+
     def _decode(self, latents_shared_BHs: t.Tensor, latents_indep_BHi: t.Tensor) -> t.Tensor:
         # decoder for shared latents
-        pre_bias_shared_BD = einsum(latents_shared_BHs, self._W_dec_shared_HsD, "b h_shared, h_shared d -> b d")
-        pre_bias_shared_BMD = repeat(pre_bias_shared_BD, "b d -> b model d", model=N_MODELS)
+        # pre_bias_shared_m1_B1D = einsum(
+        #     latents_shared_BHs, self._W_dec_shared_m0_Hs1D, "b h_shared, h_shared m1 d -> b m1 d"
+        # )
+        # pre_bias_shared_m2_B1D = einsum(
+        #     latents_shared_BHs, self._W_dec_shared_m1_Hs1D, "b h_shared, h_shared m2 d -> b m2 d"
+        # )
+
+        # pre_bias_shared_BMD = t.cat([pre_bias_shared_m1_B1D, pre_bias_shared_m2_B1D], dim=1)
+        latents_BH = self._join_shared_indep(shared=latents_shared_BHs, indep=latents_indep_BHi, dim=-1)
+        pre_bias_BMD = einsum(latents_BH, self.theoretical_decoder_W_dec_HMD(), "b h_shared, h_shared m d -> b m d")
 
         # decoder for independent latents
-        pre_bias_indep_BMD = einsum(latents_indep_BHi, self._W_dec_indep_HiMD, "b h_indep, h_indep m d -> b m d")
+        # pre_bias_indep_BMD = einsum(latents_indep_BHi, self._W_dec_indep_HiMD, "b h_indep, h_indep m d -> b m d")
 
-        pre_bias_BMD = pre_bias_shared_BMD + pre_bias_indep_BMD
+        # pre_bias_BMD = pre_bias_shared_BMD + pre_bias_indep_BMD
 
         return pre_bias_BMD + self.b_dec_MD
 
@@ -171,99 +187,6 @@ class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
             # don't need to serialize init_strategy as loading from state_dict will re-initialize the params
         )
 
-    # def with_decoder_unit_norm(self) -> "DiffingCrosscoder[TActivation]":
-    #     """
-    #     returns a copy of the model with the weights rescaled such that the decoder norm of each feature is one,
-    #     but the model makes the same predictions.
-    #     """
-
-    #     raise NotImplementedError("Not implemented")
-
-    #     cc = DiffingCrosscoder(
-    #         d_model=self.d_model,
-    #         hidden_dim=self.hidden_dim,
-    #         hidden_activation=self.hidden_activation,
-    #     )
-
-    #     cc.make_decoder_max_unit_norm_()
-
-    #     return cc
-
-    # def make_decoder_max_unit_norm_(self) -> None:
-    #     """
-    #     scales the decoder weights such that the model makes the same predictions, but for
-    #     each latent, the maximum norm of it's decoder vectors is 1.
-
-    #     For example, in a 2-model, 3-hookpoint crosscoder, the norms for a given latent might be scaled to:
-
-    #     [[1, 0.2],
-    #      [0.2, 0.4],
-    #      [0.1, 0.3]]
-    #     """
-    #     raise NotImplementedError("Not implemented")
-    #     with t.no_grad():
-    #         output_space_norms_HM = reduce(self.W_dec_HMD, "h m d -> h m", l2_norm)
-    #         max_norms_per_latent_H = output_space_norms_HM.amax(dim=1)  # all but the first dimension
-    #         assert max_norms_per_latent_H.shape == (self.hidden_dim,)
-
-    #         # this means that the maximum norm of the decoder vectors into a given output space is 1
-    #         # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
-    #         self.W_dec_HMD.copy_(self.W_dec_HMD / max_norms_per_latent_H[..., None, None])
-    #         self.W_enc_MDH.copy_(self.W_enc_MDH * max_norms_per_latent_H)
-    #         self.b_enc_H.copy_(self.b_enc_H * max_norms_per_latent_H)
-    #         # no alteration needed for self.b_dec_MD
-
-    # @t.no_grad()
-    # def _scale_weights(self, scaling_factors_2: t.Tensor) -> None:
-    #     raise NotImplementedError("Not implemented")
-
-    #     self.W_enc_MDH.mul_(scaling_factors_2[..., None, None])
-    #     self.W_dec_HMD.div_(scaling_factors_2[..., None])
-    #     self.b_dec_MD.div_(scaling_factors_2[..., None])
-
-    def _validate_scaling_factors(self, scaling_factors_M: t.Tensor) -> None:
-        if t.any(scaling_factors_M == 0):
-            raise ValueError("Scaling factors contain zeros, which would lead to division by zero")
-        if t.any(t.isnan(scaling_factors_M)) or t.any(t.isinf(scaling_factors_M)):
-            raise ValueError("Scaling factors contain NaN or Inf values")
-
-    # @contextmanager
-    # def temporarily_fold_activation_scaling(self, scaling_factors_M: t.Tensor):
-    #     """Temporarily fold scaling factors into weights."""
-    #     self.fold_activation_scaling_into_weights_(scaling_factors_M)
-    #     yield
-    #     _ = self.unfold_activation_scaling_from_weights_()
-
-    # def fold_activation_scaling_into_weights_(self, scaling_factors_M: t.Tensor) -> None:
-    #     """scales the crosscoder weights by the activation scaling factors, so that the m can be run on raw llm activations."""
-    #     if self.is_folded.item():
-    #         raise ValueError("Scaling factors already folded into weights")
-
-    #     self._validate_scaling_factors(scaling_factors_M)
-    #     scaling_factors_M = scaling_factors_M.to(self.W_enc_MDH.device)
-    #     self._scale_weights(scaling_factors_M)
-
-    #     # set buffer to prevent double-folding
-    #     self.folded_scaling_factors_M = scaling_factors_M
-    #     self.is_folded = t.tensor(True, dtype=t.bool)
-
-    # def unfold_activation_scaling_from_weights_(self) -> t.Tensor:
-    #     if not self.is_folded.item():
-    #         raise ValueError("No folded scaling factors found")
-
-    #     if self.folded_scaling_factors_M is None:
-    #         raise ValueError("Inconsistent state: is_folded is True but folded_scaling_factors_M is None")
-
-    #     folded_scaling_factors_M = self.folded_scaling_factors_M.clone()
-    #     # Clear the buffer before operations to prevent double-unfolding
-
-    #     self.folded_scaling_factors_M = None
-    #     self.is_folded = t.tensor(False, dtype=t.bool)
-
-    #     self._scale_weights(1 / folded_scaling_factors_M)
-
-    #     return folded_scaling_factors_M
-
     def _validate_acts_shape(self, activation_BMD: t.Tensor) -> None:
         n_models, d_model = activation_BMD.shape[1:]
         if d_model != self.d_model:
@@ -271,50 +194,108 @@ class DiffingCrosscoder(SaveableModule, Generic[TActivation]):
         if n_models != N_MODELS:
             raise ValueError(f"n_models {n_models} != N_MODELS {N_MODELS}")
 
+    def with_decoder_unit_norm(self) -> "DiffingCrosscoder[TActivation]":
+        """
+        returns a copy of the model with the weights rescaled such that the decoder norm of each feature is one,
+        but the model makes the same predictions.
+        """
 
-if __name__ == "__main__":
-    from model_diffing.models.activations import ReLUActivation
+        cc = DiffingCrosscoder(
+            d_model=self.d_model,
+            hidden_dim=self.hidden_dim,
+            n_explicitly_shared_latents=self.n_shared_latents,
+            hidden_activation=self.hidden_activation,
+        )
 
-    class RandomInit(InitStrategy[DiffingCrosscoder[ActivationFunction]]):
-        @t.no_grad()
-        def init_weights(self, cc: DiffingCrosscoder[ActivationFunction]) -> None:
-            cc.W_enc_MDH.random_()
-            cc.b_enc_H.random_()
+        cc.make_decoder_max_unit_norm_()
 
-            cc._W_dec_indep_HiMD.random_()
-            cc._W_dec_shared_HsD.random_()
-            cc.b_dec_MD.random_()
+        return cc
 
-    n_latents = 4
-    shared_latents = 1
+    @t.no_grad()
+    def make_decoder_max_unit_norm_(self) -> None:
+        # raise ValueError("Not implemented")
+        output_space_norms_HM = l2_norm(self.theoretical_decoder_W_dec_HMD(), dim=-1)
+        max_norms_per_latent_H = output_space_norms_HM.amax(dim=1)
 
-    d_model = 5
+        self.W_enc_MDH.mul_(max_norms_per_latent_H)
+        self.b_enc_H.mul_(max_norms_per_latent_H)
 
-    cc = DiffingCrosscoder(  # type: ignore
-        d_model=d_model,
-        hidden_dim=n_latents,
-        n_explicitly_shared_latents=shared_latents,
-        hidden_activation=ReLUActivation(),
-        init_strategy=RandomInit(),
-    )
+        max_norms_per_latent_indep_Hi = max_norms_per_latent_H[: self.n_shared_latents]
+        max_norms_per_latent_shared_Hs = max_norms_per_latent_H[self.n_shared_latents :]
 
-    activation_BMD = t.randn(1, N_MODELS, d_model)
-    res = cc.forward_train(activation_BMD)
-    mse = (res.recon_acts_BMD - activation_BMD).pow(2).mean()
-    mse.backward()
+        self._W_dec_indep_HiMD.div_(max_norms_per_latent_indep_Hi[..., None, None])
+        self._W_dec_shared_m0_HsD = nn.Parameter(
+            self._W_dec_shared_m0_HsD / max_norms_per_latent_shared_Hs[..., None, None]
+        )
+        self._W_dec_shared_m1_HsD = nn.Parameter(
+            self._W_dec_shared_m1_HsD / max_norms_per_latent_shared_Hs[..., None, None]
+        )
 
-    print(f"{cc._W_dec_shared_HsD.grad=}")
-    print(f"{cc._W_dec_indep_HiMD.grad=}")
+    @t.no_grad()
+    def _scale_weights_(self, scaling_factors_M: t.Tensor) -> None:
+        if scaling_factors_M.shape != (N_MODELS,):
+            raise ValueError(f"scaling_factors_M.shape {scaling_factors_M.shape} != (N_MODELS,)")
 
-    assert cc._W_dec_shared_HsD.grad is not None
-    assert cc._W_dec_indep_HiMD.grad is not None
+        self.W_enc_MDH.mul_(scaling_factors_M[..., None, None])
 
-    theoretical_grad_W_dec_HMD = t.cat(
-        [
-            repeat(cc._W_dec_shared_HsD.grad, "h_shared d -> h_shared model d", model=2),
-            cc._W_dec_indep_HiMD.grad,
-        ],
-        dim=0,
-    )
+        self._W_dec_indep_HiMD.div_(scaling_factors_M[..., None])
 
-    print(f"{theoretical_grad_W_dec_HMD=}")
+        # IMPORTANT. here we untie _W_dec_shared_m1_Hs1D and _W_dec_shared_m2_Hs1D to divide by seperate scaling factors
+        self._W_dec_shared_m0_HsD = nn.Parameter(self._W_dec_shared_m0_HsD / scaling_factors_M[0])
+        self._W_dec_shared_m1_HsD = nn.Parameter(self._W_dec_shared_m1_HsD / scaling_factors_M[1])
+
+        # super hacky but good for safety
+        wrapped_forward_train = self.forward_train
+
+        def monkey_patch(*_args, **_kwargs):  # type: ignore
+            logger.warning("Training after seperating decoder weights. Weights will no longer be tied")
+            return wrapped_forward_train(*_args, **_kwargs)
+
+        self.forward_train = monkey_patch  # type: ignore
+
+        self.b_dec_MD.div_(scaling_factors_M[..., None])
+
+    def _validate_scaling_factors(self, scaling_factors_M: t.Tensor) -> None:
+        if scaling_factors_M.shape != (N_MODELS,):
+            raise ValueError(f"Expected shape ({N_MODELS},), got {scaling_factors_M.shape}")
+        if t.any(scaling_factors_M == 0):
+            raise ValueError("Scaling factors contain zeros, which would lead to division by zero")
+        if t.any(t.isnan(scaling_factors_M)) or t.any(t.isinf(scaling_factors_M)):
+            raise ValueError("Scaling factors contain NaN or Inf values")
+
+    @contextmanager
+    def temporarily_fold_activation_scaling(self, scaling_factors_M: t.Tensor):
+        """Temporarily fold scaling factors into weights."""
+        self.fold_activation_scaling_into_weights_(scaling_factors_M)
+        yield
+        _ = self.unfold_activation_scaling_from_weights_()
+
+    def fold_activation_scaling_into_weights_(self, scaling_factors_M: t.Tensor) -> None:
+        """scales the crosscoder weights by the activation scaling factors, so that the m can be run on raw llm activations."""
+        if self.is_folded.item():
+            raise ValueError("Scaling factors already folded into weights")
+
+        # self._validate_scaling_factors(scaling_factors_M)
+        scaling_factors_M = scaling_factors_M.to(self.W_enc_MDH.device)
+        self._scale_weights_(scaling_factors_M)
+
+        # set buffer to prevent double-folding
+        self.folded_scaling_factors_M = scaling_factors_M
+        self.is_folded = t.tensor(True, dtype=t.bool)
+
+    def unfold_activation_scaling_from_weights_(self) -> t.Tensor:
+        if not self.is_folded.item():
+            raise ValueError("No folded scaling factors found")
+
+        if self.folded_scaling_factors_M is None:
+            raise ValueError("Inconsistent state: is_folded is True but folded_scaling_factors_M is None")
+
+        folded_scaling_factors_M = self.folded_scaling_factors_M.clone()
+        # Clear the buffer before operations to prevent double-unfolding
+
+        self.folded_scaling_factors_M = None
+        self.is_folded = t.tensor(False, dtype=t.bool)
+
+        self._scale_weights_(1 / folded_scaling_factors_M)
+
+        return folded_scaling_factors_M

@@ -55,6 +55,24 @@ def create_cosine_sim_and_relative_norm_histograms(
 
     return plots
 
+def create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_HMD: torch.Tensor) -> dict[str, wandb.Histogram]:
+    _, n_models, _ = W_dec_HMD.shape
+    assert n_models == 2, "only works for 2 models"
+
+    plots: dict[str, wandb.Histogram] = {}
+    W_dec_a_HD = W_dec_HMD[:, 0]
+    W_dec_b_HD = W_dec_HMD[:, 1]
+
+    relative_norms = metrics.compute_relative_norms_N(W_dec_a_HD, W_dec_b_HD)
+    plots["media/relative_decoder_norms"] = wandb_histogram(relative_norms)
+
+    shared_latent_mask = metrics.get_shared_latent_mask(relative_norms)
+    cosine_sims = metrics.compute_cosine_similarities_N(W_dec_a_HD, W_dec_b_HD)
+    shared_features_cosine_sims = cosine_sims[shared_latent_mask]
+    plots["media/cosine_sim"] = wandb_histogram(shared_features_cosine_sims)
+
+    return plots
+
 
 def wandb_histogram(data_X: torch.Tensor | np.ndarray[Any, Any], bins: int = 100) -> wandb.Histogram:
     if isinstance(data_X, torch.Tensor):
@@ -106,9 +124,10 @@ def estimate_norm_scaling_factor_X(
     dataloader_BXD: Iterator[torch.Tensor],
     n_tokens_for_norm_estimate: int,
 ) -> torch.Tensor:
-    batch_size, *_, d_model = next(dataloader_BXD).shape
-    mean_norms_X = _estimate_mean_norms_X(dataloader_BXD, n_tokens_for_norm_estimate, batch_size)
-    scaling_factors_X = torch.sqrt(torch.tensor(d_model)) / mean_norms_X
+    sample_BXD = next(dataloader_BXD)
+    batch_size, *_, d_model = sample_BXD.shape
+    mean_norms_X = _estimate_mean_norms_X(dataloader_BXD, n_tokens_for_norm_estimate, batch_size, sample_BXD.device)
+    scaling_factors_X = torch.sqrt(torch.tensor(d_model, device=sample_BXD.device)) / mean_norms_X
     return scaling_factors_X
 
 
@@ -117,6 +136,7 @@ def _estimate_mean_norms_X(
     dataloader_BMPD: Iterator[torch.Tensor],
     n_tokens_for_norm_estimate: int,
     batch_size: int,
+    device: torch.device,
 ) -> torch.Tensor:
     norm_samples = []
 
@@ -126,7 +146,7 @@ def _estimate_mean_norms_X(
         desc="Estimating norm scaling factor",
         total=n_batches_needed,
     ):
-        norms_means_X = l2_norm(batch_BXD, dim=-1).mean(dim=0)
+        norms_means_X = l2_norm(batch_BXD.to(device), dim=-1).mean(dim=0)
         norm_samples.append(norms_means_X)
 
     norm_samples_NX = torch.stack(norm_samples, dim=0)

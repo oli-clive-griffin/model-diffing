@@ -115,6 +115,9 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
         self.unique_tokens_trained = 0
 
     def train(self):
+        scaling_factors_TP = self.activations_dataloader.get_norm_scaling_factors_TP()
+        scaling_factor_1P = scaling_factors_TP.mean(dim=0, keepdim=True)
+
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             for batch_BTPD in tqdm(
@@ -127,9 +130,6 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                 self._train_step(batch_BTPD)
 
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
-                    scaling_factors_TP = self.activations_dataloader.get_norm_scaling_factors_TP()
-                    scaling_factor_1P = scaling_factors_TP.mean(dim=0, keepdim=True)
-
                     step_dir_single = self.save_dir / f"epoch_{self.epoch}_step_{self.step}_single"
                     step_dir_double = self.save_dir / f"epoch_{self.epoch}_step_{self.step}_double"
 
@@ -139,11 +139,12 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                     with self.crosscoders.double_cc.temporarily_fold_activation_scaling(scaling_factors_TP):
                         save_model(self.crosscoders.double_cc, step_dir_double)
 
-                    artifact = create_checkpoint_artifact(step_dir_single, self.wandb_run.id, self.step, self.epoch)
-                    self.wandb_run.log_artifact(artifact)
+                    if self.cfg.upload_saves_to_wandb:
+                        artifact = create_checkpoint_artifact(step_dir_single, self.wandb_run.id, self.step, self.epoch)
+                        self.wandb_run.log_artifact(artifact)
 
-                    artifact = create_checkpoint_artifact(step_dir_double, self.wandb_run.id, self.step, self.epoch)
-                    self.wandb_run.log_artifact(artifact)
+                        artifact = create_checkpoint_artifact(step_dir_double, self.wandb_run.id, self.step, self.epoch)
+                        self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BTPD.shape[0]

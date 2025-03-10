@@ -74,10 +74,10 @@ class ModelDiffingAnthropicTransposeInit(InitStrategy[DiffingCrosscoder[Any]]):
     @torch.no_grad()
     def init_weights(self, cc: DiffingCrosscoder[Any]) -> None:
         # First, initialize the decoder weights to point in random directions, and have
-        random_direction_init_(cc._W_dec_shared_HsD, self.dec_init_norm)
+        random_direction_init_(cc._W_dec_shared_m0_HsD, self.dec_init_norm)
         random_direction_init_(cc._W_dec_indep_HiMD, self.dec_init_norm)
 
-        cc.W_enc_MDH.copy_(rearrange(cc.theoretical_decoder_W_dec_HMD(), "hidden ... -> ... hidden"))
+        cc.W_enc_MDH.copy_(rearrange(cc.theoretical_decoder_W_dec_HMD().clone(), "h ... -> ... h"))
 
         cc.b_enc_H.zero_()
         cc.b_dec_MD.zero_()

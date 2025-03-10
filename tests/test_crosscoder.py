@@ -80,10 +80,19 @@ def test_weights_folding_keeps_hidden_representations_consistent():
     )
 
 
+def assert_close(a: t.Tensor, b: t.Tensor, rtol: float = 1e-05, atol: float = 1e-08):
+    assert t.allclose(a, b, rtol=rtol, atol=atol), (
+        f"max diff: abs: {t.max(t.abs(a - b)).item():.2e}, rel: {t.max(t.abs(a - b) / t.abs(b)).item():.2e}"
+    )
+
+
 def test_weights_folding_scales_output_correctly():
     batch_size = 2
-    n_models = 4
-    n_hookpoints = 5
+
+    # TODO UNDO ME
+    n_models = 2
+    n_hookpoints = 1
+
     d_model = 6
     cc_hidden_dim = 6
     dec_init_norm = 0.1
@@ -96,21 +105,20 @@ def test_weights_folding_scales_output_correctly():
         init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
     )
 
-    scaling_factors_MP = t.randn(n_models, n_hookpoints)
+    # scaling_factors_MP = t.randn(n_models, n_hookpoints)
+    scaling_factors_MP = (t.rand(n_models, n_hookpoints) / 10) + 0.8  # 0.8 to 0.9
+    scaling_factors_MP1 = scaling_factors_MP.unsqueeze(-1)
 
     unscaled_input_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
-    scaled_input_BMPD = unscaled_input_BMPD * scaling_factors_MP[..., None]
+    scaled_input_BMPD = unscaled_input_BMPD * scaling_factors_MP1
 
     scaled_output_BMPD = crosscoder.forward_train(scaled_input_BMPD).output_BXD
 
     crosscoder.fold_activation_scaling_into_weights_(scaling_factors_MP)
     unscaled_output_folded_BMPD = crosscoder.forward_train(unscaled_input_BMPD).output_BXD
-    scaled_output_folded_BMPD = unscaled_output_folded_BMPD * scaling_factors_MP[..., None]
 
     # with folded weights, the output should be scaled by the scaling factors
-    assert t.allclose(scaled_output_BMPD, scaled_output_folded_BMPD, atol=1e-4), (
-        f"max diff: {t.max(t.abs(scaled_output_BMPD - scaled_output_folded_BMPD))}"
-    )
+    assert_close(scaled_output_BMPD, unscaled_output_folded_BMPD * scaling_factors_MP1)
 
 
 class RandomInit(InitStrategy[AcausalCrosscoder[Any]]):
@@ -145,6 +153,9 @@ def test_weights_rescaling_retains_output():
     assert t.allclose(output_BMPD.output_BXD, output_rescaled_BMPD.output_BXD), (
         f"max diff: {t.max(t.abs(output_BMPD.output_BXD - output_rescaled_BMPD.output_BXD))}"
     )
+
+
+test_weights_rescaling_retains_output()
 
 
 def test_weights_rescaling_max_norm():

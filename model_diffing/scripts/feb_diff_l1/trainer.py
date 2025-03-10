@@ -27,7 +27,7 @@ class ModelDiffingFebUpdateL1Trainer(BaseDiffingTrainer[L1ModelDiffingFebUpdateT
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BMD)
 
         # shared features sparsity loss:
-        decoder_norms_Hs = l2_norm(self.crosscoder._W_dec_shared_HsD, dim=-1)
+        decoder_norms_Hs = l2_norm(self.crosscoder._W_dec_shared_m0_HsD, dim=-1)
         sparsity_loss_shared_BHs = train_res.hidden_shared_BHs * decoder_norms_Hs
         sparsity_loss_shared = reduce(sparsity_loss_shared_BHs, "b h_shared -> b", l1_norm).mean()
         lambda_s = self._lambda_s_scheduler()

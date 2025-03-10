@@ -1,4 +1,3 @@
-import random
 from typing import Literal
 
 import torch
@@ -27,6 +26,7 @@ class ActivationsHarvester:
         if len({llm.cfg.d_model for llm in llms}) != 1:
             raise ValueError("All models must have the same d_model")
         self._llms = llms
+        self._device = llms[0].W_E.device
         self._hookpoints = hookpoints
 
         # Set up the activations cache
@@ -49,50 +49,22 @@ class ActivationsHarvester:
     def _names_filter(self, name: str) -> bool:
         return name in self._hookpoints  # not doing any fancy hash/set usage as this list is tiny
 
-    def _compute_model_activations_HSPD(
-        self,
-        model: HookedTransformer,
-        sequence_HS: torch.Tensor,
-    ) -> torch.Tensor:
-        """Compute activations by running the model with memory monitoring."""
-        with torch.no_grad():
-            _, cache = model.run_with_cache(
-                sequence_HS,
-                names_filter=self._names_filter,
-                stop_at_layer=self._layer_to_stop_at,
-            )
-
-        # cache[name] is shape BSD, so stacking on dim 2 = HsPD
-        activations_HSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)
-        return activations_HSPD
-
-    def _get_model_activations_HSPD(
-        self,
-        model: HookedTransformer,
-        sequence_HS: torch.Tensor,
-    ) -> torch.Tensor:
-        # Check if we can load from cache
-        if self._cache:
-            cache_key = self._cache.get_cache_key(model, sequence_HS)
-            activations_HSPD = self._cache.load_activations(cache_key, sequence_HS.device)
-
-            if activations_HSPD is None:
-                activations_HSPD = self._compute_model_activations_HSPD(model, sequence_HS)
-                self._cache.save_activations(cache_key, activations_HSPD)
-
-            return activations_HSPD
-
-        # Compute activations if not cached or cache loading failed
-        activations_HSPD = self._compute_model_activations_HSPD(model, sequence_HS)
-
-        return activations_HSPD
-
     def get_activations_HSMPD(
         self,
         sequence_HS: torch.Tensor,
     ) -> torch.Tensor:
-        activations = [self._get_model_activations_HSPD(model, sequence_HS) for model in self._llms]
-        activations_HSMPD = torch.stack(activations, dim=2)
+        MPD = (len(self._llms), len(self._hookpoints), self._llms[0].cfg.d_model)
+        activations_HSMPD = torch.empty(*sequence_HS.shape, *MPD, device=self._device)
+        for m, model in enumerate(self._llms):
+            with torch.no_grad():
+                _, cache = model.run_with_cache(
+                    sequence_HS.to(self._device),
+                    names_filter=self._names_filter,
+                    stop_at_layer=self._layer_to_stop_at,
+                )
+            for p, hookpoint in enumerate(self._hookpoints):
+                hookpoint_act_HSD = cache[hookpoint]
+                activations_HSMPD[:, :, m, p, :] = hookpoint_act_HSD
         return activations_HSMPD
 
 

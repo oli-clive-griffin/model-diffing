@@ -83,34 +83,3 @@ class GroupMaxActivation(ActivationFunction):
     @classmethod
     def _from_cfg(cls, cfg: dict[str, Any]) -> "GroupMaxActivation":
         return cls(cfg["k_groups"], cfg["hidden_size"])
-
-
-# ideas:
-# probably not going to work super well like this. Need to do all / each k reconstructions at once
-
-# class MatryoshkaTopKActivation(ActivationFunction):
-#     def __init__(self, get_k: Callable[[], int] | list[int]):
-#         super().__init__()
-#         self.get_k = get_k if callable(get_k) else lambda: random.choice(get_k)
-
-#     def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
-#         _topk_values_BH, topk_indices_BH = hidden_preact_BH.topk(self.get_k(), dim=-1, sorted=False)
-#         hidden_BH = t.zeros_like(hidden_preact_BH)
-#         hidden_BH.scatter_(-1, topk_indices_BH, _topk_values_BH)
-#         # TODO: use faster implementation as in https://github.com/EleutherAI/sparsify
-#         return hidden_BH
-
-
-# class MatryoshkaBatchTopKActivation(ActivationFunction):
-#     def __init__(self, get_k: Callable[[], int] | list[int]):
-#         super().__init__()
-#         self.get_k = get_k if callable(get_k) else lambda: random.choice(get_k)
-
-#     def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
-#         batch_size = hidden_preact_BH.shape[0]
-#         batch_k = self.get_k() * batch_size
-#         hidden_preact_Bh = rearrange(hidden_preact_BH, "batch hidden -> (batch hidden)")
-#         topk_values_Bh, topk_indices_Bh = hidden_preact_Bh.topk(k=batch_k, sorted=False)
-#         hidden_Bh = t.zeros_like(hidden_preact_Bh)
-#         hidden_Bh.scatter_(-1, topk_indices_Bh, topk_values_Bh)
-#         return rearrange(hidden_Bh, "(batch hidden) -> batch hidden", batch=batch_size)

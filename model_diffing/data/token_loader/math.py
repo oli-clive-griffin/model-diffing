@@ -85,8 +85,10 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
             )
 
             return {
-                "tokens_HS": cast(torch.Tensor, tok_res["input_ids"]),
-                "special_tokens_mask_HS": torch.isin(cast(torch.Tensor, tok_res["input_ids"]), special_ids),
+                "tokens_HS": cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length],
+                "special_tokens_mask_HS": torch.isin(
+                    cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length], special_ids
+                ),
             }
 
         assert self._batch_size % 2 == 0

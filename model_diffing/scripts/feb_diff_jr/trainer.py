@@ -5,8 +5,8 @@ from einops import reduce
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
-from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
+from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
 from model_diffing.scripts.utils import get_l0_stats
 from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, l2_norm
@@ -33,7 +33,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BMD)
 
         # shared features sparsity loss
-        shared_dec_norms_Hs = reduce(self.crosscoder._W_dec_shared_HsD, "h_shared dim -> h_shared", l2_norm)
+        shared_dec_norms_Hs = reduce(self.crosscoder._W_dec_shared_m0_HsD, "h_shared 1 dim -> h_shared", l2_norm)
         sparsity_loss_shared = self._tanh_sparsity_loss(train_res.hidden_shared_BHs, shared_dec_norms_Hs)
         lambda_s = self._lambda_s_scheduler()
 

@@ -84,6 +84,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
     def train(self) -> None:
+        scaling_factors_MP = self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
@@ -103,13 +104,12 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
 
-                    with self.crosscoder.temporarily_fold_activation_scaling(
-                        self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
-                    ):
+                    with self.crosscoder.temporarily_fold_activation_scaling(scaling_factors_MP):
                         save_model(self.crosscoder, checkpoint_path)
 
-                    artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
-                    self.wandb_run.log_artifact(artifact)
+                    if self.cfg.upload_saves_to_wandb:
+                        artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
+                        self.wandb_run.log_artifact(artifact)
 
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BMPD.shape[0]
