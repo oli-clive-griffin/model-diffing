@@ -55,6 +55,7 @@ def create_cosine_sim_and_relative_norm_histograms(
 
     return plots
 
+
 def create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_HMD: torch.Tensor) -> dict[str, wandb.Histogram]:
     _, n_models, _ = W_dec_HMD.shape
     assert n_models == 2, "only works for 2 models"

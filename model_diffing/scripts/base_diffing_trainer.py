@@ -10,15 +10,14 @@ from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.log import logger
+from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.activation_function import ActivationFunction
-from model_diffing.models.diffing_crosscoder import DiffingCrosscoder
 from model_diffing.scripts.base_trainer import save_model, validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import (
     build_lr_scheduler,
     build_optimizer,
-    create_cosine_sim_and_relative_norm_histograms,
     create_cosine_sim_and_relative_norm_histograms_diffing,
     wandb_histogram,
 )
@@ -33,13 +32,18 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
         self,
         cfg: TConfig,
         activations_dataloader: BaseModelHookpointActivationsDataloader,
-        crosscoder: DiffingCrosscoder[TAct],
+        crosscoder: AcausalCrosscoder[TAct],
+        model_dim_cc_idx: int,
+        n_shared_weights: int,
         wandb_run: Run,
         device: torch.device,
         hookpoints: list[str],
         save_dir: Path | str,
     ):
         self.cfg = cfg
+        self.model_dim_cc_idx = model_dim_cc_idx
+        assert crosscoder.crosscoding_dims[model_dim_cc_idx] == 2, "expected the model dimension to be 2"
+        self.n_shared_weights = n_shared_weights
         self.activations_dataloader = activations_dataloader
 
         self.crosscoder = crosscoder
@@ -71,6 +75,16 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
         self.epoch = 0
         self.unique_tokens_trained = 0
 
+    def _synchronise_shared_weight_grads(self) -> None:
+        assert self.crosscoder.W_dec_HXD.shape[1 + self.model_dim_cc_idx] == 2, "expected the model dimension to be 2"
+        assert self.crosscoder.W_dec_HXD.grad is not None
+        self.crosscoder.W_dec_HXD[: self.n_shared_weights, 0].grad += self.crosscoder.W_dec_HXD[
+            : self.n_shared_weights, 1
+        ].grad  # type: ignore
+        self.crosscoder.W_dec_HXD[: self.n_shared_weights, 1].grad += self.crosscoder.W_dec_HXD[
+            : self.n_shared_weights, 0
+        ].grad  # type: ignore
+
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"
         if self.lr_scheduler is not None:
@@ -89,13 +103,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
                 total=self.num_steps_per_epoch,
                 smoothing=0.2,  # this loop is bursty because of activation harvesting
             )
-            torch.cuda.memory._record_memory_history()
             for batch_BMPD in batch_iter:
-                if self.step % 100 == 0:
-                    torch.cuda.memory._dump_snapshot(f"snapshot_{self.step}.pickle")
-                    torch.cuda.memory._record_memory_history(enabled=None)
-                    torch.cuda.memory._record_memory_history()
-
                 assert batch_BMPD.shape[1] == 2, "we only support 2 models for now"
                 assert batch_BMPD.shape[2] == 1, "we only support 1 hookpoint for now"
 
@@ -131,7 +139,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
             tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
             logs.update({"media/tokens_since_fired": tokens_since_fired_hist})
 
-            W_dec_HiMD = self.crosscoder._W_dec_indep_HiMD.detach()
+            W_dec_HiMD = self.crosscoder.W_dec_HXD[self.n_shared_weights :].detach()
             logs.update(create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_HMD=W_dec_HiMD))
 
         return logs

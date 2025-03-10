@@ -9,20 +9,23 @@ data:
   n_tokens_for_norm_estimate: 10_000
 crosscoder:
   hidden_dim: 16_384
-  n_shared_latents: 1024 # 1/16 explicitly shared latents
+  n_shared_latents: 1024
   jumprelu:
     backprop_through_jumprelu_input: true
   initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!
   n_tokens_for_threshold_setting: 10_000
 train:
   num_steps: 10_000
-  batch_size: 65_536
-  gradient_accumulation_steps_per_batch: 64 # for a minibatch size of 1024
-  save_every_n_steps: 6000
+  batch_size: 1024
+  gradient_accumulation_steps_per_batch: 1
+  save_every_n_steps: 1000
   log_every_n_steps: 8
   c: 4.0
   final_lambda_s: 3.0
   final_lambda_f: 30.0
   lambda_p: 0.000003
-experiment_name: feb_update_test
-hookpoints: ["blocks.8.hook_resid_post"]
+experiment_name: test-jr-diffing
+hookpoint: "blocks.8.hook_resid_post"
+wandb:
+  project: test
+  mode: disabled

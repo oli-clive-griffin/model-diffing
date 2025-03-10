@@ -54,9 +54,9 @@ class BiTokenCCWrapper(nn.Module, Generic[TAct]):
         output_both = self.double_cc.forward_train(x_BTPD)
 
         return self.TrainResult(
-            recon_B1PD_single1=output_single1.output_BXD,
-            recon_B1PD_single2=output_single2.output_BXD,
-            recon_B2PD_double=output_both.output_BXD,
+            recon_B1PD_single1=output_single1.recon_acts_BXD,
+            recon_B1PD_single2=output_single2.recon_acts_BXD,
+            recon_B2PD_double=output_both.recon_acts_BXD,
             hidden_BH_single1=output_single1.hidden_BH,
             hidden_BH_single2=output_single2.hidden_BH,
             hidden_BH_double=output_both.hidden_BH,

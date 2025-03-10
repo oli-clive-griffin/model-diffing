@@ -65,7 +65,6 @@ def main():
                     cache_dir=str(cache_dir),
                     cache_mode="cache",
                 ),
-                activations_shuffle_buffer_size=None,
                 yield_batch_size=4,
                 n_tokens_for_norm_estimate=16,
             )

@@ -89,7 +89,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
     @dataclass
     class ForwardResult:
         hidden_BH: t.Tensor
-        output_BXD: t.Tensor
+        recon_acts_BXD: t.Tensor
 
     def _forward(self, activation_BXD: t.Tensor) -> ForwardResult:
         hidden_BH = self._encode_BH(activation_BXD)
@@ -106,7 +106,7 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
 
         return self.ForwardResult(
             hidden_BH=hidden_BH,
-            output_BXD=output_BXD,
+            recon_acts_BXD=output_BXD,
         )
 
     def forward_train(
@@ -118,13 +118,15 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
 
         res = self._forward(activation_BXD)
 
-        if res.output_BXD.shape != activation_BXD.shape:
-            raise ValueError(f"output_BXD.shape {res.output_BXD.shape} != activation_BXD.shape {activation_BXD.shape}")
+        if res.recon_acts_BXD.shape != activation_BXD.shape:
+            raise ValueError(
+                f"output_BXD.shape {res.recon_acts_BXD.shape} != activation_BXD.shape {activation_BXD.shape}"
+            )
 
         return res
 
     def forward(self, activation_BXD: t.Tensor) -> t.Tensor:
-        return self._forward(activation_BXD).output_BXD
+        return self._forward(activation_BXD).recon_acts_BXD
 
     def _dump_cfg(self) -> dict[str, Any]:
         return {

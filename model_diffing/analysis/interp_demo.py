@@ -1,11 +1,17 @@
 # %%
 import os
+
+# %%
 from pathlib import Path
 from typing import cast
 
 import torch
 import yaml  # type: ignore
-from transformers import PreTrainedTokenizerBase  # type: ignore
+from transformer_lens import HookedTransformer  # type: ignore
+from transformers import (  # type: ignore
+    AutoModelForCausalLM,
+    PreTrainedTokenizerBase,  # type: ignore
+)
 
 from model_diffing.analysis import metrics, visualization
 from model_diffing.data.activation_harvester import ActivationsHarvester
@@ -15,25 +21,9 @@ from model_diffing.interp import (
     gather_max_activating_examples,
     iterate_activations_with_text,
 )
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.diffing_crosscoder.diffing_crosscoder import DiffingCrosscoder
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
 from model_diffing.scripts.wandb_scripts.main import download_experiment_checkpoint
-from model_diffing.utils import get_device
-
-# %%
-
-import textwrap
-from datetime import datetime
-from itertools import islice
-from typing import cast
-
-import torch
-from tqdm.notebook import tqdm  # type: ignore
-from transformer_lens import HookedTransformer  # type: ignore
-from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore
-
 from model_diffing.utils import get_device
 
 # %%

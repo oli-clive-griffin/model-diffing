@@ -42,7 +42,7 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
         self.firing_tracker.add_batch(train_res.hidden_BH)
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.output_BXD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.recon_acts_BXD)
 
         W_H1MPD = self.crosscoder.W_dec_HXD[:, None]
 
@@ -65,7 +65,7 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
                 batch_BMPD,
-                train_res.output_BXD,
+                train_res.recon_acts_BXD,
                 ("model", list(range(self.n_models))),
                 ("hookpoint", self.hookpoints),
             )

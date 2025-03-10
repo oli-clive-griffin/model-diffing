@@ -1,7 +1,6 @@
 import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import cast
 
 import torch
 from einops import rearrange
@@ -10,7 +9,6 @@ from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
-from model_diffing.data.token_loader.math import MathDatasetTokenSequenceLoader
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
@@ -79,7 +77,7 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
                 f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
             )  # REMOVE ME
             yield batch_BMPD * scaling_factors_MP1
-            if i % 5 == 0:
+            if i % 5 == 0 and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
 

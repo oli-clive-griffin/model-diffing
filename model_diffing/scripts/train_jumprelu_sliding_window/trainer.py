@@ -4,8 +4,8 @@ import torch as t
 from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
-from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
+from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
     calculate_reconstruction_loss_summed_MSEs,
@@ -38,16 +38,14 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
         decoder_norms_3h = t.cat([decoder_norms_single_H, decoder_norms_both_H, decoder_norms_single_H], dim=-1)
 
         tanh_sparsity_loss = self._tanh_sparsity_loss(hidden_B3h, decoder_norms_3h)
-        pre_act_loss = self._pre_act_loss(hidden_B3h, decoder_norms_3h)
-
         lambda_s = self._lambda_s_scheduler()
-        scaled_tanh_sparsity_loss = lambda_s * tanh_sparsity_loss
-        scaled_pre_act_loss = self.cfg.lambda_p * pre_act_loss
+
+        pre_act_loss = self._pre_act_loss(hidden_B3h, decoder_norms_3h)
 
         loss = (
             reconstruction_loss  #
-            + scaled_tanh_sparsity_loss
-            + scaled_pre_act_loss
+            + lambda_s * tanh_sparsity_loss
+            + self.cfg.lambda_p * pre_act_loss
         )
 
         # backward
@@ -61,11 +59,7 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
 
         self.firing_tracker.add_batch(hidden_B3h)
 
-        if (
-            self.wandb_run is not None
-            and self.cfg.log_every_n_steps is not None
-            and self.step % self.cfg.log_every_n_steps == 0
-        ):
+        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
                 batch_BTPD,
                 reconstructed_acts_BTPD,
@@ -76,10 +70,8 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/tanh_sparsity_loss": tanh_sparsity_loss.item(),
-                "train/tanh_sparsity_loss_scaled": scaled_tanh_sparsity_loss.item(),
                 "train/lambda_s": lambda_s,
                 "train/pre_act_loss": pre_act_loss.item(),
-                "train/pre_act_loss_scaled": scaled_pre_act_loss.item(),
                 "train/lambda_p": self.cfg.lambda_p,
                 "train/loss": loss.item(),
                 **fvu_dict,

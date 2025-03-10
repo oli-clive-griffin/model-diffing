@@ -81,7 +81,7 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
         train_res = self.crosscoder.forward_train(batch_x_BMPiD)
         self.firing_tracker.add_batch(train_res.hidden_BH)
 
-        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(train_res.output_BXD, batch_y_BMPoD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(train_res.recon_acts_BXD, batch_y_BMPoD)
 
         reconstruction_loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
 
@@ -93,12 +93,12 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
 
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             assert batch_y_BMPoD.shape[2] == len(self.hookpoints[1::2])
-            assert train_res.output_BXD.shape[2] == len(self.hookpoints[::2])
+            assert train_res.recon_acts_BXD.shape[2] == len(self.hookpoints[::2])
             names = [" - ".join(pair) for pair in zip(self.hookpoints[::2], self.hookpoints[1::2], strict=True)]
 
             fvu_dict = get_fvu_dict(
                 batch_y_BMPoD,
-                train_res.output_BXD,
+                train_res.recon_acts_BXD,
                 ("model", list(range(self.n_models))),
                 ("hookpoints", names),
             )

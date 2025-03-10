@@ -4,11 +4,15 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
+from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
-from model_diffing.models.diffing_crosscoder import DiffingCrosscoder, ModelDiffingDataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
-from model_diffing.scripts.feb_diff_jr.trainer import ModelDiffingFebUpdateJumpReLUTrainer
+from model_diffing.scripts.feb_diff_jr.constants import N_MODELS
+from model_diffing.scripts.feb_diff_jr.trainer import (
+    ModelDiffingDataDependentJumpReLUInitStrategy,
+    ModelDiffingFebUpdateJumpReLUTrainer,
+)
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import SaveableModule, get_device
@@ -21,7 +25,7 @@ def build_feb_update_crosscoder_trainer(
 ) -> ModelDiffingFebUpdateJumpReLUTrainer:
     device = get_device()
 
-    assert len(cfg.data.activations_harvester.llms) == 2, "we only support 2 models for now"
+    assert len(cfg.data.activations_harvester.llms) == 2, "expected 2 models for model-diffing"
 
     llms = build_llms(
         cfg.data.activations_harvester.llms,
@@ -38,32 +42,32 @@ def build_feb_update_crosscoder_trainer(
         cache_dir=cfg.cache_dir,
     )
 
-    crosscoder = DiffingCrosscoder(
+    crosscoder = AcausalCrosscoder(
         d_model=llms[0].cfg.d_model,
-        n_latents_total=cfg.crosscoder.hidden_dim,
-        n_shared_latents=cfg.crosscoder.n_shared_latents,
+        hidden_dim=cfg.crosscoder.hidden_dim,
+        crosscoding_dims=(N_MODELS,),
         init_strategy=ModelDiffingDataDependentJumpReLUInitStrategy(
+            n_shared_latents=cfg.crosscoder.n_shared_latents,
             activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
             initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
             n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
             device=device,
         ),
-        activation_fn=AnthropicJumpReLUActivation(
+        hidden_activation=AnthropicJumpReLUActivation(
             size=cfg.crosscoder.hidden_dim,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
             log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
             backprop_through_input=cfg.crosscoder.jumprelu.backprop_through_jumprelu_input,
         ),
     )
-    crosscoder = crosscoder.to(device)
-
-    wandb_run = build_wandb_run(cfg)
 
     return ModelDiffingFebUpdateJumpReLUTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
-        crosscoder=crosscoder,
-        wandb_run=wandb_run,
+        crosscoder=crosscoder.to(device),
+        model_dim_cc_idx=0,
+        n_shared_weights=cfg.crosscoder.n_shared_latents,
+        wandb_run=build_wandb_run(cfg),
         device=device,
         hookpoints=[cfg.hookpoint],
         save_dir=cfg.save_dir,

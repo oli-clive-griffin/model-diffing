@@ -1,5 +1,5 @@
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Any
 
 import torch as t
@@ -32,7 +32,7 @@ def test_return_shapes():
     y_BPD = crosscoder.forward(activations_BMPD)
     assert y_BPD.shape == activations_BMPD.shape
     train_res = crosscoder.forward_train(activations_BMPD)
-    assert train_res.output_BXD.shape == activations_BMPD.shape
+    assert train_res.recon_acts_BXD.shape == activations_BMPD.shape
     assert train_res.hidden_BH.shape == (batch_size, cc_hidden_dim)
 
 
@@ -114,10 +114,10 @@ def test_weights_folding_scales_output_correctly():
     unscaled_input_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
     scaled_input_BMPD = unscaled_input_BMPD * scaling_factors_MP1
 
-    scaled_output_BMPD = crosscoder.forward_train(scaled_input_BMPD).output_BXD
+    scaled_output_BMPD = crosscoder.forward_train(scaled_input_BMPD).recon_acts_BXD
 
     crosscoder.fold_activation_scaling_into_weights_(scaling_factors_MP)
-    unscaled_output_folded_BMPD = crosscoder.forward_train(unscaled_input_BMPD).output_BXD
+    unscaled_output_folded_BMPD = crosscoder.forward_train(unscaled_input_BMPD).recon_acts_BXD
 
     # with folded weights, the output should be scaled by the scaling factors
     assert_close(scaled_output_BMPD, unscaled_output_folded_BMPD * scaling_factors_MP1)
@@ -153,8 +153,8 @@ def test_weights_rescaling_retains_output():
     train_res = crosscoder.forward_train(activations_BMPD)
     output_rescaled_BMPD = crosscoder.with_decoder_unit_norm().forward_train(activations_BMPD)
 
-    assert t.allclose(train_res.output_BXD, output_rescaled_BMPD.output_BXD), (
-        f"max diff: {t.max(t.abs(train_res.output_BXD - output_rescaled_BMPD.output_BXD))}"
+    assert t.allclose(train_res.recon_acts_BXD, output_rescaled_BMPD.recon_acts_BXD), (
+        f"max diff: {t.max(t.abs(train_res.recon_acts_BXD - output_rescaled_BMPD.recon_acts_BXD))}"
     )
 
 
@@ -184,6 +184,7 @@ def test_weights_rescaling_max_norm():
         t.ones(cc_hidden_dim).long(),
     )
 
+
 def asdf():
     d_model = 4
     n_models = 2
@@ -207,5 +208,6 @@ def asdf():
             assert t.allclose(cc.b_dec_XD, cc_loaded_folded.b_dec_XD)
             assert t.allclose(cc.W_enc_XDH, cc_loaded_folded.W_enc_XDH)
             assert t.allclose(cc.b_enc_H, cc_loaded_folded.b_enc_H)
+
 
 asdf()

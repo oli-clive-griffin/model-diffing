@@ -37,7 +37,9 @@ class BaseDataDependentJumpReLUInitStrategy:
             raise ValueError(f"initial_approx_firing_pct must be between 0 and 1, got {initial_approx_firing_pct}")
         self.initial_approx_firing_pct = initial_approx_firing_pct
 
-    def get_calibrated_b_enc_H(self, W_enc_XDH: torch.Tensor, hidden_activation: AnthropicJumpReLUActivation) -> torch.Tensor:
+    def get_calibrated_b_enc_H(
+        self, W_enc_XDH: torch.Tensor, hidden_activation: AnthropicJumpReLUActivation
+    ) -> torch.Tensor:
         return compute_b_enc_H(
             self.activations_iterator_BXD,
             W_enc_XDH.to(self.device),
@@ -73,7 +75,9 @@ def compute_b_enc_H(
     # firing is when the post-bias is above the jumprelu threshold, therefore we subtract
     # the quantile from the initial jumprelu threshold, so that for a given example,
     # inital_approx_firing_pct of the examples are above the threshold.
-    b_enc_H = initial_jumprelu_threshold_H - pre_bias_firing_threshold_quantile_H.to(initial_jumprelu_threshold_H.device)
+    b_enc_H = initial_jumprelu_threshold_H - pre_bias_firing_threshold_quantile_H.to(
+        initial_jumprelu_threshold_H.device
+    )
 
     logger.info(f"computed b_enc_H. Sample: {b_enc_H[:10]}. mean: {b_enc_H.mean()}, std: {b_enc_H.std()}")
 

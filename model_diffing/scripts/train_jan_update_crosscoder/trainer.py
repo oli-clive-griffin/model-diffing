@@ -20,20 +20,19 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
         self.firing_tracker.add_batch(train_res.hidden_BH)
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.output_BXD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.recon_acts_BXD)
 
         decoder_norms_H = get_summed_decoder_norms_H(self.crosscoder.W_dec_HXD)
-        tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.hidden_BH, decoder_norms_H)
-        pre_act_loss = self._pre_act_loss(train_res.hidden_BH, decoder_norms_H)
 
+        tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.hidden_BH, decoder_norms_H)
         lambda_s = self._lambda_s_scheduler()
-        scaled_tanh_sparsity_loss = lambda_s * tanh_sparsity_loss
-        scaled_pre_act_loss = self.cfg.lambda_p * pre_act_loss
+
+        pre_act_loss = self._pre_act_loss(train_res.hidden_BH, decoder_norms_H)
 
         loss = (
             reconstruction_loss  #
-            + scaled_tanh_sparsity_loss
-            + scaled_pre_act_loss
+            + lambda_s * tanh_sparsity_loss
+            + self.cfg.lambda_p * pre_act_loss
         )
 
         # backward
@@ -47,7 +46,7 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
                 batch_BMPD,
-                train_res.output_BXD,
+                train_res.recon_acts_BXD,
                 ("model", list(range(self.n_models))),
                 ("hookpoint", self.hookpoints),
             )
@@ -55,10 +54,8 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/tanh_sparsity_loss": tanh_sparsity_loss.item(),
-                "train/tanh_sparsity_loss_scaled": scaled_tanh_sparsity_loss.item(),
                 "train/lambda_s": lambda_s,
                 "train/pre_act_loss": pre_act_loss.item(),
-                "train/pre_act_loss_scaled": scaled_pre_act_loss.item(),
                 "train/lambda_p": self.cfg.lambda_p,
                 "train/loss": loss.item(),
                 **fvu_dict,
@@ -67,17 +64,14 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
             }
 
             if self.step % (self.cfg.log_every_n_steps * 10) == 0:
-                try:
-                    log_dict.update(
-                        {
-                            "media/jumprelu_threshold_distribution": wandb_histogram(
-                                self.crosscoder.hidden_activation.log_threshold_H.exp()
-                            ),
-                        }
-                    )
-                except Exception:
-                    ...
-                    # logger.error(f"Error logging jumprelu_threshold_distribution: {e}")
+                log_dict.update(
+                    {
+                        "media/jumprelu_threshold_distribution": wandb_histogram(
+                            self.crosscoder.hidden_activation.log_threshold_H.exp()
+                        ),
+                    }
+                )
+
             self.wandb_run.log(log_dict, step=self.step)
 
     def _lambda_s_scheduler(self) -> float:
