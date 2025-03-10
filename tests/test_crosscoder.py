@@ -1,3 +1,5 @@
+from pathlib import Path
+import tempfile
 from typing import Any
 
 import torch as t
@@ -124,10 +126,11 @@ def test_weights_folding_scales_output_correctly():
 class RandomInit(InitStrategy[AcausalCrosscoder[Any]]):
     @t.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
-        cc.W_dec_HXD.random_()
-        cc.W_enc_XDH.random_()
-        cc.b_enc_H.random_()
-        cc.b_dec_XD.random_()
+        cc.W_enc_XDH.normal_()
+        cc.b_enc_H.zero_()
+
+        cc.W_dec_HXD.normal_()
+        cc.b_dec_XD.zero_()
 
 
 def test_weights_rescaling_retains_output():
@@ -147,11 +150,11 @@ def test_weights_rescaling_retains_output():
 
     activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
 
-    output_BMPD = crosscoder.forward_train(activations_BMPD)
+    train_res = crosscoder.forward_train(activations_BMPD)
     output_rescaled_BMPD = crosscoder.with_decoder_unit_norm().forward_train(activations_BMPD)
 
-    assert t.allclose(output_BMPD.output_BXD, output_rescaled_BMPD.output_BXD), (
-        f"max diff: {t.max(t.abs(output_BMPD.output_BXD - output_rescaled_BMPD.output_BXD))}"
+    assert t.allclose(train_res.output_BXD, output_rescaled_BMPD.output_BXD), (
+        f"max diff: {t.max(t.abs(train_res.output_BXD - output_rescaled_BMPD.output_BXD))}"
     )
 
 
@@ -180,3 +183,29 @@ def test_weights_rescaling_max_norm():
         .long(),
         t.ones(cc_hidden_dim).long(),
     )
+
+def asdf():
+    d_model = 4
+    n_models = 2
+    cc = AcausalCrosscoder(
+        d_model=d_model,
+        hidden_dim=32,
+        hidden_activation=ReLUActivation(),
+        init_strategy=RandomInit(),
+        crosscoding_dims=(n_models,),
+    )
+    # - some non-unit scaling factors (distributed uniformly between 0.8 and 0.9)
+    scaling_factors_M = t.tensor([0.5, 0.2])
+    # - and a version of the same model which has been saved and loaded with the scaling factors folded into the weights
+    with tempfile.TemporaryDirectory() as temp_dir:
+        model_path = Path(temp_dir) / "model"
+        with cc.temporarily_fold_activation_scaling(scaling_factors_M):
+            # during_acts_BMD = cc.forward(raw_activations_BMD)
+            cc.save(model_path)
+            cc_loaded_folded = AcausalCrosscoder.load(model_path)
+            assert t.allclose(cc.W_dec_HXD, cc_loaded_folded.W_dec_HXD)
+            assert t.allclose(cc.b_dec_XD, cc_loaded_folded.b_dec_XD)
+            assert t.allclose(cc.W_enc_XDH, cc_loaded_folded.W_enc_XDH)
+            assert t.allclose(cc.b_enc_H, cc_loaded_folded.b_enc_H)
+
+asdf()

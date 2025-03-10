@@ -35,28 +35,30 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         hidden_activation: TActivation,
         skip_linear: bool = False,
         init_strategy: InitStrategy["AcausalCrosscoder[TActivation]"] | None = None,
+        dtype: t.dtype = t.float32,
     ):
         super().__init__()
         self.crosscoding_dims = crosscoding_dims
         self.d_model = d_model
         self.hidden_dim = hidden_dim
         self.hidden_activation = hidden_activation
+        self.dtype = dtype
 
-        self.W_enc_XDH = nn.Parameter(t.empty((*crosscoding_dims, d_model, hidden_dim)))
-        self.b_enc_H = nn.Parameter(t.empty((hidden_dim,)))
-        self.W_dec_HXD = nn.Parameter(t.empty((hidden_dim, *crosscoding_dims, d_model)))
-        self.b_dec_XD = nn.Parameter(t.empty((*crosscoding_dims, d_model)))
+        self.W_enc_XDH = nn.Parameter(t.empty((*crosscoding_dims, d_model, hidden_dim), dtype=dtype))
+        self.b_enc_H = nn.Parameter(t.empty((hidden_dim,), dtype=dtype))
+        self.W_dec_HXD = nn.Parameter(t.empty((hidden_dim, *crosscoding_dims, d_model), dtype=dtype))
+        self.b_dec_XD = nn.Parameter(t.empty((*crosscoding_dims, d_model), dtype=dtype))
 
         self.W_skip_XdXd = None
         if skip_linear:
             Xd = prod([*crosscoding_dims, d_model])
-            self.W_skip_XdXd = nn.Parameter(t.empty((Xd, Xd)))
+            self.W_skip_XdXd = nn.Parameter(t.empty((Xd, Xd), dtype=dtype))
 
         if init_strategy is not None:
             init_strategy.init_weights(self)
 
         # Initialize the buffer with a zero tensor of the correct shape, this means it's always serialized
-        self.register_buffer("folded_scaling_factors_X", t.zeros(self.crosscoding_dims))
+        self.register_buffer("folded_scaling_factors_X", t.zeros(self.crosscoding_dims, dtype=dtype))
         # However, track whether it's actually holding a meaningful value by using this boolean flag.
         # Represented as a tensor so that it's serialized by torch.save
         self.register_buffer("is_folded", t.tensor(False, dtype=t.bool))
@@ -163,6 +165,8 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             hidden_activation=self.hidden_activation,
         )
 
+        cc.load_state_dict(self.state_dict())
+
         cc.make_decoder_max_unit_norm_()
 
         return cc
@@ -181,15 +185,14 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         """
         output_space_norms_HX = reduce(self.W_dec_HXD, "h ... d -> h ...", l2_norm)
         assert output_space_norms_HX.shape[1:] == self.crosscoding_dims
-        cc_dim_indices = list(range(1, len(self.crosscoding_dims) + 1))
-        max_norms_per_latent_H = output_space_norms_HX.amax(dim=cc_dim_indices)  # all but the first dimension
+
+        max_norms_per_latent_H = reduce(output_space_norms_HX, "h ... -> h", t.amax)
         assert max_norms_per_latent_H.shape == (self.hidden_dim,)
-        # XD_dim_nones = [None, None, None]  # [None] * (len(self.crosscoding_dims) + 1)
 
         # this means that the maximum norm of the decoder vectors into a given output space is 1
         # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
-        self.W_dec_HXD.copy_(self.W_dec_HXD / max_norms_per_latent_H[..., None, None, None])  # this is broken!
-        self.W_enc_XDH.copy_(self.W_enc_XDH * max_norms_per_latent_H[None, None, None, ...])
+        self.W_dec_HXD.copy_(einsum(self.W_dec_HXD, 1 / max_norms_per_latent_H, "h ..., h -> h ..."))
+        self.W_enc_XDH.copy_(einsum(self.W_enc_XDH, max_norms_per_latent_H, "... h, h -> ... h"))
         self.b_enc_H.copy_(self.b_enc_H * max_norms_per_latent_H)
         # no alteration needed for self.b_dec_XD
 

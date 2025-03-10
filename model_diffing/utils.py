@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from functools import partial
 from itertools import product
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import einops
 import torch
@@ -277,7 +277,7 @@ def size_human_readable(tensor: torch.Tensor) -> str:
         return f"{tensor.nbytes} B"
 
 
-# hacky but useful for debugging
+# useful for debugging
 def inspect(tensor: torch.Tensor) -> str:
     return f"{tensor.shape}, dtype={tensor.dtype}, device={tensor.device}, size={size_human_readable(tensor)}"
 
@@ -372,3 +372,16 @@ def random_direction_init_(tensor: torch.Tensor, norm: float) -> None:
     tensor.normal_()
     tensor.div_(l2_norm(tensor, dim=-1, keepdim=True))
     tensor.mul_(norm)
+
+
+T = TypeVar("T")
+
+
+def runtimecast(thing: T, cls: type[T]) -> T:
+    if not isinstance(thing, cls):
+        raise ValueError(f"Expected a {cls.__name__}, got {type(thing)}")
+    return thing
+
+
+# hacky but useful for debugging
+torch.Tensor.i = lambda self: inspect(self)  # type: ignore

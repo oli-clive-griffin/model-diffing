@@ -45,7 +45,7 @@ def build_llm(
 
         llm_out = HookedTransformer.from_pretrained_no_processing(
             llm.base_archicteture_name,
-            hf_model=AutoModelForCausalLM.from_pretrained(llm.hf_model_name, cache_dir=cache_dir, dtype=dtype),
+            hf_model=AutoModelForCausalLM.from_pretrained(llm.hf_model_name, cache_dir=cache_dir),
             cache_dir=cache_dir,
             dtype=dtype,
         )

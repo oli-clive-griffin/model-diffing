@@ -9,7 +9,7 @@ from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
 from model_diffing.scripts.utils import get_l0_stats
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, l2_norm
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H, l2_norm
 
 
 class ModelDiffingFebUpdateJumpReLUTrainer(
@@ -33,12 +33,12 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BMD)
 
         # shared features sparsity loss
-        shared_dec_norms_Hs = reduce(self.crosscoder._W_dec_shared_m0_HsD, "h_shared 1 dim -> h_shared", l2_norm)
+        shared_dec_norms_Hs = reduce(self.crosscoder._W_dec_shared_m0_HsD, "h_shared dim -> h_shared", l2_norm)
         sparsity_loss_shared = self._tanh_sparsity_loss(train_res.hidden_shared_BHs, shared_dec_norms_Hs)
         lambda_s = self._lambda_s_scheduler()
 
         # independent features sparsity loss
-        indep_dec_norms_Hi = reduce(self.crosscoder._W_dec_indep_HiMD, "h_indep model dim -> h_indep", l2_norm)
+        indep_dec_norms_Hi = get_summed_decoder_norms_H(self.crosscoder._W_dec_indep_HiMD)
         sparsity_loss_indep = self._tanh_sparsity_loss(train_res.hidden_indep_BHi, indep_dec_norms_Hi)
         lambda_f = self._lambda_f_scheduler()
 
@@ -94,7 +94,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         return (self.step / self.total_steps) * self.cfg.final_lambda_f
 
     def _pre_act_loss(self, hidden_BH: t.Tensor, dec_norms_H: t.Tensor) -> t.Tensor:
-        return pre_act_loss(self.crosscoder.hidden_activation.log_threshold_H, hidden_BH, dec_norms_H)
+        return pre_act_loss(self.crosscoder.activation_fn.log_threshold_H, hidden_BH, dec_norms_H)
 
     def _tanh_sparsity_loss(self, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
         return tanh_sparsity_loss(self.cfg.c, hidden_BH, decoder_norms_H)

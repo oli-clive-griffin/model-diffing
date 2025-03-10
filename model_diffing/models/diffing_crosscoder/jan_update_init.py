@@ -32,5 +32,5 @@ class ModelDiffingDataDependentJumpReLUInitStrategy(
             * (n / m)
         )
 
-        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_MDH, cc.hidden_activation).to(cc.b_enc_H.device))
+        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_MDH, cc.activation_fn).to(cc.b_enc_H.device))
         cc.b_dec_MD.zero_()

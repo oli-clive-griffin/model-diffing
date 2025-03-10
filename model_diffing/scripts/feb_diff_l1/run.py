@@ -41,10 +41,10 @@ def build_feb_update_crosscoder_trainer(cfg: L1ModelDiffingFebUpdateExperimentCo
 
     crosscoder = DiffingCrosscoder(
         d_model=llms[0].cfg.d_model,
-        hidden_dim=cfg.crosscoder.hidden_dim,
-        n_explicitly_shared_latents=cfg.crosscoder.n_shared_latents,
+        n_latents_total=cfg.crosscoder.hidden_dim,
+        n_shared_latents=cfg.crosscoder.n_shared_latents,
         init_strategy=ModelDiffingAnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
-        hidden_activation=ReLUActivation(size=cfg.crosscoder.hidden_dim),
+        activation_fn=ReLUActivation(size=cfg.crosscoder.hidden_dim),
     )
     crosscoder = crosscoder.to(device)
 

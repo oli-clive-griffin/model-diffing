@@ -1,7 +1,6 @@
 from typing import TypeVar
 
 import fire  # type: ignore
-import torch  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
@@ -41,15 +40,15 @@ def build_feb_update_crosscoder_trainer(
 
     crosscoder = DiffingCrosscoder(
         d_model=llms[0].cfg.d_model,
-        hidden_dim=cfg.crosscoder.hidden_dim,
-        n_explicitly_shared_latents=cfg.crosscoder.n_shared_latents,
+        n_latents_total=cfg.crosscoder.hidden_dim,
+        n_shared_latents=cfg.crosscoder.n_shared_latents,
         init_strategy=ModelDiffingDataDependentJumpReLUInitStrategy(
             activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
             initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
             n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
             device=device,
         ),
-        hidden_activation=AnthropicJumpReLUActivation(
+        activation_fn=AnthropicJumpReLUActivation(
             size=cfg.crosscoder.hidden_dim,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
             log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
