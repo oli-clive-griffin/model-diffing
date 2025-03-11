@@ -17,18 +17,16 @@ from model_diffing.scripts.config_common import AdamConfig, BaseExperimentConfig
 from model_diffing.utils import l0_norm, l2_norm
 
 
-def get_l0_stats(hidden_BH: torch.Tensor) -> dict[str, float]:
+def get_l0_stats(hidden_BH: torch.Tensor, name: str = "l0") -> dict[str, float]:
     l0_BH = l0_norm(hidden_BH, dim=-1)
     mean_l0 = l0_BH.mean().item()
     l0_np = l0_BH.detach().cpu().numpy()
-    l0_5, l0_25, l0_75, l0_95 = np.percentile(l0_np, [5, 25, 75, 95])
+    l0_5, l0_95 = np.percentile(l0_np, [5, 95])
     return {
-        "train/mean_firing_pct": mean_l0 / hidden_BH.shape[1],
-        "train/l0/5th": l0_5,
-        "train/l0/25th": l0_25,
-        "train/l0/mean": mean_l0,
-        "train/l0/75th": l0_75,
-        "train/l0/95th": l0_95,
+        f"train/{name}/mean_firing_pct": mean_l0 / hidden_BH.shape[1],
+        f"train/{name}/5th": l0_5,
+        f"train/{name}/mean": mean_l0,
+        f"train/{name}/95th": l0_95,
     }
 
 
