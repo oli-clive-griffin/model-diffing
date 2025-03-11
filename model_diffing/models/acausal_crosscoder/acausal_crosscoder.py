@@ -218,12 +218,16 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         if t.any(t.isnan(scaling_factors_X)) or t.any(t.isinf(scaling_factors_X)):
             raise ValueError("Scaling factors contain NaN or Inf values")
 
-    @contextmanager
-    def temporarily_fold_activation_scaling(self, scaling_factors_X: t.Tensor):
-        """Temporarily fold scaling factors into weights."""
-        self.fold_activation_scaling_into_weights_(scaling_factors_X)
-        yield
-        _ = self.unfold_activation_scaling_from_weights_()
+    def with_folded_scaling_factors(self, scaling_factors_X: t.Tensor) -> "AcausalCrosscoder[TActivation]":
+        cc = AcausalCrosscoder(
+            crosscoding_dims=self.crosscoding_dims,
+            d_model=self.d_model,
+            hidden_dim=self.hidden_dim,
+            hidden_activation=self.hidden_activation,
+        )
+        cc.load_state_dict(self.state_dict())
+        cc.fold_activation_scaling_into_weights_(scaling_factors_X)
+        return cc
 
     def fold_activation_scaling_into_weights_(self, scaling_factors_X: t.Tensor) -> None:
         """scales the crosscoder weights by the activation scaling factors, so that the m can be run on raw llm activations."""
@@ -237,20 +241,3 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         # set buffer to prevent double-folding
         self.folded_scaling_factors_X = scaling_factors_X
         self.is_folded = t.tensor(True, dtype=t.bool)
-
-    def unfold_activation_scaling_from_weights_(self) -> t.Tensor:
-        if not self.is_folded.item():
-            raise ValueError("No folded scaling factors found")
-
-        if self.folded_scaling_factors_X is None:
-            raise ValueError("Inconsistent state: is_folded is True but folded_scaling_factors_X is None")
-
-        folded_scaling_factors_X = self.folded_scaling_factors_X.clone()
-        # Clear the buffer before operations to prevent double-unfolding
-
-        self.folded_scaling_factors_X = None
-        self.is_folded = t.tensor(False, dtype=t.bool)
-
-        self._scale_weights(1 / folded_scaling_factors_X)
-
-        return folded_scaling_factors_X

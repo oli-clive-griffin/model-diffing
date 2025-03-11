@@ -5,14 +5,12 @@ import fire  # type: ignore
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
 from model_diffing.scripts.feb_diff_jr.constants import N_MODELS
-from model_diffing.scripts.feb_diff_jr.trainer import (
-    ModelDiffingDataDependentJumpReLUInitStrategy,
-    ModelDiffingFebUpdateJumpReLUTrainer,
-)
+from model_diffing.scripts.feb_diff_jr.trainer import IdenticalLatentsInit, ModelDiffingFebUpdateJumpReLUTrainer
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import SaveableModule, get_device
@@ -46,12 +44,14 @@ def build_feb_update_crosscoder_trainer(
         d_model=llms[0].cfg.d_model,
         hidden_dim=cfg.crosscoder.hidden_dim,
         crosscoding_dims=(N_MODELS,),
-        init_strategy=ModelDiffingDataDependentJumpReLUInitStrategy(
+        init_strategy=IdenticalLatentsInit(
+            first_init=DataDependentJumpReLUInitStrategy(
+                activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
+                initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
+                n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
+                device=device,
+            ),
             n_shared_latents=cfg.crosscoder.n_shared_latents,
-            activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
-            initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
-            n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
-            device=device,
         ),
         hidden_activation=AnthropicJumpReLUActivation(
             size=cfg.crosscoder.hidden_dim,
@@ -66,7 +66,7 @@ def build_feb_update_crosscoder_trainer(
         activations_dataloader=dataloader,
         crosscoder=crosscoder.to(device),
         model_dim_cc_idx=0,
-        n_shared_weights=cfg.crosscoder.n_shared_latents,
+        n_shared_latents=cfg.crosscoder.n_shared_latents,
         wandb_run=build_wandb_run(cfg),
         device=device,
         hookpoints=[cfg.hookpoint],

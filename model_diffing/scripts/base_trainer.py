@@ -104,8 +104,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
 
-                    with self.crosscoder.temporarily_fold_activation_scaling(scaling_factors_MP):
-                        save_model(self.crosscoder, checkpoint_path)
+                    self.crosscoder.with_folded_scaling_factors(scaling_factors_MP).save(checkpoint_path)
 
                     if self.cfg.upload_saves_to_wandb:
                         artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
@@ -183,12 +182,6 @@ def save_config(config: BaseExperimentConfig) -> None:
     with open(config.save_dir / "experiment_config.yaml", "w") as f:
         yaml.dump(config.model_dump(), f)
     logger.info(f"Saved config to {config.save_dir / 'experiment_config.yaml'}")
-
-
-def save_model(model: SaveableModule, save_dir: Path) -> None:
-    save_dir.mkdir(parents=True, exist_ok=True)
-    model.save(save_dir)
-    logger.info(f"Saved model to {save_dir}")
 
 
 TCfg = TypeVar("TCfg", bound=BaseExperimentConfig)

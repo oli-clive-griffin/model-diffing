@@ -67,8 +67,7 @@ def test_weights_folding_keeps_hidden_representations_consistent():
 
     output_without_folding = crosscoder.forward_train(scaled_input_BMPD)
 
-    with crosscoder.temporarily_fold_activation_scaling(scaling_factors_MP):
-        output_with_folding = crosscoder.forward_train(unscaled_input_BMPD)
+    output_with_folding = crosscoder.with_folded_scaling_factors(scaling_factors_MP).forward_train(unscaled_input_BMPD)
 
     # all hidden representations should be the same
     assert t.allclose(output_without_folding.hidden_BH, output_with_folding.hidden_BH), (
@@ -183,31 +182,3 @@ def test_weights_rescaling_max_norm():
         .long(),
         t.ones(cc_hidden_dim).long(),
     )
-
-
-def asdf():
-    d_model = 4
-    n_models = 2
-    cc = AcausalCrosscoder(
-        d_model=d_model,
-        hidden_dim=32,
-        hidden_activation=ReLUActivation(),
-        init_strategy=RandomInit(),
-        crosscoding_dims=(n_models,),
-    )
-    # - some non-unit scaling factors (distributed uniformly between 0.8 and 0.9)
-    scaling_factors_M = t.tensor([0.5, 0.2])
-    # - and a version of the same model which has been saved and loaded with the scaling factors folded into the weights
-    with tempfile.TemporaryDirectory() as temp_dir:
-        model_path = Path(temp_dir) / "model"
-        with cc.temporarily_fold_activation_scaling(scaling_factors_M):
-            # during_acts_BMD = cc.forward(raw_activations_BMD)
-            cc.save(model_path)
-            cc_loaded_folded = AcausalCrosscoder.load(model_path)
-            assert t.allclose(cc.W_dec_HXD, cc_loaded_folded.W_dec_HXD)
-            assert t.allclose(cc.b_dec_XD, cc_loaded_folded.b_dec_XD)
-            assert t.allclose(cc.W_enc_XDH, cc_loaded_folded.W_enc_XDH)
-            assert t.allclose(cc.b_enc_H, cc_loaded_folded.b_enc_H)
-
-
-asdf()

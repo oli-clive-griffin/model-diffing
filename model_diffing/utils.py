@@ -385,3 +385,9 @@ def runtimecast(thing: T, cls: type[T]) -> T:
 
 # hacky but useful for debugging
 torch.Tensor.i = lambda self: inspect(self)  # type: ignore
+
+
+def not_none(x: T | None) -> T:
+    if x is None:
+        raise ValueError("x is None")
+    return x

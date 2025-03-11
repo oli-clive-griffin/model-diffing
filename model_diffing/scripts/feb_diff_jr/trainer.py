@@ -1,12 +1,10 @@
-from collections.abc import Iterator
 from typing import Any
 
 import torch
 import torch as t
-from torch.nn.utils import clip_grad_norm_
 
+from model_diffing.models import InitStrategy
 from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.acausal_crosscoder.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
@@ -15,30 +13,31 @@ from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H
 
 
-class ModelDiffingDataDependentJumpReLUInitStrategy(DataDependentJumpReLUInitStrategy):
+class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
+    """
+    Init strategy that first applies a regular init, and then sets the decoder weight such that each model
+    has the same shared decoder weights for the first n_shared_latents.
+    """
+
     def __init__(
         self,
+        first_init: InitStrategy[AcausalCrosscoder[Any]],
         n_shared_latents: int,
-        activations_iterator_BXD: Iterator[torch.Tensor],
-        initial_approx_firing_pct: float,
-        device: torch.device,
-        n_tokens_for_threshold_setting: int = 100_000,
     ):
-        super().__init__(
-            activations_iterator_BXD,
-            initial_approx_firing_pct,
-            device,
-            n_tokens_for_threshold_setting,
-        )
+        self.first_init = first_init
         self.n_shared_latents = n_shared_latents
 
     @torch.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[AnthropicJumpReLUActivation]) -> None:
-        # just do the default init
-        super().init_weights(cc)
+        assert cc.W_dec_HXD.shape[1] == 2, "expected the model dimension to be 2"
+
+        # do the regular init
+        self.first_init.init_weights(cc)
 
         # BUT: sync the shared decoder weights
-        cc.W_dec_HXD[: self.n_shared_latents, 0] = cc.W_dec_HXD[: self.n_shared_latents, 1]
+        cc.W_dec_HXD[: self.n_shared_latents, 0].copy_(cc.W_dec_HXD[: self.n_shared_latents, 1])
+
+        assert (cc.W_dec_HXD[: self.n_shared_latents, 0] == cc.W_dec_HXD[: self.n_shared_latents, 1]).all()
 
 
 class ModelDiffingFebUpdateJumpReLUTrainer(
@@ -50,23 +49,15 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
     a JumpReLU crosscoder.
     """
 
-    def _train_step(self, batch_BMD: t.Tensor) -> None:
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            self.optimizer.zero_grad()
-
-        # fwd
-        train_res = self.crosscoder.forward_train(batch_BMD)
-        self.firing_tracker.add_batch(train_res.hidden_BH)
-
-        # losses
+    def _calculate_loss_and_log(self, batch_BMD: t.Tensor, train_res: AcausalCrosscoder.ForwardResult) -> t.Tensor:
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BXD)
 
         decoder_norms_H = get_summed_decoder_norms_H(self.crosscoder.W_dec_HXD)
-        decoder_norms_shared_Hs = decoder_norms_H[: self.n_shared_weights]
-        decoder_norms_indep_Hi = decoder_norms_H[self.n_shared_weights :]
+        decoder_norms_shared_Hs = decoder_norms_H[: self.n_shared_latents]
+        decoder_norms_indep_Hi = decoder_norms_H[self.n_shared_latents :]
 
-        hidden_shared_BHs = train_res.hidden_BH[:, : self.n_shared_weights]
-        hidden_indep_BHi = train_res.hidden_BH[:, self.n_shared_weights :]
+        hidden_shared_BHs = train_res.hidden_BH[:, : self.n_shared_latents]
+        hidden_indep_BHi = train_res.hidden_BH[:, self.n_shared_latents :]
 
         # shared features sparsity loss
         tanh_sparsity_loss_shared = self._tanh_sparsity_loss(hidden_shared_BHs, decoder_norms_shared_Hs)
@@ -88,12 +79,6 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         )
 
         # backward
-        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-            self.optimizer.step()
-            self._lr_step()
-
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
                 batch_BMD,
@@ -125,6 +110,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
                 )
 
             self.wandb_run.log(log_dict, step=self.step)
+        return loss
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""
