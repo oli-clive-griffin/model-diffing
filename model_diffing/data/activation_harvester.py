@@ -30,11 +30,11 @@ class ActivationsHarvester:
         self._hookpoints = hookpoints
 
         # Set up the activations cache
-        self._cache = None
+        self._activation_cache = None
         if cache_mode != "no_cache":
             if not cache_dir:
                 raise ValueError("cache_mode is enabled but no cache_dir provided; caching will be disabled")
-            self._cache = ActivationsCache(cache_dir=cache_dir, use_mmap=cache_mode == "cache_with_mmap")
+            self._activation_cache = ActivationsCache(cache_dir=cache_dir, use_mmap=cache_mode == "cache_with_mmap")
 
         self.num_models = len(llms)
         self._num_hookpoints = len(hookpoints)
@@ -46,8 +46,27 @@ class ActivationsHarvester:
         logger.info(f"computed last needed layer: {last_needed_layer}, stopping at {layer_to_stop_at}")
         return layer_to_stop_at
 
-    def _names_filter(self, name: str) -> bool:
-        return name in self._hookpoints  # not doing any fancy hash/set usage as this list is tiny
+    def _get_acts_HSPD(self, llm: HookedTransformer, sequence_HS: torch.Tensor) -> torch.Tensor:
+        if self._activation_cache is not None:
+            cache_key = self._activation_cache.get_cache_key(llm, sequence_HS, self._hookpoints)
+            activations_HSPD = self._activation_cache.load_activations(cache_key, self._device)
+            if activations_HSPD is not None:
+                return activations_HSPD
+
+        acts_HSPD = torch.empty((*sequence_HS.shape, self._num_hookpoints, llm.cfg.d_model), device=self._device)
+        _, cache = llm.run_with_cache(
+            sequence_HS.to(self._device),
+            names_filter=lambda name: name in self._hookpoints,
+            stop_at_layer=self._layer_to_stop_at,
+        )
+        for p, hookpoint in enumerate(self._hookpoints):
+            acts_HSPD[:, :, p, :] = cache[hookpoint]  # cache[hookpoint] is shape (H, S, D)
+
+        if self._activation_cache is not None:
+            cache_key = self._activation_cache.get_cache_key(llm, sequence_HS, self._hookpoints)
+            self._activation_cache.save_activations(cache_key, acts_HSPD)
+
+        return acts_HSPD
 
     def get_activations_HSMPD(
         self,
@@ -57,14 +76,8 @@ class ActivationsHarvester:
         activations_HSMPD = torch.empty(*sequence_HS.shape, *MPD, device=self._device)
         for m, model in enumerate(self._llms):
             with torch.no_grad():
-                _, cache = model.run_with_cache(
-                    sequence_HS.to(self._device),
-                    names_filter=self._names_filter,
-                    stop_at_layer=self._layer_to_stop_at,
-                )
-            for p, hookpoint in enumerate(self._hookpoints):
-                hookpoint_act_HSD = cache[hookpoint]
-                activations_HSMPD[:, :, m, p, :] = hookpoint_act_HSD
+                acts_HSPD = self._get_acts_HSPD(model, sequence_HS)
+                activations_HSMPD[:, :, m, :, :] = acts_HSPD
         return activations_HSMPD
 
 

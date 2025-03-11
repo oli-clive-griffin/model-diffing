@@ -25,7 +25,7 @@ class ActivationsCache:
 
         self.use_mmap = use_mmap
 
-    def get_cache_key(self, model: HookedTransformer, sequence_BS: torch.Tensor) -> str:
+    def get_cache_key(self, model: HookedTransformer, sequence_BS: torch.Tensor, hookpoints: list[str]) -> str:
         """Generate a unique cache key based on model identifier and input hash."""
         # Access the model key buffer that was registered in build_llms
         if not hasattr(model, "model_diffing_model_key"):
@@ -41,8 +41,9 @@ class ActivationsCache:
         # Create a deterministic hash of the input tokens
         sequence_bytes = sequence_BS.cpu().numpy().tobytes()
         input_hash = hashlib.md5(sequence_bytes).hexdigest()
+        hookpoints_hash = hashlib.md5("".join(hookpoints).encode()).hexdigest()
 
-        return f"{model_key}_{input_hash}"
+        return f"{model_key}_{input_hash}_{hookpoints_hash}"
 
     def get_cache_path(self, cache_key: str) -> Path:
         """Get the file path for a cached activation."""
