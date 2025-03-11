@@ -3,13 +3,14 @@ from typing import Any
 
 import pytest
 import torch
+import wandb
 from torch import Tensor
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer, validate_num_steps_per_epoch
-from model_diffing.scripts.config_common import AdamDecayTo0LearningRateConfig, BaseTrainConfig
+from model_diffing.scripts.config_common import AdamConfig, BaseTrainConfig
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 from model_diffing.utils import get_device
 
@@ -17,8 +18,12 @@ from model_diffing.utils import get_device
 class TestTrainer(BaseModelHookpointTrainer[BaseTrainConfig, Any]):
     __test__ = False
 
-    def _train_step(self, batch_BMPD: Tensor) -> None:
-        pass
+    def _calculate_loss_and_log(
+        self,
+        batch_BMPD: torch.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> torch.Tensor:
+        return torch.tensor(0.0)
 
 
 class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
@@ -38,7 +43,7 @@ class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
         self._d_model = d_model
         self._num_batches = num_batches
 
-    def get_shuffled_activations_iterator_BMPD(self) -> Iterator[Tensor]:
+    def get_activations_iterator_BMPD(self) -> Iterator[Tensor]:
         for _ in range(self._num_batches):
             yield torch.randint(
                 0,
@@ -55,7 +60,7 @@ class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
 
 
 def opt():
-    return AdamDecayTo0LearningRateConfig(initial_learning_rate=1e-3)
+    return AdamConfig(learning_rate=1e-3)
 
 
 @pytest.mark.parametrize(
@@ -94,7 +99,11 @@ def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
         cfg=train_cfg,
         activations_dataloader=activations_dataloader,
         crosscoder=crosscoder,
-        wandb_run=None,
+        wandb_run=wandb.init(
+            name="test",
+            project="test",
+            mode="disabled",
+        ),
         device=get_device(),
         hookpoints=hookpoints,
         save_dir="test_save_dir",

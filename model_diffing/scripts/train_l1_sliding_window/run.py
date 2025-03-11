@@ -1,12 +1,12 @@
-import fire
+import fire  # type: ignore
 
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
-from model_diffing.scripts.train_jumprelu_sliding_window.trainer import BiTokenCCWrapper
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 from model_diffing.scripts.train_l1_sliding_window.config import L1SlidingWindowExperimentConfig
 from model_diffing.scripts.train_l1_sliding_window.trainer import L1SlidingWindowCrosscoderTrainer
@@ -21,7 +21,7 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
         cfg.data.activations_harvester.llms,
         cfg.cache_dir,
         device,
-        dtype=cfg.data.activations_harvester.inference_dtype,
+        inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
     assert len({llm.cfg.d_model for llm in llms}) == 1, "all models must have the same d_model"
@@ -31,9 +31,8 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
         window_size=2,
     )
 

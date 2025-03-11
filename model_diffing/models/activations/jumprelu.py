@@ -3,7 +3,7 @@ from typing import Any
 import torch as t
 from torch import nn
 
-from model_diffing.utils import SaveableModule
+from model_diffing.models.activations.activation_function import ActivationFunction
 
 
 def rectangle(x: t.Tensor) -> t.Tensor:
@@ -16,7 +16,7 @@ def rectangle(x: t.Tensor) -> t.Tensor:
     return ((x > -0.5) & (x < 0.5)).to(x)
 
 
-class JumpReLUActivation(SaveableModule):
+class AnthropicJumpReLUActivation(ActivationFunction):
     def __init__(
         self,
         size: int,
@@ -30,11 +30,14 @@ class JumpReLUActivation(SaveableModule):
         self.bandwidth = bandwidth
         self.log_threshold_H = nn.Parameter(t.ones(size))
         if log_threshold_init is not None:
-            self.log_threshold_H.data.mul_(log_threshold_init)
+            with t.no_grad():
+                self.log_threshold_H.mul_(log_threshold_init)
         self.backprop_through_input = backprop_through_input
 
-    def forward(self, x_BX: t.Tensor) -> t.Tensor:
-        return JumpReLU.apply(x_BX, self.log_threshold_H, self.bandwidth, self.backprop_through_input)  # type: ignore
+    def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
+        return AnthropicJumpReLU.apply(
+            hidden_preact_BH, self.log_threshold_H, self.bandwidth, self.backprop_through_input
+        )  # type: ignore
 
     def _dump_cfg(self) -> dict[str, int | float | str | list[float]]:
         return {
@@ -44,7 +47,7 @@ class JumpReLUActivation(SaveableModule):
         }
 
     @classmethod
-    def _from_cfg(cls, cfg: dict[str, Any]) -> "JumpReLUActivation":
+    def _from_cfg(cls, cfg: dict[str, Any]) -> "AnthropicJumpReLUActivation":
         return cls(
             size=cfg["size"],
             bandwidth=cfg["bandwidth"],
@@ -53,7 +56,14 @@ class JumpReLUActivation(SaveableModule):
         )
 
 
-class JumpReLU(t.autograd.Function):
+class AnthropicJumpReLU(t.autograd.Function):
+    """
+    NOTE: this implementation does not support directly optimizing L0 as in the original GDM "Jumping Ahead" paper.
+    To do this, we'd need to return the step and the output, then take step.sum(dim=-1). Taking L0 of output will not
+    work as L0 is not differentiable. If you want to optimize L0 directly, you need to define a seperate Autograd
+    function that returns `(input_BX > threshold_X)` and implements the STE backward pass for that.
+    """
+
     @staticmethod
     def forward(
         ctx: Any,

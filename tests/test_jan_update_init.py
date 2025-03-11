@@ -1,6 +1,6 @@
 import torch
 
-from model_diffing.scripts.train_jan_update_crosscoder.run import compute_b_enc_H
+from model_diffing.models.utils.jan_update_init import compute_b_enc_H
 
 
 def test_compute_b_enc_H():
@@ -31,7 +31,7 @@ def test_compute_b_enc_H():
         W_enc_XDH,
         initial_jumprelu_threshold_H,
         initial_approx_firing_pct,
-        n_examples_to_sample=8,  # just the size of the dataset (2 batches of 4 examples each)
+        n_tokens_for_threshold_setting=8,  # just the size of the dataset (2 batches of 4 examples each)
     )
 
     assert b_enc_H.shape == (hidden_dim,)
@@ -41,9 +41,6 @@ def test_compute_b_enc_H():
     # - the jumprelu threshold is 1.0, so the threshold is 1 - [2.25, 6.25]
     expected_b_enc_H = torch.tensor([1 - 2.25, 1 - 6.25])
     assert torch.allclose(b_enc_H, expected_b_enc_H), f"b_enc_H: {b_enc_H}, expected_b_enc_H: {expected_b_enc_H}"
-
-
-test_compute_b_enc_H()
 
 
 def test_compute_b_enc_H_batches_rounding():
@@ -66,7 +63,7 @@ def test_compute_b_enc_H_batches_rounding():
         W_enc_XDH,
         initial_jumprelu_threshold_H,
         initial_approx_firing_pct,
-        n_examples_to_sample=5,  # should round up to 6 (taking in both batches)
+        n_tokens_for_threshold_setting=5,  # should round up to 6 (taking in both batches)
     )
 
     assert b_enc_H.shape == (hidden_dim,)

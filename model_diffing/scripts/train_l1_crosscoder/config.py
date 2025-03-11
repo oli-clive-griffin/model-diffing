@@ -8,7 +8,7 @@ class L1CrosscoderConfig(BaseModel):
 
 
 class L1TrainConfig(BaseTrainConfig):
-    lambda_s_max: float = 5.0
+    final_lambda_s: float = 5.0
     lambda_s_n_steps: int = 1000
 
 

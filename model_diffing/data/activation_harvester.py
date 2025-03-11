@@ -1,13 +1,18 @@
+from typing import Literal
+
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
 
+from model_diffing.data.activation_cache import ActivationsCache
 from model_diffing.log import logger
 
 # shapes:
-# B: batch size
+# H: (harvesting) batch size
 # S: sequence length
 # P: hookpoints
 # D: model d_model
+
+CacheMode = Literal["no_cache", "cache", "cache_with_mmap"]
 
 
 class ActivationsHarvester:
@@ -15,11 +20,21 @@ class ActivationsHarvester:
         self,
         llms: list[HookedTransformer],
         hookpoints: list[str],
+        cache_dir: str | None = None,
+        cache_mode: CacheMode = "no_cache",
     ):
         if len({llm.cfg.d_model for llm in llms}) != 1:
             raise ValueError("All models must have the same d_model")
         self._llms = llms
+        self._device = llms[0].W_E.device
         self._hookpoints = hookpoints
+
+        # Set up the activations cache
+        self._activation_cache = None
+        if cache_mode != "no_cache":
+            if not cache_dir:
+                raise ValueError("cache_mode is enabled but no cache_dir provided; caching will be disabled")
+            self._activation_cache = ActivationsCache(cache_dir=cache_dir, use_mmap=cache_mode == "cache_with_mmap")
 
         self.num_models = len(llms)
         self._num_hookpoints = len(hookpoints)
@@ -31,21 +46,39 @@ class ActivationsHarvester:
         logger.info(f"computed last needed layer: {last_needed_layer}, stopping at {layer_to_stop_at}")
         return layer_to_stop_at
 
-    def _names_filter(self, name: str) -> bool:
-        return name in self._hookpoints  # not doing any fancy hash/set usage as this list is tiny
+    def _get_acts_HSPD(self, llm: HookedTransformer, sequence_HS: torch.Tensor) -> torch.Tensor:
+        if self._activation_cache is not None:
+            cache_key = self._activation_cache.get_cache_key(llm, sequence_HS, self._hookpoints)
+            activations_HSPD = self._activation_cache.load_activations(cache_key, self._device)
+            if activations_HSPD is not None:
+                return activations_HSPD
 
-    def _get_model_activations_BSPD(self, model: HookedTransformer, sequence_BS: torch.Tensor) -> torch.Tensor:
-        _, cache = model.run_with_cache(
-            sequence_BS, names_filter=self._names_filter, stop_at_layer=self._layer_to_stop_at
+        acts_HSPD = torch.empty((*sequence_HS.shape, self._num_hookpoints, llm.cfg.d_model), device=self._device)
+        _, cache = llm.run_with_cache(
+            sequence_HS.to(self._device),
+            names_filter=lambda name: name in self._hookpoints,
+            stop_at_layer=self._layer_to_stop_at,
         )
-        # cache[name] is shape BSD, so stacking on dim 2 = BSPD
-        activations_BSPD = torch.stack([cache[name] for name in self._hookpoints], dim=2)  # adds hookpoint dim (P)
-        return activations_BSPD
+        for p, hookpoint in enumerate(self._hookpoints):
+            acts_HSPD[:, :, p, :] = cache[hookpoint]  # cache[hookpoint] is shape (H, S, D)
 
-    def get_activations_BSMPD(self, sequence_BS: torch.Tensor) -> torch.Tensor:
-        activations = [self._get_model_activations_BSPD(model, sequence_BS) for model in self._llms]
-        activations_BSMPD = torch.stack(activations, dim=2)
-        return activations_BSMPD
+        if self._activation_cache is not None:
+            cache_key = self._activation_cache.get_cache_key(llm, sequence_HS, self._hookpoints)
+            self._activation_cache.save_activations(cache_key, acts_HSPD)
+
+        return acts_HSPD
+
+    def get_activations_HSMPD(
+        self,
+        sequence_HS: torch.Tensor,
+    ) -> torch.Tensor:
+        MPD = (len(self._llms), len(self._hookpoints), self._llms[0].cfg.d_model)
+        activations_HSMPD = torch.empty(*sequence_HS.shape, *MPD, device=self._device)
+        for m, model in enumerate(self._llms):
+            with torch.no_grad():
+                acts_HSPD = self._get_acts_HSPD(model, sequence_HS)
+                activations_HSMPD[:, :, m, :, :] = acts_HSPD
+        return activations_HSMPD
 
 
 def _get_layer(hookpoint: str) -> int:

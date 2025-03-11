@@ -1,19 +1,19 @@
 # %%
 import os
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
-import yaml
+import yaml  # type: ignore
 from rich import print as rprint
 from rich.table import Table
 from torch import Tensor
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 from transformer_lens import HookedTransformer  # type: ignore
 from transformer_lens.hook_points import HookPoint  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
-from model_diffing.data.token_loader import build_tokens_sequence_loader
+from model_diffing.data.token_loader import HuggingfaceTextDatasetConfig, build_tokens_sequence_loader
 from model_diffing.interp import (
     LatentExample,
     LatentSummary,
@@ -22,9 +22,9 @@ from model_diffing.interp import (
     iterate_activations_with_text,
     top_and_bottom_logits,
 )
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
-from model_diffing.utils import get_device
+from model_diffing.utils import get_device, not_none
 
 # %% Setup
 
@@ -45,7 +45,7 @@ DOWNLOAD_DIR = ".data/artifact_download"
 #     destination_dir=DOWNLOAD_DIR,
 # )
 
-sae = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "model").to(device)
+sae: AcausalCrosscoder[Any] = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "model")
 assert sae.is_folded.item()
 
 with open(Path(DOWNLOAD_DIR) / "experiment_config.yaml") as f:
@@ -53,20 +53,22 @@ with open(Path(DOWNLOAD_DIR) / "experiment_config.yaml") as f:
 
 assert len(exp_config.data.activations_harvester.llms) == 1
 llm_cfg = exp_config.data.activations_harvester.llms[0]
-llm = cast(HookedTransformer, HookedTransformer.from_pretrained(llm_cfg.name, revision=llm_cfg.revision).to(device))
+llm = HookedTransformer.from_pretrained(not_none(llm_cfg.name), revision=llm_cfg.revision)
+llm = cast(HookedTransformer, llm.to(device))
 tokenizer = llm.tokenizer
 if not isinstance(tokenizer, PreTrainedTokenizerBase):
     raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")
 
 # without this, it'll be really slow to run locally
-exp_config.data.sequence_iterator.kwargs["shuffle_buffer_size"] = 32  # type: ignore
+assert isinstance(exp_config.data.token_sequence_loader, HuggingfaceTextDatasetConfig)
+exp_config.data.token_sequence_loader.shuffle_buffer_size = 32  # type: ignore
 
 # first, get an iterator over sequences of tokens
 batch_size = 1  # todo rethink me
-sequence_length = exp_config.data.sequence_iterator.kwargs["sequence_length"]  # type: ignore
+sequence_length = exp_config.data.token_sequence_loader.sequence_length  # type: ignore
 
 token_sequence_loader = build_tokens_sequence_loader(
-    cfg=exp_config.data.sequence_iterator,
+    cfg=exp_config.data.token_sequence_loader,
     cache_dir=cache_dir,
     tokenizer=tokenizer,
     batch_size=batch_size,
@@ -101,9 +103,8 @@ examples_by_latent = gather_max_activating_examples(
 
 
 def as_table_data(ex: LatentExample) -> tuple[float, list[str]]:
-    final_token_activation = ex.latents_context_S[-1].item()
-    tokens_strings = [tokenizer.decode(tok) for tok in ex.tokens_context_S]  # type: ignore
-    return (final_token_activation, tokens_strings)
+    tokens_strings = [tokenizer.decode(tok) for tok in ex.tokens_S]  # type: ignore
+    return (ex.last_tok_hidden_act, tokens_strings)
 
 
 # display up to 10 examples for each latent

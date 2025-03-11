@@ -1,14 +1,13 @@
 from typing import Any
 
 import torch
-from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.log import logger
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
-from model_diffing.scripts.utils import create_cosine_sim_and_relative_norm_histograms
-from model_diffing.utils import calculate_fvu_X, calculate_reconstruction_loss, get_fvu_dict
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict
 
 
 class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
@@ -16,29 +15,17 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
         super().__init__(*args, **kwargs)
         logger.warn("Auxiliary loss is not implemented for topk training, you may see large amounts of dead latents")
 
-    def _train_step(self, batch_BMPD: torch.Tensor) -> None:
-        self.optimizer.zero_grad()
+    def _calculate_loss_and_log(
+        self,
+        batch_BMPD: torch.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> torch.Tensor:
+        loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.recon_acts_BXD)
 
-        # fwd
-        train_res = self.crosscoder.forward_train(batch_BMPD)
-
-        # losses
-        reconstruction_loss = calculate_reconstruction_loss(batch_BMPD, train_res.output_BXD)
-
-        # backward
-        reconstruction_loss.backward()
-        clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-        self.optimizer.step()
-        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
-
-        if (
-            self.wandb_run is not None
-            and self.cfg.log_every_n_steps is not None
-            and (self.step + 1) % self.cfg.log_every_n_steps == 0
-        ):
+        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
-                calculate_fvu_X(batch_BMPD, train_res.output_BXD),
+                batch_BMPD,
+                train_res.recon_acts_BXD,
                 ("model", list(range(self.n_models))),
                 ("hookpoint", self.hookpoints),
             )
@@ -47,20 +34,11 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
                 "train/epoch": self.epoch,
                 "train/unique_tokens_trained": self.unique_tokens_trained,
                 "train/learning_rate": self.optimizer.param_groups[0]["lr"],
-                "train/reconstruction_loss": reconstruction_loss.item(),
+                "train/loss": loss.item(),
                 **fvu_dict,
-                **self.common_logs(),
+                **self._common_logs(),
             }
 
-            if self.n_models == 2:
-                W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
-                crosscoding_dims = W_dec_HXD.shape[1:-1]
-                assert crosscoding_dims == (self.n_models, self.n_hookpoints)
-                log_dict.update(
-                    create_cosine_sim_and_relative_norm_histograms(
-                        W_dec_HMPD=W_dec_HXD,
-                        hookpoints=self.hookpoints,
-                    )
-                )
-
             self.wandb_run.log(log_dict, step=self.step)
+
+        return loss

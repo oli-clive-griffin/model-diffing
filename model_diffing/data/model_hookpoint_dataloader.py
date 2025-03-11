@@ -1,23 +1,23 @@
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from dataclasses import dataclass
-from functools import cached_property
 
 import torch
 from einops import rearrange
-from transformer_lens import HookedTransformer
+from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
-from model_diffing.data.shuffle import batch_shuffle_tensor_iterator_BX
 from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
+from model_diffing.log import logger
 from model_diffing.scripts.config_common import DataConfig
 from model_diffing.scripts.utils import estimate_norm_scaling_factor_X
+from model_diffing.utils import change_batch_size_BX
 
 
 class BaseModelHookpointActivationsDataloader(ABC):
     @abstractmethod
-    def get_shuffled_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]: ...
+    def get_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]: ...
 
     @abstractmethod
     def num_batches(self) -> int | None: ...
@@ -31,76 +31,54 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         self,
         token_sequence_loader: TokenSequenceLoader,
         activations_harvester: ActivationsHarvester,
-        activations_shuffle_buffer_size: int,
         yield_batch_size: int,
-        device: torch.device,
-        n_batches_for_norm_estimate: int,
+        n_tokens_for_norm_estimate: int,
     ):
         self._token_sequence_loader = token_sequence_loader
         self._activations_harvester = activations_harvester
-        self._activations_shuffle_buffer_size = activations_shuffle_buffer_size
         self._yield_batch_size = yield_batch_size
+        self._device = self._activations_harvester._llms[0].W_E.device
 
-        # important note: using the raw iterator here, not the scaled one.
-        self._norm_scaling_factors_MP = estimate_norm_scaling_factor_X(
-            self._shuffled_raw_activations_iterator_BMPD,
-            device,
-            n_batches_for_norm_estimate,
+        norm_scaling_factors_MP = estimate_norm_scaling_factor_X(
+            self._activations_iterator_BMPD(),  # don't pass the scaling factors here (because we're computing them!)
+            n_tokens_for_norm_estimate,
         )
-
-    def get_norm_scaling_factors_MP(self) -> torch.Tensor:
-        return self._norm_scaling_factors_MP
-
-    @dataclass
-    class ActivationsWithText:
-        activations_BSMPD: torch.Tensor
-        tokens_BS: torch.Tensor
-
-    @torch.no_grad()
-    def iterate_activations_with_text(self) -> Iterator[ActivationsWithText]:
-        for seq in self._token_sequence_loader.get_sequences_batch_iterator():
-            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)
-            yield self.ActivationsWithText(activations_BSMPD=activations_BSMPD, tokens_BS=seq.tokens_BS)
-
-    @torch.no_grad()
-    def _activations_iterator_MPD(self) -> Iterator[torch.Tensor]:
-        for seq in self._token_sequence_loader.get_sequences_batch_iterator():
-            activations_BSMPD = self._activations_harvester.get_activations_BSMPD(seq.tokens_BS)
-
-            activations_BsMPD = rearrange(activations_BSMPD, "b s m p d -> (b s) m p d")
-            special_tokens_mask_Bs = rearrange(seq.special_tokens_mask_BS, "b s -> (b s)")
-            activations_BsMPD = activations_BsMPD[~special_tokens_mask_Bs]
-
-            yield from activations_BsMPD
-
-    @cached_property
-    @torch.no_grad()
-    def _shuffled_raw_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]:
-        activations_iterator_MPD = self._activations_iterator_MPD()
-
-        # shuffle these token activations, so that we eliminate high feature correlations inside sequences
-        shuffled_activations_iterator_BMPD = batch_shuffle_tensor_iterator_BX(
-            tensor_iterator_X=activations_iterator_MPD,
-            shuffle_buffer_size=self._activations_shuffle_buffer_size,
-            yield_batch_size=self._yield_batch_size,
-            name="llm activations",
-        )
-
-        return shuffled_activations_iterator_BMPD
-
-    @cached_property
-    @torch.no_grad()
-    def _shuffled_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]:
-        raw_activations_iterator_BMPD = self._shuffled_raw_activations_iterator_BMPD
-        scaling_factors_MP1 = rearrange(self.get_norm_scaling_factors_MP(), "m p -> m p 1")
-        for unscaled_example_BMPD in raw_activations_iterator_BMPD:
-            yield unscaled_example_BMPD * scaling_factors_MP1
+        self._norm_scaling_factors_MP = norm_scaling_factors_MP
+        self._iterator = self._activations_iterator_BMPD(norm_scaling_factors_MP)
 
     def num_batches(self) -> int | None:
         return self._token_sequence_loader.num_batches()
 
-    def get_shuffled_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]:
-        return self._shuffled_activations_iterator_BMPD
+    def get_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]:
+        return self._iterator
+
+    def get_norm_scaling_factors_MP(self) -> torch.Tensor:
+        return self._norm_scaling_factors_MP
+
+    def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:
+        for seq in self._token_sequence_loader.get_sequences_batch_iterator():
+            activations_HSMPD = self._activations_harvester.get_activations_HSMPD(seq.tokens_HS)
+            activations_HsMPD = rearrange(activations_HSMPD, "h s m p d -> (h s) m p d")
+            special_tokens_mask_Hs = rearrange(seq.special_tokens_mask_HS, "h s -> (h s)")
+            yield activations_HsMPD[~special_tokens_mask_Hs]
+
+    def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
+        iterator_HsMPD = self._activations_iterator_HsMPD()
+
+        if scaling_factors_MP is None:
+            scaling_factors_MP1 = torch.ones((1, 1, 1), device=self._device)
+        else:
+            scaling_factors_MP1 = rearrange(scaling_factors_MP.to(self._device), "m p -> m p 1")
+
+        for i, batch_BMPD in enumerate(
+            change_batch_size_BX(iterator_HX=iterator_HsMPD, new_batch_size_B=self._yield_batch_size)
+        ):
+            assert batch_BMPD.shape[0] == self._yield_batch_size, (
+                f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
+            )  # REMOVE ME
+            yield batch_BMPD * scaling_factors_MP1
+            if i % 5 == 0 and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
 
 def build_dataloader(
@@ -109,33 +87,42 @@ def build_dataloader(
     hookpoints: list[str],
     batch_size: int,
     cache_dir: str,
-    device: torch.device,
 ) -> ScaledModelHookpointActivationsDataloader:
     tokenizer = llms[0].tokenizer
+    assert all(
+        llm.tokenizer.special_tokens_map == tokenizer.special_tokens_map  # type: ignore
+        for llm in llms
+    ), "all tokenizers should have the same special tokens"
     if not isinstance(tokenizer, PreTrainedTokenizerBase):
         raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")
 
     # first, get an iterator over sequences of tokens
     token_sequence_loader = build_tokens_sequence_loader(
-        cfg=cfg.sequence_iterator,
+        cfg=cfg.token_sequence_loader,
         cache_dir=cache_dir,
         tokenizer=tokenizer,
         batch_size=cfg.activations_harvester.harvesting_batch_size,
     )
 
+    # Create activations cache directory if cache is enabled
+    activations_cache_dir = None
+    if cfg.activations_harvester.cache_mode != "no_cache":
+        activations_cache_dir = os.path.join(cache_dir, "activations_cache")
+        logger.info(f"Activations will be cached in: {activations_cache_dir}")
+
     # then, run these sequences through the model to get activations
     activations_harvester = ActivationsHarvester(
         llms=llms,
         hookpoints=hookpoints,
+        cache_dir=activations_cache_dir,
+        cache_mode=cfg.activations_harvester.cache_mode,
     )
 
     activations_dataloader = ScaledModelHookpointActivationsDataloader(
         token_sequence_loader=token_sequence_loader,
         activations_harvester=activations_harvester,
-        activations_shuffle_buffer_size=cfg.activations_shuffle_buffer_size,
         yield_batch_size=batch_size,
-        device=device,
-        n_batches_for_norm_estimate=cfg.n_batches_for_norm_estimate,
+        n_tokens_for_norm_estimate=cfg.n_tokens_for_norm_estimate,
     )
 
     return activations_dataloader

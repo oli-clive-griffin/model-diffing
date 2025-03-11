@@ -2,7 +2,7 @@
 name = "model-diffing"
 version = "0.0.1"
 description = "MARS Model Diffing project under Bilal Chughtai"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [
     "torch",
@@ -21,6 +21,7 @@ dependencies = [
     "nbformat",
     "pandas",
     "matplotlib",
+    "schedulefree",
 ]
 
 [project.optional-dependencies]
@@ -35,7 +36,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = { find  = { } }
+packages = { find = { } }
 
 [tool.ruff]
 line-length = 120

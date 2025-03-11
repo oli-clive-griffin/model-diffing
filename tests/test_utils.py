@@ -1,7 +1,8 @@
+import numpy as np
 import torch
 from einops import reduce
 
-from model_diffing.utils import calculate_fvu_X, l1_norm, l2_norm, multi_reduce
+from model_diffing.utils import calculate_vector_norm_fvu_X, l1_norm, l2_norm, multi_reduce
 
 
 def test_multi_reduce():
@@ -16,15 +17,42 @@ def test_multi_reduce():
     assert (out_1 == out_2).all()
 
 
-def test_fvu():
-    B = 1
-    M = 10
-    P = 10
-    D = 20
-    y_BMPD = torch.randn(B, M, P, D) * 0.1
-    y_hat_BMPD = torch.zeros(B, M, P, D)
-    fvu_MP = calculate_fvu_X(y_BMPD, y_hat_BMPD)
+def test_fvu_should_be_1():
+    B = 10000
+    M = 1
+    P = 1
+    D = 1  # because it's a vector norm based fvu, this makes testing easier
+
+    # When we try to predict random noise by predicting the mean, we expect fvu to be 1
+    y_BMPD = torch.rand(B, M, P, D)  # stay in the positive region to avoid awkwardness with norms always being positive
+    y_hat_BMPD = torch.ones_like(y_BMPD) * y_BMPD.mean(dim=0, keepdim=True)
+    expected_fvu = 1
+
+    fvu = calculate_vector_norm_fvu_X(y_BMPD, y_hat_BMPD).item()
+    assert np.isclose(fvu, expected_fvu, atol=1e-2), f"{fvu=}, expected {expected_fvu}"
+
+
+def test_fvu_should_be_0():
+    B = 10000
+    M = 1
+    P = 1
+    D = 1  # because it's a vector norm based fvu, this makes testing easier
+
+    # When we try to predict random noise by predicting the mean, we expect fvu to be 1
+    y_BMPD = torch.rand(B, M, P, D)  # stay in the positive region to avoid awkwardness with norms always being positive
+    y_hat_BMPD = y_BMPD.clone()
+    expected_fvu = 0
+
+    fvu = calculate_vector_norm_fvu_X(y_BMPD, y_hat_BMPD).item()
+    assert np.isclose(fvu, expected_fvu, atol=1e-2), f"{fvu=}, expected {expected_fvu}"
+
+
+def test_fvu_shape():
+    B = 10
+    M = 2
+    P = 3
+    D = 4
+    y_BMPD = torch.rand(B, M, P, D)
+    y_hat_BMPD = torch.ones(B, M, P, D) * 0.5
+    fvu_MP = calculate_vector_norm_fvu_X(y_BMPD, y_hat_BMPD)
     assert fvu_MP.shape == (M, P)
-    assert fvu_MP.mean().item() < 1e-4
-    # evs = ev.flatten()
-    # plotly.express.histogram(evs, nbins=10).show()

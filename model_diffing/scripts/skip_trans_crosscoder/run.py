@@ -1,9 +1,9 @@
-import fire
+import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.topk import TopkActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.skip_trans_crosscoder.config import TopkSkipTransCrosscoderExperimentConfig
@@ -22,7 +22,7 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
         cfg.data.activations_harvester.llms,
         cfg.cache_dir,
         device,
-        dtype=cfg.data.activations_harvester.inference_dtype,
+        inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
     hookpoints = [
@@ -35,9 +35,8 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
         cfg=cfg.data,
         llms=llms,
         hookpoints=hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
     )
 
     # HACK: need to average over each consecutive pair of hookpoints
@@ -54,7 +53,7 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
         d_model=llms[0].cfg.d_mlp,
         hidden_dim=cfg.crosscoder.hidden_dim,
         init_strategy=ZeroDecSkipTranscoderInit(
-            activation_iterator_BMPD=dataloader.get_shuffled_activations_iterator_BMPD(),
+            activation_iterator_BMPD=dataloader.get_activations_iterator_BMPD(),
             n_samples_for_dec_mean=100_000,
         ),
         hidden_activation=TopkActivation(k=cfg.crosscoder.k),

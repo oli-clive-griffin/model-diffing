@@ -4,30 +4,31 @@ import fire  # type: ignore
 
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
-from model_diffing.models.activations import JumpReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.activations import AnthropicJumpReLUActivation
+from model_diffing.models.activations.activation_function import ActivationFunction
+from model_diffing.models.utils.jan_update_init import DataDependentJumpReLUInitStrategy
+from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
-from model_diffing.scripts.train_jan_update_crosscoder.run import JanUpdateInitStrategy
 from model_diffing.scripts.train_jumprelu_sliding_window.config import SlidingWindowExperimentConfig
-from model_diffing.scripts.train_jumprelu_sliding_window.trainer import JumpreluSlidingWindowCrosscoderTrainer
-from model_diffing.scripts.train_l1_sliding_window.trainer import BiTokenCCWrapper
+from model_diffing.scripts.train_jumprelu_sliding_window.trainer import JumpReLUSlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run
-from model_diffing.utils import SaveableModule, get_device
+from model_diffing.utils import get_device
 
-TAct = TypeVar("TAct", bound=SaveableModule)
+TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
 def _build_sliding_window_crosscoder_trainer(
     cfg: SlidingWindowExperimentConfig,
-) -> JumpreluSlidingWindowCrosscoderTrainer:
+) -> JumpReLUSlidingWindowCrosscoderTrainer:
     device = get_device()
 
     llms = build_llms(
         cfg.data.activations_harvester.llms,
         cfg.cache_dir,
         device,
-        dtype=cfg.data.activations_harvester.inference_dtype,
+        inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
     assert all("hook_resid" in hp for hp in cfg.hookpoints), "we should be training on the residual stream"
@@ -36,26 +37,27 @@ def _build_sliding_window_crosscoder_trainer(
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
         window_size=2,
     )
+    # assert next(dataloader.get_activations_iterator_BTPD()).shape[0] == cfg.train.minibatch_size(), "should be the same"
 
     crosscoder1, crosscoder2 = [
         AcausalCrosscoder(
             crosscoding_dims=(window_size, len(cfg.hookpoints)),
             d_model=llms[0].cfg.d_model,
             hidden_dim=cfg.crosscoder.hidden_dim,
-            hidden_activation=JumpReLUActivation(
+            hidden_activation=AnthropicJumpReLUActivation(
                 size=cfg.crosscoder.hidden_dim,
                 bandwidth=cfg.crosscoder.jumprelu.bandwidth,
                 log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
                 backprop_through_input=cfg.crosscoder.jumprelu.backprop_through_jumprelu_input,
             ),
-            init_strategy=JanUpdateInitStrategy(
-                activations_iterator_BXD=dataloader.get_shuffled_activations_iterator_BTPD(),
+            init_strategy=DataDependentJumpReLUInitStrategy(
+                activations_iterator_BXD=dataloader.get_activations_iterator_BTPD(),
                 initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
+                device=device,
             ),
         )
         for window_size in [1, 2]
@@ -66,7 +68,7 @@ def _build_sliding_window_crosscoder_trainer(
 
     wandb_run = build_wandb_run(cfg)
 
-    return JumpreluSlidingWindowCrosscoderTrainer(
+    return JumpReLUSlidingWindowCrosscoderTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
         crosscoders=crosscoders,

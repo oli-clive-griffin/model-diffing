@@ -2,8 +2,8 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.config import L1ExperimentConfig
@@ -19,16 +19,15 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         cfg.data.activations_harvester.llms,
         cfg.cache_dir,
         device,
-        dtype=cfg.data.activations_harvester.inference_dtype,
+        inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,
-        batch_size=cfg.train.batch_size,
+        batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
-        device=device,
     )
 
     n_models = len(llms)

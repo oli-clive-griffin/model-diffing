@@ -1,17 +1,20 @@
+from .acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from .activations import (
     ACTIVATIONS_MAP,
+    AnthropicJumpReLUActivation,
     BatchTopkActivation,
-    JumpReLUActivation,
     ReLUActivation,
     TopkActivation,
 )
-from .crosscoder import AcausalCrosscoder
+from .utils.jan_update_init import DataDependentJumpReLUInitStrategy
 
 __all__ = [
     "AcausalCrosscoder",
     "ACTIVATIONS_MAP",
+    "AnthropicJumpReLUActivation",
     "BatchTopkActivation",
-    "JumpReLUActivation",
+    "DataDependentJumpReLUInitStrategy",
+    "InitStrategy",
     "ReLUActivation",
     "TopkActivation",
 ]

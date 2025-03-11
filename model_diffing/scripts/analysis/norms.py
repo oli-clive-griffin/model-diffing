@@ -3,10 +3,12 @@ from typing import cast
 
 import plotly.express as px  # type: ignore
 import torch
+from datasets import load_dataset  # type: ignore
 
 from model_diffing.analysis import visualization
 from model_diffing.analysis.metrics import get_IQR_outliers_mask
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
+from model_diffing.data.token_loader import HuggingfaceTextDatasetConfig
 from model_diffing.scripts import config_common
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.utils import collect_norms_NMP
@@ -21,13 +23,13 @@ llm_configs = [
     ),
 ]
 
-sequence_iterator_config = config_common.SequenceIteratorConfig(
-    classname="HuggingfaceTextDatasetTokenSequenceLoader",
-    kwargs={
-        "hf_dataset_name": "monology/pile-uncopyrighted",
-        "sequence_length": 258,
-        "shuffle_buffer_size": 4096,
-    },
+hf_dataset_name = "monology/pile-uncopyrighted"
+hf_dataset = load_dataset(hf_dataset_name, streaming=True, cache_dir=".cache", split="train")
+
+sequence_iterator_config = HuggingfaceTextDatasetConfig(
+    hf_dataset_name=hf_dataset_name,
+    sequence_length=258,
+    shuffle_buffer_size=4096,
 )
 
 activations_harvester_config = config_common.ActivationsHarvesterConfig(
@@ -39,26 +41,26 @@ activations_harvester_config = config_common.ActivationsHarvesterConfig(
 hookpoints = [f"block.{i}.hook_resid_post" for i in [0, 3, 7, 9, 11]]
 
 data_config = config_common.DataConfig(
-    sequence_iterator=sequence_iterator_config,
+    token_sequence_loader=sequence_iterator_config,
     activations_harvester=activations_harvester_config,
-    activations_shuffle_buffer_size=1000,
+    n_tokens_for_norm_estimate=100_000,
 )
 
 cache_dir = "./.cache/norms"
 
 # %%
 device = get_device()
-llms = build_llms(llm_configs, cache_dir, device, dtype=activations_harvester_config.inference_dtype)
+llms = build_llms(llm_configs, cache_dir, device, inferenced_type=activations_harvester_config.inference_dtype)
 
 # %%
-dataloader = build_dataloader(data_config, llms, hookpoints, 16, cache_dir, device)
+dataloader = build_dataloader(data_config, llms, hookpoints, 16, cache_dir)
 
 # %%
-sample_BMPD = next(dataloader.get_shuffled_activations_iterator_BMPD())
+sample_BMPD = next(dataloader.get_activations_iterator_BMPD())
 print(sample_BMPD.shape, sample_BMPD.device)
 
 # %%
-norms_NMP = collect_norms_NMP(dataloader.get_shuffled_activations_iterator_BMPD(), device=device, n_batches=512)
+norms_NMP = collect_norms_NMP(dataloader.get_activations_iterator_BMPD(), device=device, n_batches=512)
 print(norms_NMP.shape, norms_NMP.device)
 
 # %%
