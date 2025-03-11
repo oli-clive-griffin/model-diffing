@@ -3,6 +3,7 @@ from typing import Any
 
 import pytest
 import torch
+import wandb
 from torch import Tensor
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
@@ -94,7 +95,11 @@ def test_trainer_epochs_steps(train_cfg: BaseTrainConfig) -> None:
         cfg=train_cfg,
         activations_dataloader=activations_dataloader,
         crosscoder=crosscoder,
-        wandb_run=None,
+        wandb_run=wandb.init(
+            name="test",
+            project="test",
+            mode="disabled",
+        ),
         device=get_device(),
         hookpoints=hookpoints,
         save_dir="test_save_dir",

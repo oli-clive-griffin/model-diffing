@@ -41,7 +41,6 @@ def test_MP():
 
     dataloader = ScaledModelHookpointActivationsDataloader(
         activations_harvester=activations_harvester,
-        activations_shuffle_buffer_size=training_batch_size * 4,
         token_sequence_loader=sequence_loader,
         yield_batch_size=training_batch_size,
         n_tokens_for_norm_estimate=1,
@@ -87,7 +86,6 @@ def test_TPD():
 
     dataloader = SlidingWindowScaledActivationsDataloader(
         activations_harvester=activations_harvester,
-        activations_shuffle_buffer_size=training_batch_size * 4,
         token_sequence_loader=sequence_loader,
         yield_batch_size=training_batch_size,
         n_tokens_for_norm_estimate=1,

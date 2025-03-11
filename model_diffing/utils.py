@@ -1,11 +1,10 @@
 import os
-import sys
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from functools import partial
 from itertools import product
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, Self, TypeVar
 
 import einops
 import torch
@@ -15,12 +14,6 @@ from pydantic import BaseModel as _BaseModel
 from torch import nn
 
 from model_diffing.log import logger
-
-python_version = sys.version_info
-if python_version.major == 3 and python_version.minor < 11:
-    Self = Any
-else:
-    from typing import Self
 
 
 class BaseModel(_BaseModel):

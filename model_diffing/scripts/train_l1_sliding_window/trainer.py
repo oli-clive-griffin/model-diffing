@@ -69,11 +69,7 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
             dim=-1,
         )
 
-        if (
-            self.wandb_run is not None
-            and self.cfg.log_every_n_steps is not None
-            and self.step % self.cfg.log_every_n_steps == 0
-        ):
+        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             # Instead of building a chart with `get_l0_stats`, we compute and log the values as scalars.
             l0_B = l0_norm(hidden_B3H, dim=-1)
             l0_np = l0_B.detach().cpu().numpy()

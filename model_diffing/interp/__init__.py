@@ -7,6 +7,7 @@ from typing import Any
 import tabulate  # type: ignore
 import torch
 from einops import rearrange
+from regex import B
 from rich import print as rprint
 from rich.table import Table
 from tqdm import tqdm  # type: ignore
@@ -79,22 +80,25 @@ def gather_max_activating_examples(
     skipped_firings = 0
     not_skipped_firings = 0
 
+    sample = next(activations_with_text_iter)
+    batch_size, seq_len = sample.activations_BSMPD.shape[:2]
+    batches_seen = 0
+
     for activations_with_text in tqdm(
         islice(activations_with_text_iter, total_batches),
         total=total_batches,
         desc="Gathering latent examples",
     ):
-        B, S = activations_with_text.activations_BSMPD.shape[:2]
         activations_BsMPD = rearrange(activations_with_text.activations_BSMPD, "b s m p d -> (b s) m p d")
         res = cc.forward_train(activations_BsMPD)
-        hidden_BSH = rearrange(res.hidden_BH, "(b s) h -> b s h", b=B, s=S)
+        hidden_BSH = rearrange(res.hidden_BH, "(b s) h -> b s h", b=batch_size, s=seq_len)
 
         # zero out the activations that are not in the topk
         vals, indices = hidden_BSH.topk(topk_per_latent_per_batch, dim=-1)
         hidden_BSH = torch.zeros_like(hidden_BSH).scatter_(-1, indices, vals)
 
         for latent_idx in latents_to_inspect:
-            for batch_idx in range(B):
+            for batch_idx in range(batch_size):
                 hidden_S = hidden_BSH[batch_idx, :, latent_idx]
                 (seq_pos_indices,) = hidden_S.nonzero(as_tuple=True)
                 if (hidden_S[seq_pos_indices] < 0.001).any():
@@ -118,8 +122,9 @@ def gather_max_activating_examples(
 
                 assert seq_pos_indices.numel() == (hidden_S > 0).sum().item(), "fucked up somewhere!"
                 num_firings_by_latent_idx[latent_idx] += seq_pos_indices.numel()
+        batches_seen += 1
 
-    total_tokens_seen = total_batches * B * S  # gross, reusing a loop variable, but it works
+    total_tokens_seen = batches_seen * batch_size * seq_len  # gross, reusing a loop variable, but it works
     logger.info(f"Skipped {skipped_firings} examples, {not_skipped_firings} examples not skipped")
 
     return {

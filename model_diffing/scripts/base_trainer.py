@@ -24,7 +24,6 @@ from model_diffing.scripts.utils import (
     wandb_histogram,
 )
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
-from model_diffing.utils import SaveableModule
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=ActivationFunction)

@@ -35,11 +35,7 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
 
         self._lr_step()
 
-        if (
-            self.wandb_run is not None
-            and self.cfg.log_every_n_steps is not None
-            and self.step % self.cfg.log_every_n_steps == 0
-        ):
+        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
                 batch_BMPD,
                 train_res.recon_acts_BXD,
