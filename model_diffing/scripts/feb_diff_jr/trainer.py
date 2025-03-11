@@ -20,7 +20,11 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
     a JumpReLU crosscoder.
     """
 
-    def _calculate_loss_and_log(self, batch_BMD: t.Tensor, train_res: AcausalCrosscoder.ForwardResult) -> t.Tensor:
+    def _loss_and_log_dict(
+        self,
+        batch_BMD: t.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> tuple[t.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BXD)
 
         decoder_norms_H = get_summed_decoder_norms_H(self.crosscoder.W_dec_HXD)
@@ -59,33 +63,39 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
             hidden_shared_BHs = train_res.hidden_BH[:, : self.n_shared_latents]
             hidden_indep_BHi = train_res.hidden_BH[:, self.n_shared_latents :]
 
-            log_dict: dict[str, Any] = {
+            log_dict: dict[str, float] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/tanh_sparsity_loss_shared": tanh_sparsity_loss_shared.item(),
-                "train/lambda_s": lambda_s,
                 "train/tanh_sparsity_loss_indep": tanh_sparsity_loss_indep.item(),
-                "train/lambda_f": lambda_f,
                 "train/pre_act_loss": pre_act_loss.item(),
-                "train/lambda_p": self.cfg.lambda_p,
                 "train/loss": loss.item(),
                 **fvu_dict,
-                **self._common_logs(),
                 **get_l0_stats(hidden_shared_BHs, name="shared_l0"),
                 **get_l0_stats(hidden_indep_BHi, name="indep_l0"),
                 **get_l0_stats(train_res.hidden_BH, name="both_l0"),
             }
+            return loss, log_dict
 
-            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
-                log_dict.update(
-                    {
-                        "media/jumprelu_threshold_distribution": wandb_histogram(
-                            self.crosscoder.hidden_activation.log_threshold_H.exp()
-                        ),
-                    }
-                )
+        return loss, None
 
-            self.wandb_run.log(log_dict, step=self.step)
-        return loss
+    def _step_logs(self) -> dict[str, Any]:
+        log_dict = {
+            "train/lambda_s": self._lambda_s_scheduler(),
+            "train/lambda_f": self._lambda_f_scheduler(),
+            "train/lambda_p": self.cfg.lambda_p,
+            **self._step_common_logs(),
+        }
+
+        if self.step % (self.cfg.log_every_n_steps * 10) == 0:  # type: ignore
+            log_dict.update(
+                {
+                    "media/jumprelu_threshold_distribution": wandb_histogram(
+                        self.crosscoder.hidden_activation.log_threshold_H.exp()
+                    ),
+                }
+            )
+
+        return log_dict
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""

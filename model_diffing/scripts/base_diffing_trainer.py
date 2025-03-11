@@ -1,9 +1,9 @@
 from abc import abstractmethod
 from itertools import islice
 from pathlib import Path
+from re import I
 from typing import Any, Generic, TypeVar
 
-import torch
 import torch as t
 from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm  # type: ignore
@@ -20,13 +20,29 @@ from model_diffing.scripts.utils import (
     build_lr_scheduler,
     build_optimizer,
     create_cosine_sim_and_relative_norm_histograms_diffing,
+    dict_join,
     wandb_histogram,
 )
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
-from model_diffing.utils import not_none
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=ActivationFunction)
+
+
+class DiffingCrosscoder(AcausalCrosscoder[TAct]):
+    def __init__(
+        self,
+        d_model: int,
+        hidden_dim: int,
+        hidden_activation: TAct,
+        skip_linear: bool = False,
+        init_strategy: InitStrategy["AcausalCrosscoder[TAct]"] | None = None,
+        dtype: t.dtype = t.float32,
+    ):
+        super().__init__((2,), d_model, hidden_dim, hidden_activation, skip_linear, init_strategy, dtype)
+        self.W_dec_HMD = self.W_dec_HXD
+        self.W_enc_MDH = self.W_enc_XDH
+        self.b_dec_MD = self.b_dec_XD
 
 
 class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
@@ -43,7 +59,7 @@ class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
         self.first_init = first_init
         self.n_shared_latents = n_shared_latents
 
-    @torch.no_grad()
+    @t.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
         assert cc.W_dec_HXD.shape[1] == 2, "expected the model dimension to be 2"
 
@@ -57,21 +73,20 @@ class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
 
 
 class BaseDiffingTrainer(Generic[TConfig, TAct]):
+    LOG_HISTOGRAMS_EVERY_N_LOGS = 10
+
     def __init__(
         self,
         cfg: TConfig,
         activations_dataloader: BaseModelHookpointActivationsDataloader,
-        crosscoder: AcausalCrosscoder[TAct],
-        model_dim_cc_idx: int,
+        crosscoder: DiffingCrosscoder[TAct],
         n_shared_latents: int,
         wandb_run: Run,
-        device: torch.device,
+        device: t.device,
         hookpoints: list[str],
         save_dir: Path | str,
     ):
         self.cfg = cfg
-        self.model_dim_cc_idx = model_dim_cc_idx
-        assert crosscoder.crosscoding_dims[model_dim_cc_idx] == 2, "expected the model dimension to be 2"
         self.n_shared_latents = n_shared_latents
         self.activations_dataloader = activations_dataloader
 
@@ -111,19 +126,37 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
             epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
             epoch_dataloader_BMPD = islice(epoch_dataloader_BMPD, self.num_steps_per_epoch)
 
-            batch_iter = tqdm(
-                epoch_dataloader_BMPD,
+            for _ in tqdm(
+                range(self.num_steps_per_epoch),
                 desc="Epoch Train Steps",
                 total=self.num_steps_per_epoch,
                 smoothing=0.2,  # this loop is bursty because of activation harvesting
-            )
-            for batch_BMPD in batch_iter:
-                assert batch_BMPD.shape[1] == 2, "we only support 2 models for now"
-                assert batch_BMPD.shape[2] == 1, "we only support 1 hookpoint for now"
+            ):
+                self.optimizer.zero_grad()
 
-                batch_BMD = batch_BMPD.squeeze(2).to(self.device)
+                log_dicts: list[dict[str, float]] = []
+                for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
+                    batch_BMPD = next(epoch_dataloader_BMPD)
+                    assert batch_BMPD.shape[1] == 2, "we only support 2 models for now"
+                    assert batch_BMPD.shape[2] == 1, "we only support 1 hookpoint for now"
 
-                self._train_step(batch_BMD)
+                    batch_BMD = batch_BMPD.squeeze(2).to(self.device)
+
+                    train_res = self.crosscoder.forward_train(batch_BMD)
+                    self.firing_tracker.add_batch(train_res.hidden_BH)
+
+                    loss, log_dict = self._loss_and_log_dict(batch_BMD, train_res)
+
+                    loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+                    if log_dict is not None:
+                        log_dicts.append(log_dict)
+
+                if log_dicts:
+                    batch_log_dict_avgs = {
+                        **{k: sum(v) / len(v) for k, v in dict_join(log_dicts).items()},
+                        **self._step_logs(),
+                    }
+                    self.wandb_run.log(batch_log_dict_avgs, step=self.step)
 
                 if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
                     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
@@ -133,67 +166,55 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
                         artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
                         self.wandb_run.log_artifact(artifact)
 
+                self._synchronise_shared_weight_grads()
+                clip_grad_norm_(self.crosscoder.parameters(), 1.0)
+                self.optimizer.step()
+                self._lr_step()
                 if self.epoch == 0:
                     self.unique_tokens_trained += batch_BMD.shape[0]
-
                 self.step += 1
             self.epoch += 1
 
         self.wandb_run.finish()
 
-    def _train_step(self, batch_BMD: t.Tensor) -> None:
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            self.optimizer.zero_grad()
-
-        train_res = self.crosscoder.forward_train(batch_BMD)
-        self.firing_tracker.add_batch(train_res.hidden_BH)
-
-        loss = self._calculate_loss_and_log(batch_BMD, train_res)
-
-        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            self._synchronise_shared_weight_grads()
-            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-            self.optimizer.step()
-            self._lr_step()
+    @abstractmethod
+    def _loss_and_log_dict(
+        self,
+        batch_BMD: t.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> tuple[t.Tensor, dict[str, float] | None]: ...
 
     @abstractmethod
-    def _calculate_loss_and_log(self, batch_BMD: t.Tensor, train_res: AcausalCrosscoder.ForwardResult) -> t.Tensor: ...
+    def _step_logs(self) -> dict[str, Any]: ...
 
     def _synchronise_shared_weight_grads(self) -> None:
-        assert self.crosscoder.W_dec_HXD.shape[1 + self.model_dim_cc_idx] == 2, "expected the model dimension to be 2"
-        assert self.crosscoder.W_dec_HXD.grad is not None
-        model_0_grad = self.crosscoder.W_dec_HXD.grad[: self.n_shared_latents, 0]
-        model_1_grad = self.crosscoder.W_dec_HXD.grad[: self.n_shared_latents, 1]
-        assert model_0_grad is not None and model_1_grad is not None
+        assert self.crosscoder.W_dec_HMD.grad is not None
+        model_0_grad = self.crosscoder.W_dec_HMD.grad[: self.n_shared_latents, 0]
+        model_1_grad = self.crosscoder.W_dec_HMD.grad[: self.n_shared_latents, 1]
 
         summed_grad = model_0_grad + model_1_grad
         model_0_grad.copy_(summed_grad)
         model_1_grad.copy_(summed_grad)
-        assert (
-            not_none(self.crosscoder.W_dec_HXD.grad[: self.n_shared_latents, 0])
-            == not_none(self.crosscoder.W_dec_HXD.grad[: self.n_shared_latents, 1])
-        ).all()
 
-        assert (
-            self.crosscoder.W_dec_HXD[: self.n_shared_latents, 0]
-            == self.crosscoder.W_dec_HXD[: self.n_shared_latents, 1]
-        ).all()
+        m0_grads, m1_grads = self.crosscoder.W_dec_HMD.grad[: self.n_shared_latents].unbind(dim=1)
+        assert (m0_grads == m1_grads).all()
+
+        m0_weights, m1_weights = self.crosscoder.W_dec_HMD[: self.n_shared_latents].unbind(dim=1)
+        assert (m0_weights == m1_weights).all()
 
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"
         if self.lr_scheduler is not None:
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
-    def _common_logs(self) -> dict[str, Any]:
+    def _step_common_logs(self) -> dict[str, Any]:
         logs = {
             "train/epoch": self.epoch,
             "train/unique_tokens_trained": self.unique_tokens_trained,
             "train/learning_rate": self.optimizer.param_groups[0]["lr"],
         }
 
-        if self.step % (self.cfg.log_every_n_steps * 10) == 0:  # type: ignore
+        if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:  # type: ignore
             tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
             logs.update({"media/tokens_since_fired": tokens_since_fired_hist})
 

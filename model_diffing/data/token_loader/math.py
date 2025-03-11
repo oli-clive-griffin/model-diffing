@@ -73,7 +73,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                         sequences.append(question)
                     case _:
                         raise ValueError(
-                            f"Invalid combination of base_answers and reasoning_answers: {self._include_base_answers}, {self._include_reasoning_answers}"
+                            f"Invalid combination of base_answers and reasoning_answers: {self._include_base_answers=}, {self._include_reasoning_answers=}"
                         )
 
             tok_res = self._tokenizer.__call__(
@@ -124,10 +124,24 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
 
 if __name__ == "__main__":
+    from itertools import islice
+
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B")
-    loader = MathDatasetTokenSequenceLoader(tokenizer, 16, 2048, ".cache")
-    for batch in loader.get_sequences_batch_iterator():
-        print(batch)
-        break
+    loader = MathDatasetTokenSequenceLoader(
+        tokenizer,
+        4,
+        2048,
+        ".cache",
+        include_base_answers=True,
+        include_reasoning_answers=True,
+    )
+    for batch in islice(loader.get_sequences_batch_iterator(), 10):
+        print()
+        print(batch.tokens_HS.shape)
+        print()
+        for seq in batch.tokens_HS.unbind(0):
+            print(
+                tokenizer.decode(seq),
+            )

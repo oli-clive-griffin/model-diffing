@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterator
 from itertools import islice
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import torch
@@ -193,3 +193,10 @@ class SignSGD(Optimizer):
             for p in group["params"]:
                 if p.grad is not None:
                     p.add_(p.grad.sign(), alpha=-lr)
+
+
+T = TypeVar("T")
+
+
+def dict_join(dicts: list[dict[str, T]]) -> dict[str, list[T]]:
+    return {k: [d[k] for d in dicts] for k in dicts[0]}
