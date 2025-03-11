@@ -1,4 +1,4 @@
-from typing import Literal, overload
+from typing import Literal
 
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
