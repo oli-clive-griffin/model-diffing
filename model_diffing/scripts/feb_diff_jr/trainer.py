@@ -1,5 +1,6 @@
 from typing import Any
 
+import numpy as np
 import torch as t
 
 from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
@@ -7,8 +8,13 @@ from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivatio
 from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
-from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H
+from model_diffing.scripts.utils import wandb_histogram
+from model_diffing.utils import (
+    calculate_reconstruction_loss_summed_MSEs,
+    get_fvu_dict,
+    get_summed_decoder_norms_H,
+    l0_norm,
+)
 
 
 class ModelDiffingFebUpdateJumpReLUTrainer(
@@ -56,6 +62,9 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
                 ("model", [0, 1]),
             )
 
+            hidden_shared_BHs = train_res.hidden_BH[:, : self.n_shared_latents]
+            hidden_indep_BHi = train_res.hidden_BH[:, self.n_shared_latents :]
+
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/tanh_sparsity_loss_shared": tanh_sparsity_loss_shared.item(),
@@ -66,8 +75,9 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
                 "train/lambda_p": self.cfg.lambda_p,
                 "train/loss": loss.item(),
                 **fvu_dict,
-                **get_l0_stats(train_res.hidden_BH),
                 **self._common_logs(),
+                **self._l0_stats(hidden_shared_BHs, "shared_latents"),
+                **self._l0_stats(hidden_indep_BHi, "indep_latents"),
             }
 
             if self.step % (self.cfg.log_every_n_steps * 10) == 0:
@@ -95,3 +105,18 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
 
     def _pre_act_loss(self, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
         return pre_act_loss(self.crosscoder.hidden_activation.log_threshold_H, hidden_BH, decoder_norms_H)
+
+    def _l0_stats(self, hidden_BH: t.Tensor, name: str) -> dict[str, float]:
+        l0_BH = l0_norm(hidden_BH, dim=-1)
+        mean_l0 = l0_BH.mean().item()
+        l0_np = l0_BH.detach().cpu().numpy()
+        l0_5, l0_25, l0_75, l0_95 = np.percentile(l0_np, [5, 25, 75, 95])
+
+        return {
+            f"train/{name}/mean_firing_pct": mean_l0 / hidden_BH.shape[1],
+            f"train/{name}/l0/5th": l0_5,
+            f"train/{name}/l0/25th": l0_25,
+            f"train/{name}/l0/mean": mean_l0,
+            f"train/{name}/l0/75th": l0_75,
+            f"train/{name}/l0/95th": l0_95,
+        }
