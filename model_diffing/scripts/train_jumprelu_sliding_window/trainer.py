@@ -1,10 +1,9 @@
 from typing import Any
 
 import torch as t
-from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
-from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer
+from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer, BiTokenCCWrapper
 from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
@@ -17,25 +16,22 @@ from model_diffing.utils import (
 class JumpReLUSlidingWindowCrosscoderTrainer(
     BaseSlidingWindowCrosscoderTrainer[AnthropicJumpReLUActivation, TanHSparsityTrainConfig]
 ):
-    def _train_step(self, batch_BTPD: t.Tensor) -> None:
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            self.optimizer.zero_grad()
-
-        # fwd
-        res = self.crosscoders.forward_train(batch_BTPD)
-
-        reconstructed_acts_BTPD = t.cat([res.recon_B1PD_single1, res.recon_B1PD_single2], dim=1) + res.recon_B2PD_double
+    def _calculate_loss_and_log(
+        self,
+        batch_BTPD: t.Tensor,
+        res: BiTokenCCWrapper.TrainResult,
+    ) -> t.Tensor:
+        reconstructed_acts_BTPD = t.cat([res.recon_single1_B1PD, res.recon_single2_B1PD], dim=1) + res.recon_double_B2PD
         assert reconstructed_acts_BTPD.shape == batch_BTPD.shape, "fuck"
 
         # losses
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BTPD, reconstructed_acts_BTPD)
 
-        hidden_B3h = t.cat([res.hidden_BH_single1, res.hidden_BH_double, res.hidden_BH_single2], dim=-1)
-
         decoder_norms_single_H = get_summed_decoder_norms_H(self.crosscoders.single_cc.W_dec_HXD)
         decoder_norms_both_H = get_summed_decoder_norms_H(self.crosscoders.double_cc.W_dec_HXD)
 
         decoder_norms_3h = t.cat([decoder_norms_single_H, decoder_norms_both_H, decoder_norms_single_H], dim=-1)
+        hidden_B3h = t.cat([res.hidden_single1_BH, res.hidden_double_BH, res.hidden_single2_BH], dim=-1)
 
         tanh_sparsity_loss = self._tanh_sparsity_loss(hidden_B3h, decoder_norms_3h)
         lambda_s = self._lambda_s_scheduler()
@@ -47,17 +43,6 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
             + lambda_s * tanh_sparsity_loss
             + self.cfg.lambda_p * pre_act_loss
         )
-
-        # backward
-        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            clip_grad_norm_(self.crosscoders.parameters(), 1.0)
-            self.optimizer.step()
-
-        self._lr_step()
-
-        self.firing_tracker.add_batch(hidden_B3h)
 
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
@@ -87,11 +72,7 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
                 )
 
             self.wandb_run.log(log_dict, step=self.step)
-
-    def _lr_step(self) -> None:
-        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        if self.lr_scheduler is not None:
-            self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+        return loss
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""

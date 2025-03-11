@@ -2,7 +2,6 @@ from collections.abc import Iterator
 from typing import Any
 
 import torch
-from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models import InitStrategy
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
@@ -69,11 +68,11 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
     # Po: number of output hookpoints (should be equal to Pi)
     # D: activation dimension (in this case, d_mlp)
 
-    def _train_step(self, batch_BMPD: torch.Tensor) -> None:
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            self.optimizer.zero_grad()
-
-        # hookpoints alternate between input and output
+    def _calculate_loss_and_log(
+        self,
+        batch_BMPD: torch.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> torch.Tensor:
         assert batch_BMPD.shape[2] % 2 == 0, "we should have an even number of hookpoints for this trainer"
         batch_x_BMPiD = batch_BMPD[:, :, ::2]
         batch_y_BMPoD = batch_BMPD[:, :, 1::2]
@@ -81,15 +80,7 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
         train_res = self.crosscoder.forward_train(batch_x_BMPiD)
         self.firing_tracker.add_batch(train_res.hidden_BH)
 
-        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(train_res.recon_acts_BXD, batch_y_BMPoD)
-
-        reconstruction_loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-            self.optimizer.step()
-
-        self._lr_step()
+        loss = calculate_reconstruction_loss_summed_MSEs(train_res.recon_acts_BXD, batch_y_BMPoD)
 
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             assert batch_y_BMPoD.shape[2] == len(self.hookpoints[1::2])
@@ -104,7 +95,7 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
             )
 
             log_dict: dict[str, Any] = {
-                "train/reconstruction_loss": reconstruction_loss.item(),
+                "train/loss": loss.item(),
                 **fvu_dict,
                 **self._common_logs(),
             }
@@ -117,3 +108,5 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
                 )
 
             self.wandb_run.log(log_dict, step=self.step)
+
+        return loss

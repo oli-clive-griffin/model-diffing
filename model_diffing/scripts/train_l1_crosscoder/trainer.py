@@ -2,7 +2,6 @@ from typing import Any
 
 import torch
 from einops import rearrange
-from torch.nn.utils import clip_grad_norm_
 
 from model_diffing.models import InitStrategy
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
@@ -33,34 +32,21 @@ class AnthropicTransposeInit(InitStrategy[AcausalCrosscoder[Any]]):
 
 
 class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivation]):
-    def _train_step(self, batch_BMPD: torch.Tensor) -> None:
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            self.optimizer.zero_grad()
-
-        # fwd
-        train_res = self.crosscoder.forward_train(batch_BMPD)
-        self.firing_tracker.add_batch(train_res.hidden_BH)
-
-        # losses
+    def _calculate_loss_and_log(
+        self,
+        batch_BMPD: torch.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> torch.Tensor:
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.recon_acts_BXD)
 
-        W_H1MPD = self.crosscoder.W_dec_HXD[:, None]
-
         sparsity_loss = sparsity_loss_l1_of_norms(
-            W_dec_HTMPD=W_H1MPD,
+            W_dec_HTMPD=self.crosscoder.W_dec_HXD[:, None],
             hidden_BH=train_res.hidden_BH,
         )
+
         l1_coef = self._l1_coef_scheduler()
+
         loss = reconstruction_loss + l1_coef * sparsity_loss
-
-        # backward
-        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-            self.optimizer.step()
-
-        self._lr_step()
 
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
@@ -81,6 +67,8 @@ class L1CrosscoderTrainer(BaseModelHookpointTrainer[L1TrainConfig, ReLUActivatio
             }
 
             self.wandb_run.log(log_dict, step=self.step)
+
+        return loss
 
     def _l1_coef_scheduler(self) -> float:
         if self.step < self.cfg.lambda_s_n_steps:

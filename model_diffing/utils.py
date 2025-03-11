@@ -384,3 +384,13 @@ def not_none(x: T | None) -> T:
     if x is None:
         raise ValueError("x is None")
     return x
+
+
+def pre_act_loss(log_threshold_H: torch.Tensor, hidden_BH: torch.Tensor, decoder_norms_H: torch.Tensor) -> torch.Tensor:
+    loss_BH = torch.relu(log_threshold_H.exp() - hidden_BH) * decoder_norms_H
+    return loss_BH.sum(-1).mean()
+
+
+def tanh_sparsity_loss(c: float, hidden_BH: torch.Tensor, decoder_norms_H: torch.Tensor) -> torch.Tensor:
+    loss_BH = torch.tanh(c * hidden_BH * decoder_norms_H)
+    return loss_BH.sum(-1).mean()

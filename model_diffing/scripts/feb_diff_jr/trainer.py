@@ -1,9 +1,7 @@
 from typing import Any
 
-import torch
 import torch as t
 
-from model_diffing.models import InitStrategy
 from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
@@ -11,33 +9,6 @@ from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpda
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H
-
-
-class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
-    """
-    Init strategy that first applies a regular init, and then sets the decoder weight such that each model
-    has the same shared decoder weights for the first n_shared_latents.
-    """
-
-    def __init__(
-        self,
-        first_init: InitStrategy[AcausalCrosscoder[Any]],
-        n_shared_latents: int,
-    ):
-        self.first_init = first_init
-        self.n_shared_latents = n_shared_latents
-
-    @torch.no_grad()
-    def init_weights(self, cc: AcausalCrosscoder[AnthropicJumpReLUActivation]) -> None:
-        assert cc.W_dec_HXD.shape[1] == 2, "expected the model dimension to be 2"
-
-        # do the regular init
-        self.first_init.init_weights(cc)
-
-        # BUT: sync the shared decoder weights
-        cc.W_dec_HXD[: self.n_shared_latents, 0].copy_(cc.W_dec_HXD[: self.n_shared_latents, 1])
-
-        assert (cc.W_dec_HXD[: self.n_shared_latents, 0] == cc.W_dec_HXD[: self.n_shared_latents, 1]).all()
 
 
 class ModelDiffingFebUpdateJumpReLUTrainer(
@@ -78,7 +49,6 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
             + self.cfg.lambda_p * pre_act_loss
         )
 
-        # backward
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
                 batch_BMD,

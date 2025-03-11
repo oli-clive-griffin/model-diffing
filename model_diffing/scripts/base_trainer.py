@@ -8,6 +8,7 @@ from typing import Any, Generic, TypeVar
 
 import torch
 import yaml  # type: ignore
+from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
@@ -77,11 +78,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         self.epoch = 0
         self.unique_tokens_trained = 0
 
-    def _lr_step(self) -> None:
-        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
-        if self.lr_scheduler is not None:
-            self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
-
     def train(self) -> None:
         scaling_factors_MP = self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
@@ -117,6 +113,32 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
 
         self.wandb_run.finish()
 
+    def _train_step(self, batch_BMPD: torch.Tensor) -> None:
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            self.optimizer.zero_grad()
+
+        train_res = self.crosscoder.forward_train(batch_BMPD)
+        self.firing_tracker.add_batch(train_res.hidden_BH)
+
+        loss = self._calculate_loss_and_log(batch_BMPD, train_res)
+
+        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
+            self.optimizer.step()
+            self._lr_step()
+
+    @abstractmethod
+    def _calculate_loss_and_log(
+        self, batch_BMPD: torch.Tensor, train_res: AcausalCrosscoder.ForwardResult
+    ) -> torch.Tensor: ...
+
+    def _lr_step(self) -> None:
+        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
+        if self.lr_scheduler is not None:
+            self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+
     def _common_logs(self) -> dict[str, Any]:
         logs = {
             "train/epoch": self.epoch,
@@ -134,9 +156,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 logs.update(create_cosine_sim_and_relative_norm_histograms(W_dec_HXD, self.hookpoints))
 
         return logs
-
-    @abstractmethod
-    def _train_step(self, batch_BMPD: torch.Tensor) -> None: ...
 
 
 def validate_num_steps_per_epoch(

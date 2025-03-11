@@ -6,6 +6,7 @@ from typing import Any, Generic, TypeVar
 
 import torch as t
 from torch import nn
+from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
@@ -39,12 +40,12 @@ class BiTokenCCWrapper(nn.Module, Generic[TAct]):
 
     @dataclass
     class TrainResult:
-        recon_B1PD_single1: t.Tensor
-        recon_B1PD_single2: t.Tensor
-        recon_B2PD_double: t.Tensor
-        hidden_BH_single1: t.Tensor
-        hidden_BH_single2: t.Tensor
-        hidden_BH_double: t.Tensor
+        recon_single1_B1PD: t.Tensor
+        recon_single2_B1PD: t.Tensor
+        recon_double_B2PD: t.Tensor
+        hidden_single1_BH: t.Tensor
+        hidden_single2_BH: t.Tensor
+        hidden_double_BH: t.Tensor
 
     def forward_train(self, x_BTPD: t.Tensor) -> TrainResult:
         assert x_BTPD.shape[1] == 2
@@ -54,12 +55,12 @@ class BiTokenCCWrapper(nn.Module, Generic[TAct]):
         output_both = self.double_cc.forward_train(x_BTPD)
 
         return self.TrainResult(
-            recon_B1PD_single1=output_single1.recon_acts_BXD,
-            recon_B1PD_single2=output_single2.recon_acts_BXD,
-            recon_B2PD_double=output_both.recon_acts_BXD,
-            hidden_BH_single1=output_single1.hidden_BH,
-            hidden_BH_single2=output_single2.hidden_BH,
-            hidden_BH_double=output_both.hidden_BH,
+            recon_single1_B1PD=output_single1.recon_acts_BXD,
+            recon_single2_B1PD=output_single2.recon_acts_BXD,
+            recon_double_B2PD=output_both.recon_acts_BXD,
+            hidden_single1_BH=output_single1.hidden_BH,
+            hidden_single2_BH=output_single2.hidden_BH,
+            hidden_double_BH=output_both.hidden_BH,
         )
 
     # stub forward for appeasing the nn.Module interface, but we don't use it
@@ -149,8 +150,34 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                 self.step += 1
             self.epoch += 1
 
+    def _train_step(self, batch_BTPD: t.Tensor) -> None:
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            self.optimizer.zero_grad()
+
+        res = self.crosscoders.forward_train(batch_BTPD)
+        hidden_B3h = t.cat([res.hidden_single1_BH, res.hidden_double_BH, res.hidden_single2_BH], dim=-1)
+        self.firing_tracker.add_batch(hidden_B3h)
+
+        loss = self._calculate_loss_and_log(batch_BTPD, res)
+
+        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+
+        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+            clip_grad_norm_(self.crosscoders.parameters(), 1.0)
+            self.optimizer.step()
+            self._lr_step()
+
     @abstractmethod
-    def _train_step(self, batch_BTPD: t.Tensor) -> None: ...
+    def _calculate_loss_and_log(
+        self,
+        batch_BTPD: t.Tensor,
+        res: BiTokenCCWrapper.TrainResult,
+    ) -> t.Tensor: ...
+
+    def _lr_step(self) -> None:
+        assert len(self.optimizer.param_groups) == 1, "sanity check failed"
+        if self.lr_scheduler is not None:
+            self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
     def _common_logs(self) -> dict[str, Any]:
         return {

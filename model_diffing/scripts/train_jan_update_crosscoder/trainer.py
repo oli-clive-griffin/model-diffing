@@ -1,25 +1,27 @@
 from typing import Any
 
 import torch as t
-from torch.nn.utils import clip_grad_norm_
 
+from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H
+from model_diffing.utils import (
+    calculate_reconstruction_loss_summed_MSEs,
+    get_fvu_dict,
+    get_summed_decoder_norms_H,
+    pre_act_loss,
+    tanh_sparsity_loss,
+)
 
 
 class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConfig, AnthropicJumpReLUActivation]):
-    def _train_step(self, batch_BMPD: t.Tensor) -> None:
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            self.optimizer.zero_grad()
-
-        # fwd
-        train_res = self.crosscoder.forward_train(batch_BMPD)
-        self.firing_tracker.add_batch(train_res.hidden_BH)
-
-        # losses
+    def _calculate_loss_and_log(
+        self,
+        batch_BMPD: t.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> t.Tensor:
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.recon_acts_BXD)
 
         decoder_norms_H = get_summed_decoder_norms_H(self.crosscoder.W_dec_HXD)
@@ -34,14 +36,6 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
             + lambda_s * tanh_sparsity_loss
             + self.cfg.lambda_p * pre_act_loss
         )
-
-        # backward
-        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
-            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-            self.optimizer.step()
-            self._lr_step()
 
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
             fvu_dict = get_fvu_dict(
@@ -74,6 +68,8 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
 
             self.wandb_run.log(log_dict, step=self.step)
 
+        return loss
+
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""
         return (self.step / self.total_steps) * self.cfg.final_lambda_s
@@ -83,13 +79,3 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
 
     def _pre_act_loss(self, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
         return pre_act_loss(self.crosscoder.hidden_activation.log_threshold_H, hidden_BH, decoder_norms_H)
-
-
-def pre_act_loss(log_threshold_H: t.Tensor, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
-    loss_BH = t.relu(log_threshold_H.exp() - hidden_BH) * decoder_norms_H
-    return loss_BH.sum(-1).mean()
-
-
-def tanh_sparsity_loss(c: float, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
-    loss_BH = t.tanh(c * hidden_BH * decoder_norms_H)
-    return loss_BH.sum(-1).mean()

@@ -11,6 +11,7 @@ from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.log import logger
+from model_diffing.models import InitStrategy
 from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.scripts.base_trainer import validate_num_steps_per_epoch
@@ -27,6 +28,33 @@ from model_diffing.utils import not_none
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=ActivationFunction)
+
+
+class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
+    """
+    Init strategy that first applies a regular init, and then sets the decoder weight such that each model
+    has the same shared decoder weights for the first n_shared_latents.
+    """
+
+    def __init__(
+        self,
+        first_init: InitStrategy[AcausalCrosscoder[Any]],
+        n_shared_latents: int,
+    ):
+        self.first_init = first_init
+        self.n_shared_latents = n_shared_latents
+
+    @torch.no_grad()
+    def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
+        assert cc.W_dec_HXD.shape[1] == 2, "expected the model dimension to be 2"
+
+        # do the regular init
+        self.first_init.init_weights(cc)
+
+        # BUT: sync the shared decoder weights
+        cc.W_dec_HXD[: self.n_shared_latents, 0].copy_(cc.W_dec_HXD[: self.n_shared_latents, 1])
+
+        assert (cc.W_dec_HXD[: self.n_shared_latents, 0] == cc.W_dec_HXD[: self.n_shared_latents, 1]).all()
 
 
 class BaseDiffingTrainer(Generic[TConfig, TAct]):
@@ -118,7 +146,6 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
         if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
             self.optimizer.zero_grad()
 
-        # fwd
         train_res = self.crosscoder.forward_train(batch_BMD)
         self.firing_tracker.add_batch(train_res.hidden_BH)
 

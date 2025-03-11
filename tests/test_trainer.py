@@ -18,8 +18,12 @@ from model_diffing.utils import get_device
 class TestTrainer(BaseModelHookpointTrainer[BaseTrainConfig, Any]):
     __test__ = False
 
-    def _train_step(self, batch_BMPD: Tensor) -> None:
-        pass
+    def _calculate_loss_and_log(
+        self,
+        batch_BMPD: torch.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+    ) -> torch.Tensor:
+        return torch.tensor(0.0)
 
 
 class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
