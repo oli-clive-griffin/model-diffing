@@ -15,5 +15,5 @@ _classes: list[type[ActivationFunction]] = [
 
 ACTIVATIONS_MAP: dict[str, type[ActivationFunction]] = {
     **{cls.__name__: cls for cls in _classes},
-    "JumpReLUActivationFunction": AnthropicJumpReLUActivation,
+    "JumpReLUActivationFunction": cast(type[ActivationFunction], AnthropicJumpReLUActivation),
 }
