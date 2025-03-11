@@ -3,11 +3,11 @@ import os
 from pathlib import Path
 from typing import Any, cast
 
-import yaml
+import yaml  # type: ignore
 from rich import print as rprint
 from rich.table import Table
 from torch import Tensor
-from tqdm import tqdm
+from tqdm import tqdm  # type: ignore
 from transformer_lens import HookedTransformer  # type: ignore
 from transformer_lens.hook_points import HookPoint  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore

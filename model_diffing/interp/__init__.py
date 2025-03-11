@@ -7,7 +7,6 @@ from typing import Any
 import tabulate  # type: ignore
 import torch
 from einops import rearrange
-from regex import B
 from rich import print as rprint
 from rich.table import Table
 from tqdm import tqdm  # type: ignore
