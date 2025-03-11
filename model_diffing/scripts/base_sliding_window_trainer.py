@@ -125,6 +125,7 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                 islice(self.activations_dataloader.get_activations_iterator_BTPD(), self.num_steps_per_epoch),
                 desc="Epoch Train Steps",
                 total=self.num_steps_per_epoch,
+                smoothing=0.15,  # this loop is bursty because of activation harvesting
             ):
                 batch_BTPD = batch_BTPD.to(self.device)
 

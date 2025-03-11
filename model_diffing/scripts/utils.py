@@ -182,7 +182,7 @@ class SignSGD(Optimizer):
             raise ValueError(f"Invalid learning rate: {lr}")
 
         defaults = {"lr": lr}
-        super(SignSGD, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
     @torch.no_grad()
     def step(self, closure: Any = None) -> None:  # type: ignore

@@ -89,7 +89,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 epoch_dataloader_BMPD,
                 desc="Epoch Train Steps",
                 total=self.num_steps_per_epoch,
-                smoothing=0.2,  # this loop is bursty because of activation harvesting
+                smoothing=0.15,  # this loop is bursty because of activation harvesting
             )
             for batch_BMPD in batch_iter:
                 batch_BMPD = batch_BMPD.to(self.device)

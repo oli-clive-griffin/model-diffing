@@ -130,7 +130,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
                 range(self.num_steps_per_epoch),
                 desc="Epoch Train Steps",
                 total=self.num_steps_per_epoch,
-                smoothing=0.2,  # this loop is bursty because of activation harvesting
+                smoothing=0.15,  # this loop is bursty because of activation harvesting
             ):
                 self.optimizer.zero_grad()
 
