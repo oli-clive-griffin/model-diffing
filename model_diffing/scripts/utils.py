@@ -89,7 +89,7 @@ def build_wandb_run(config: BaseExperimentConfig) -> Run:
     )
 
 
-def build_optimizer(
+def build_optimizer(  # type: ignore
     cfg: OptimizerCfg, params: Iterator[torch.nn.Parameter]
 ) -> torch.optim.Optimizer | ScheduleFreeWrapper:
     match cfg:
