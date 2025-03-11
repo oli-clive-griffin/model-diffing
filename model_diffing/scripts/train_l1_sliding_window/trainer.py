@@ -95,7 +95,7 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
             }
 
             self.wandb_run.log(log_dict, step=self.step)
-        
+
         return loss
 
     def _lambda_s_scheduler(self) -> float:

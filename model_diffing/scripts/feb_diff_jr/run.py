@@ -7,10 +7,11 @@ from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.acausal_crosscoder.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
+from model_diffing.scripts.base_diffing_trainer import IdenticalLatentsInit
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
 from model_diffing.scripts.feb_diff_jr.constants import N_MODELS
-from model_diffing.scripts.feb_diff_jr.trainer import IdenticalLatentsInit, ModelDiffingFebUpdateJumpReLUTrainer
+from model_diffing.scripts.feb_diff_jr.trainer import ModelDiffingFebUpdateJumpReLUTrainer
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import SaveableModule, get_device
