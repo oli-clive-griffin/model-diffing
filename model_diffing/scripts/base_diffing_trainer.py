@@ -11,8 +11,7 @@ from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.log import logger
-from model_diffing.models import InitStrategy
-from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.scripts.base_trainer import validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import BaseTrainConfig

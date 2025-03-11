@@ -4,9 +4,9 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.acausal_crosscoder.jan_update_init import DataDependentJumpReLUInitStrategy
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
+from model_diffing.models.utils.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_diffing_trainer import IdenticalLatentsInit
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig

@@ -2,8 +2,7 @@ from typing import Any
 
 import torch as t
 
-from model_diffing.models import InitStrategy
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.models.activations.topk import BatchTopkActivation
 from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit

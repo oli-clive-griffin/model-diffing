@@ -3,8 +3,7 @@ from typing import Any
 import torch
 from einops import rearrange
 
-from model_diffing.models import InitStrategy
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig

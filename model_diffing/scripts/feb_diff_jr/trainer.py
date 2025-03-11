@@ -2,7 +2,7 @@ from typing import Any
 
 import torch as t
 
-from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig

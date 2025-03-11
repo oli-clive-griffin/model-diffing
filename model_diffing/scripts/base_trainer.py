@@ -131,7 +131,9 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
 
     @abstractmethod
     def _calculate_loss_and_log(
-        self, batch_BMPD: torch.Tensor, train_res: AcausalCrosscoder.ForwardResult
+        self,
+        batch_BMPD: torch.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
     ) -> torch.Tensor: ...
 
     def _lr_step(self) -> None:

@@ -1,15 +1,17 @@
 from collections.abc import Iterator
+from math import prod
 
 import torch
-from einops import einsum
+from einops import einsum, rearrange
 from tqdm import tqdm  # type: ignore
 
 from model_diffing.log import logger
-from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
+from model_diffing.models.activations import AnthropicJumpReLUActivation
 from model_diffing.utils import inspect, round_up
 
 
-class BaseDataDependentJumpReLUInitStrategy:
+class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReLUActivation]]):
     """
     Base class for the data-dependent JumpReLU initialization strategy described in:
         https://transformer-circuits.pub/2025/january-update/index.html.
@@ -47,6 +49,20 @@ class BaseDataDependentJumpReLUInitStrategy:
             self.initial_approx_firing_pct,
             self.n_tokens_for_threshold_setting,
         )
+
+    @torch.no_grad()
+    def init_weights(self, cc: AcausalCrosscoder[AnthropicJumpReLUActivation]) -> None:
+        n = prod(cc.crosscoding_dims) * cc.d_model
+        m = cc.hidden_dim
+
+        cc.W_dec_HXD.uniform_(-1.0 / n, 1.0 / n)
+        cc.W_enc_XDH.copy_(
+            rearrange(cc.W_dec_HXD, "hidden ... -> ... hidden")  #
+            * (n / m)
+        )
+
+        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_XDH, cc.hidden_activation).to(cc.b_enc_H.device))
+        cc.b_dec_XD.zero_()
 
 
 def compute_b_enc_H(

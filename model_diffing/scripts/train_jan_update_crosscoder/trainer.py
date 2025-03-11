@@ -2,7 +2,7 @@ from typing import Any
 
 import torch as t
 
-from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig

@@ -7,10 +7,10 @@ from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations import AnthropicJumpReLUActivation
 from model_diffing.models.activations.activation_function import ActivationFunction
+from model_diffing.models.utils.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
-from model_diffing.scripts.train_jan_update_crosscoder.run import DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.train_jumprelu_sliding_window.config import SlidingWindowExperimentConfig
 from model_diffing.scripts.train_jumprelu_sliding_window.trainer import JumpReLUSlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run

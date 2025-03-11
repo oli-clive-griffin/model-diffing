@@ -3,7 +3,7 @@ from typing import Any
 import torch
 
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.topk import TopkActivation
 from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig

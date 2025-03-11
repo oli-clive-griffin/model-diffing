@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from math import prod
 from typing import Any, Generic, TypeVar, cast
@@ -6,9 +7,7 @@ import torch as t
 from einops import einsum, reduce
 from torch import nn
 
-from model_diffing.models import InitStrategy
-from model_diffing.models.activations import ACTIVATIONS_MAP
-from model_diffing.models.activations.activation_function import ActivationFunction
+from model_diffing.models.activations import ACTIVATIONS_MAP, ActivationFunction
 from model_diffing.utils import SaveableModule, l2_norm
 
 """
@@ -18,6 +17,15 @@ Dimensions:
 - H: Autoencoder h dimension
 - D: Autoencoder d dimension
 """
+
+
+TModel = TypeVar("TModel", bound=SaveableModule)
+
+
+class InitStrategy(ABC, Generic[TModel]):
+    @abstractmethod
+    def init_weights(self, cc: TModel) -> None: ...
+
 
 TActivation = TypeVar("TActivation", bound=ActivationFunction)
 

@@ -1,28 +1,20 @@
+from .acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from .activations import (
     ACTIVATIONS_MAP,
+    AnthropicJumpReLUActivation,
     BatchTopkActivation,
-    JumpReLUActivation,
     ReLUActivation,
     TopkActivation,
 )
-from .crosscoder import AcausalCrosscoder
-from model_diffing.utils import SaveableModule
-from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
-
-TModel = TypeVar("TModel", bound=SaveableModule)
-
-
-class InitStrategy(ABC, Generic[TModel]):
-    @abstractmethod
-    def init_weights(self, cc: TModel) -> None: ...
-
+from .utils.jan_update_init import DataDependentJumpReLUInitStrategy
 
 __all__ = [
     "AcausalCrosscoder",
     "ACTIVATIONS_MAP",
+    "AnthropicJumpReLUActivation",
     "BatchTopkActivation",
-    "JumpReLUActivation",
+    "DataDependentJumpReLUInitStrategy",
+    "InitStrategy",
     "ReLUActivation",
     "TopkActivation",
 ]
