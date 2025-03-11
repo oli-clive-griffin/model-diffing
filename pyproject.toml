@@ -21,6 +21,7 @@ dependencies = [
     "nbformat",
     "pandas",
     "matplotlib",
+    "schedulefree",
 ]
 
 [project.optional-dependencies]
