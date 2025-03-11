@@ -72,6 +72,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
                 **self._common_logs(),
                 **get_l0_stats(hidden_shared_BHs, name="shared_l0"),
                 **get_l0_stats(hidden_indep_BHi, name="indep_l0"),
+                **get_l0_stats(train_res.hidden_BH, name="both_l0"),
             }
 
             if self.step % (self.cfg.log_every_n_steps * 10) == 0:
