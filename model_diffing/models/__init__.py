@@ -6,12 +6,14 @@ from .activations import (
     ReLUActivation,
     TopkActivation,
 )
-from .utils.jan_update_init import DataDependentJumpReLUInitStrategy
+from .initialization.anthropic_transpose import AnthropicTransposeInit
+from .initialization.jan_update_init import DataDependentJumpReLUInitStrategy
 
 __all__ = [
     "AcausalCrosscoder",
     "ACTIVATIONS_MAP",
     "AnthropicJumpReLUActivation",
+    "AnthropicTransposeInit",
     "BatchTopkActivation",
     "DataDependentJumpReLUInitStrategy",
     "InitStrategy",

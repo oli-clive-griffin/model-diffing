@@ -1,6 +1,6 @@
 import torch
 
-from model_diffing.models.utils.jan_update_init import compute_b_enc_H
+from model_diffing.models.initialization.jan_update_init import compute_b_enc_H
 
 
 def test_compute_b_enc_H():

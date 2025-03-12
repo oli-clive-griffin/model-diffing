@@ -14,8 +14,8 @@ from model_diffing.utils import SaveableModule, l2_norm
 Dimensions:
 - B: batch size
 - X: arbitrary number of crosscoding dimensions
-- H: Autoencoder h dimension
-- D: Autoencoder d dimension
+- H: Hidden dimension. AKA Latents, AKA "features"
+- D: d_model
 """
 
 

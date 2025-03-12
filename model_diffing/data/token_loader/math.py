@@ -84,7 +84,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                 max_length=self._max_sequence_length,
             )
 
-            return {
+            return {  # TODO: figure out why this is needed. Sequences are coming out of the tokenizer with length > max_sequence_length
                 "tokens_HS": cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length],
                 "special_tokens_mask_HS": torch.isin(
                     cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length], special_ids
@@ -108,12 +108,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
         for batch in tokens_dataset:
             batch = cast(dict[str, torch.Tensor], batch)
-
-            try:
-                assert batch["tokens_HS"].shape == batch["special_tokens_mask_HS"].shape
-            except AssertionError:
-                breakpoint()
-
+            assert batch["tokens_HS"].shape == batch["special_tokens_mask_HS"].shape
             yield TokensSequenceBatch(
                 tokens_HS=batch["tokens_HS"],
                 special_tokens_mask_HS=batch["special_tokens_mask_HS"],

@@ -1,20 +1,15 @@
-from typing import TypeVar
-
 import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
-from model_diffing.models.utils.jan_update_init import DataDependentJumpReLUInitStrategy
-from model_diffing.scripts.base_diffing_trainer import DiffingCrosscoder, IdenticalLatentsInit
+from model_diffing.models import AcausalCrosscoder, AnthropicJumpReLUActivation, DataDependentJumpReLUInitStrategy
+from model_diffing.scripts.base_diffing_trainer import IdenticalLatentsInit
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
 from model_diffing.scripts.feb_diff_jr.trainer import ModelDiffingFebUpdateJumpReLUTrainer
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.utils import build_wandb_run
-from model_diffing.utils import SaveableModule, get_device
-
-TActivation = TypeVar("TActivation", bound=SaveableModule)
+from model_diffing.utils import get_device
 
 
 def build_feb_update_crosscoder_trainer(
@@ -39,7 +34,8 @@ def build_feb_update_crosscoder_trainer(
         cache_dir=cfg.cache_dir,
     )
 
-    crosscoder = DiffingCrosscoder(
+    crosscoder = AcausalCrosscoder(
+        crosscoding_dims=(2,),
         d_model=llms[0].cfg.d_model,
         hidden_dim=cfg.crosscoder.hidden_dim,
         init_strategy=IdenticalLatentsInit(

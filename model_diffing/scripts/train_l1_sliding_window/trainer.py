@@ -1,20 +1,13 @@
 from functools import partial
 from typing import Any
 
-import numpy as np
 import torch as t
 
 from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer, BiTokenCCWrapper
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
-from model_diffing.utils import (
-    calculate_reconstruction_loss_summed_MSEs,
-    get_fvu_dict,
-    l0_norm,
-    l1_norm,
-    l2_norm,
-    weighted_l1_sparsity_loss,
-)
+from model_diffing.scripts.utils import get_l0_stats
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, l1_norm, l2_norm, weighted_l1_sparsity_loss
 
 
 class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUActivation, L1TrainConfig]):
@@ -22,7 +15,8 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         self,
         batch_BTPD: t.Tensor,
         res: BiTokenCCWrapper.TrainResult,
-    ) -> t.Tensor:
+        log: bool,
+    ) -> tuple[t.Tensor, dict[str, float] | None]:
         reconstructed_acts_BTPD = t.cat([res.recon_single1_B1PD, res.recon_single2_B1PD], dim=1) + res.recon_double_B2PD
         assert reconstructed_acts_BTPD.shape == batch_BTPD.shape, "fuck"
 
@@ -58,45 +52,17 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         )
 
         if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
-            # Instead of building a chart with `get_l0_stats`, we compute and log the values as scalars.
-            l0_B = l0_norm(hidden_B3H, dim=-1)
-            l0_np = l0_B.detach().cpu().numpy()
-            mean_l0 = l0_B.mean().item()
-            l0_5, l0_25, l0_75, l0_95 = np.percentile(l0_np, [5, 25, 75, 95])
-
-            fvu_dict = get_fvu_dict(
-                batch_BTPD,
-                reconstructed_acts_BTPD,
-                ("token", [0, 1]),
-                ("hookpoint", self.hookpoints),
-            )
-
             log_dict: dict[str, Any] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/sparsity_loss": sparsity_loss.item(),
-                "train/lambda_s": self._lambda_s_scheduler(),
-                #
-                "train/mean_l0_pct": l0_B.mean().item() / hidden_B3H.shape[1],
-                # Log grouped l0 statistics as scalars.
-                "train/l0/step": self.step,
-                "train/l0/5th": l0_5,
-                "train/l0/25th": l0_25,
-                "train/l0/mean": mean_l0,
-                "train/l0/75th": l0_75,
-                "train/l0/95th": l0_95,
-                #
                 "train/loss": loss.item(),
-                #
-                **fvu_dict,
-                #
-                "train/epoch": self.epoch,
-                "train/unique_tokens_trained": self.unique_tokens_trained,
-                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+                **get_l0_stats(hidden_B3H),
+                **self._get_fvu_dict(batch_BTPD, reconstructed_acts_BTPD),
             }
 
-            self.wandb_run.log(log_dict, step=self.step)
+            return loss, log_dict
 
-        return loss
+        return loss, None
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""
@@ -104,3 +70,9 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
             return (self.step / self.cfg.lambda_s_n_steps) * self.cfg.final_lambda_s
 
         return self.cfg.final_lambda_s
+
+    def _step_logs(self) -> dict[str, Any]:
+        return {
+            **super()._step_logs(),
+            "train/lambda_s": self._lambda_s_scheduler(),
+        }

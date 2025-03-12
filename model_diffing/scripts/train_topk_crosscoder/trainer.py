@@ -19,10 +19,11 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
         self,
         batch_BMPD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
-    ) -> torch.Tensor:
+        log: bool,
+    ) -> tuple[torch.Tensor, dict[str, Any] | None]:
         loss = calculate_reconstruction_loss_summed_MSEs(batch_BMPD, train_res.recon_acts_BXD)
 
-        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
+        if log:
             fvu_dict = get_fvu_dict(
                 batch_BMPD,
                 train_res.recon_acts_BXD,
@@ -31,14 +32,10 @@ class TopKTrainer(BaseModelHookpointTrainer[BaseTrainConfig, TopkActivation]):
             )
 
             log_dict: dict[str, Any] = {
-                "train/epoch": self.epoch,
-                "train/unique_tokens_trained": self.unique_tokens_trained,
-                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
                 "train/loss": loss.item(),
                 **fvu_dict,
-                **self._common_logs(),
             }
 
-            self.wandb_run.log(log_dict, step=self.step)
+            return loss, log_dict
 
-        return loss
+        return loss, None

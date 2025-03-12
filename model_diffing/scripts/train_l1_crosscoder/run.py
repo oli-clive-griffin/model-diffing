@@ -2,12 +2,11 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.activations.relu import ReLUActivation
+from model_diffing.models import AcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.config import L1ExperimentConfig
-from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit, L1CrosscoderTrainer
+from model_diffing.scripts.train_l1_crosscoder.trainer import L1CrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import get_device
 

@@ -74,7 +74,7 @@ def compute_b_enc_H(
 ) -> torch.Tensor:
     logger.info(f"Harvesting pre-bias for {n_tokens_for_threshold_setting} examples")
 
-    pre_bias_NH = _harvest_pre_bias_NH(W_enc_XDH, activations_iterator_BXD, n_tokens_for_threshold_setting)
+    pre_bias_NH = harvest_pre_bias_NH(W_enc_XDH, activations_iterator_BXD, n_tokens_for_threshold_setting)
 
     logger.info("computing pre-bias firing threshold quantile")
 
@@ -100,7 +100,7 @@ def compute_b_enc_H(
     return b_enc_H
 
 
-def _harvest_pre_bias_NH(
+def harvest_pre_bias_NH(
     W_enc_XDH: torch.Tensor,
     activations_iterator_BXD: Iterator[torch.Tensor],
     n_tokens_for_threshold_setting: int,

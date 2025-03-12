@@ -1,6 +1,6 @@
 import os
 from abc import abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from itertools import islice
 from pathlib import Path
@@ -22,15 +22,19 @@ from model_diffing.scripts.utils import (
     build_lr_scheduler,
     build_optimizer,
     create_cosine_sim_and_relative_norm_histograms,
+    dict_join,
     wandb_histogram,
 )
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
+from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
 class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
+    LOG_HISTOGRAMS_EVERY_N_LOGS = 10
+
     def __init__(
         self,
         cfg: TConfig,
@@ -84,80 +88,106 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         for _ in epoch_iter:
             epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
             epoch_dataloader_BMPD = islice(epoch_dataloader_BMPD, self.num_steps_per_epoch)
-
-            batch_iter = tqdm(
-                epoch_dataloader_BMPD,
-                desc="Epoch Train Steps",
-                total=self.num_steps_per_epoch,
-                smoothing=0.15,  # this loop is bursty because of activation harvesting
-            )
-            for batch_BMPD in batch_iter:
-                batch_BMPD = batch_BMPD.to(self.device)
-
-                self._train_step(batch_BMPD)
-
-                if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
-                    checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
-
-                    self.crosscoder.with_folded_scaling_factors(scaling_factors_MP).save(checkpoint_path)
-
-                    if self.cfg.upload_saves_to_wandb:
-                        artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
-                        self.wandb_run.log_artifact(artifact)
-
-                if self.epoch == 0:
-                    self.unique_tokens_trained += batch_BMPD.shape[0]
-
-                self.step += 1
+            self._do_epoch(scaling_factors_MP, epoch_dataloader_BMPD)
             self.epoch += 1
 
         self.wandb_run.finish()
 
-    def _train_step(self, batch_BMPD: torch.Tensor) -> None:
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+    def _do_epoch(
+        self,
+        scaling_factors_MP: torch.Tensor,
+        epoch_dataloader_BMPD: Iterator[torch.Tensor],
+    ) -> None:
+        for _ in tqdm(
+            range(self.num_steps_per_epoch),
+            # epoch_dataloader_BMPD,
+            desc="Epoch Train Steps",
+            total=self.num_steps_per_epoch,
+            smoothing=0.15,  # this loop is bursty because of activation harvesting
+        ):
+            self._lr_step()
             self.optimizer.zero_grad()
 
-        train_res = self.crosscoder.forward_train(batch_BMPD)
-        self.firing_tracker.add_batch(train_res.hidden_BH)
+            log_dicts: list[dict[str, float]] = []
+            log = self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0
 
-        loss = self._calculate_loss_and_log(batch_BMPD, train_res)
+            for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
+                batch_BMPD = next(epoch_dataloader_BMPD).to(self.device)
+                train_res = self.crosscoder.forward_train(batch_BMPD)
+                self.firing_tracker.add_batch(train_res.hidden_BH)
 
-        loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+                loss, log_dict = self._calculate_loss_and_log(batch_BMPD, train_res, log=log)
 
-        if self.step % self.cfg.gradient_accumulation_steps_per_batch == 0:
+                loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
+                if log_dict is not None:
+                    log_dicts.append(log_dict)
+
+            if log:
+                batch_log_dict_avgs = {
+                    **{k: sum(v) / len(v) for k, v in dict_join(log_dicts).items()},
+                    **self._step_logs(),
+                }
+                self.wandb_run.log(batch_log_dict_avgs, step=self.step)
+
+            self._maybe_save_model(scaling_factors_MP)
+
             clip_grad_norm_(self.crosscoder.parameters(), 1.0)
             self.optimizer.step()
-            self._lr_step()
+            if self.epoch == 0:
+                self.unique_tokens_trained += batch_BMPD.shape[0]
+            self.step += 1
+
+    def _maybe_save_model(self, scaling_factors_MP: torch.Tensor) -> None:
+        if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
+            checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+
+            self.crosscoder.with_folded_scaling_factors(scaling_factors_MP).save(checkpoint_path)
+
+            if self.cfg.upload_saves_to_wandb:
+                artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
+                self.wandb_run.log_artifact(artifact)
 
     @abstractmethod
     def _calculate_loss_and_log(
         self,
         batch_BMPD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
-    ) -> torch.Tensor: ...
+        log: bool,
+    ) -> tuple[torch.Tensor, dict[str, float] | None]: ...
 
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"
         if self.lr_scheduler is not None:
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
-    def _common_logs(self) -> dict[str, Any]:
-        logs = {
+    def _step_logs(self) -> dict[str, Any]:
+        log_dict = {
             "train/epoch": self.epoch,
             "train/unique_tokens_trained": self.unique_tokens_trained,
             "train/learning_rate": self.optimizer.param_groups[0]["lr"],
         }
 
-        if self.step % (self.cfg.log_every_n_steps * 10) == 0:  # type: ignore
+        if (
+            self.cfg.log_every_n_steps is not None
+            and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
+        ):
             tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
-            logs.update({"media/tokens_since_fired": tokens_since_fired_hist})
+            log_dict.update({"media/tokens_since_fired": tokens_since_fired_hist})
 
             if self.n_models == 2:
                 W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
                 assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
-                logs.update(create_cosine_sim_and_relative_norm_histograms(W_dec_HXD, self.hookpoints))
+                log_dict.update(create_cosine_sim_and_relative_norm_histograms(W_dec_HXD, self.hookpoints))
 
-        return logs
+        return log_dict
+
+    def _get_fvu_dict(self, batch_BMPD: torch.Tensor, recon_acts_BMPD: torch.Tensor) -> dict[str, float]:
+        return get_fvu_dict(
+            batch_BMPD,
+            recon_acts_BMPD,
+            ("model", list(range(self.n_models))),
+            ("hookpoint", self.hookpoints),
+        )
 
 
 def validate_num_steps_per_epoch(

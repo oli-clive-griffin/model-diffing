@@ -8,7 +8,7 @@ from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_summed_decoder_norms_H
 
 
 class ModelDiffingFebUpdateJumpReLUTrainer(
@@ -24,6 +24,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         self,
         batch_BMD: t.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
+        log: bool,
     ) -> tuple[t.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BXD)
 
@@ -53,13 +54,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
             + self.cfg.lambda_p * pre_act_loss
         )
 
-        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
-            fvu_dict = get_fvu_dict(
-                batch_BMD,
-                train_res.recon_acts_BXD,
-                ("model", [0, 1]),
-            )
-
+        if log:
             hidden_shared_BHs = train_res.hidden_BH[:, : self.n_shared_latents]
             hidden_indep_BHi = train_res.hidden_BH[:, self.n_shared_latents :]
 
@@ -69,7 +64,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
                 "train/tanh_sparsity_loss_indep": tanh_sparsity_loss_indep.item(),
                 "train/pre_act_loss": pre_act_loss.item(),
                 "train/loss": loss.item(),
-                **fvu_dict,
+                **self._get_fvu_dict(batch_BMD, train_res.recon_acts_BXD),
                 **get_l0_stats(hidden_shared_BHs, name="shared_l0"),
                 **get_l0_stats(hidden_indep_BHi, name="indep_l0"),
                 **get_l0_stats(train_res.hidden_BH, name="both_l0"),
@@ -79,21 +74,19 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         return loss, None
 
     def _step_logs(self) -> dict[str, Any]:
-        log_dict = {
+        log_dict: dict[str, Any] = {
+            **super()._step_logs(),
             "train/lambda_s": self._lambda_s_scheduler(),
             "train/lambda_f": self._lambda_f_scheduler(),
             "train/lambda_p": self.cfg.lambda_p,
-            **self._step_common_logs(),
         }
 
-        if self.step % (self.cfg.log_every_n_steps * 10) == 0:  # type: ignore
-            log_dict.update(
-                {
-                    "media/jumprelu_threshold_distribution": wandb_histogram(
-                        self.crosscoder.hidden_activation.log_threshold_H.exp()
-                    ),
-                }
-            )
+        if (
+            self.cfg.log_every_n_steps is not None
+            and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
+        ):
+            jr_threshold_hist = wandb_histogram(self.crosscoder.hidden_activation.log_threshold_H.exp())
+            log_dict.update({"media/jumprelu_threshold_distribution": jr_threshold_hist})
 
         return log_dict
 

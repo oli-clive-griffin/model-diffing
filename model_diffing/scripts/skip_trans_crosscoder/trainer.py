@@ -71,7 +71,8 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
         self,
         batch_BMPD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
-    ) -> torch.Tensor:
+        log: bool,
+    ) -> tuple[torch.Tensor, dict[str, float] | None]:
         assert batch_BMPD.shape[2] % 2 == 0, "we should have an even number of hookpoints for this trainer"
         batch_x_BMPiD = batch_BMPD[:, :, ::2]
         batch_y_BMPoD = batch_BMPD[:, :, 1::2]
@@ -81,31 +82,22 @@ class TopkSkipTransCrosscoderTrainer(BaseModelHookpointTrainer[BaseTrainConfig, 
 
         loss = calculate_reconstruction_loss_summed_MSEs(train_res.recon_acts_BXD, batch_y_BMPoD)
 
-        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
+        if log:
             assert batch_y_BMPoD.shape[2] == len(self.hookpoints[1::2])
             assert train_res.recon_acts_BXD.shape[2] == len(self.hookpoints[::2])
-            names = [" - ".join(pair) for pair in zip(self.hookpoints[::2], self.hookpoints[1::2], strict=True)]
-
-            fvu_dict = get_fvu_dict(
-                batch_y_BMPoD,
-                train_res.recon_acts_BXD,
-                ("model", list(range(self.n_models))),
-                ("hookpoints", names),
-            )
-
             log_dict: dict[str, Any] = {
                 "train/loss": loss.item(),
-                **fvu_dict,
-                **self._common_logs(),
+                **self._get_fvu_dict(batch_y_BMPoD, train_res.recon_acts_BXD),
             }
+            return loss, log_dict
 
-            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
-                log_dict.update(
-                    {
-                        "media/tokens_since_fired": wandb_histogram(self.firing_tracker.examples_since_fired_A),
-                    }
-                )
+        return loss, None
 
-            self.wandb_run.log(log_dict, step=self.step)
-
-        return loss
+    def _get_fvu_dict(self, batch_BMPD: torch.Tensor, recon_acts_BMPD: torch.Tensor) -> dict[str, float]:
+        names = [" - ".join(pair) for pair in zip(self.hookpoints[::2], self.hookpoints[1::2], strict=True)]
+        return get_fvu_dict(
+            batch_BMPD,
+            recon_acts_BMPD,
+            ("model", list(range(self.n_models))),
+            ("hookpoints", names),
+        )

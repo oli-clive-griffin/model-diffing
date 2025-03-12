@@ -6,11 +6,7 @@ from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivatio
 from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer, BiTokenCCWrapper
 from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
-from model_diffing.utils import (
-    calculate_reconstruction_loss_summed_MSEs,
-    get_fvu_dict,
-    get_summed_decoder_norms_H,
-)
+from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_summed_decoder_norms_H
 
 
 class JumpReLUSlidingWindowCrosscoderTrainer(
@@ -20,7 +16,8 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
         self,
         batch_BTPD: t.Tensor,
         res: BiTokenCCWrapper.TrainResult,
-    ) -> t.Tensor:
+        log: bool,
+    ) -> tuple[t.Tensor, dict[str, float] | None]:
         reconstructed_acts_BTPD = t.cat([res.recon_single1_B1PD, res.recon_single2_B1PD], dim=1) + res.recon_double_B2PD
         assert reconstructed_acts_BTPD.shape == batch_BTPD.shape, "fuck"
 
@@ -44,35 +41,27 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
             + self.cfg.lambda_p * pre_act_loss
         )
 
-        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
-            fvu_dict = get_fvu_dict(
-                batch_BTPD,
-                reconstructed_acts_BTPD,
-                ("token", [0, 1]),
-                ("hookpoint", self.hookpoints),
-            )
-
-            log_dict: dict[str, Any] = {
+        if log:
+            log_dict: dict[str, float] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/tanh_sparsity_loss": tanh_sparsity_loss.item(),
-                "train/lambda_s": lambda_s,
                 "train/pre_act_loss": pre_act_loss.item(),
-                "train/lambda_p": self.cfg.lambda_p,
                 "train/loss": loss.item(),
-                **fvu_dict,
+                **self._get_fvu_dict(batch_BTPD, reconstructed_acts_BTPD),
                 **get_l0_stats(hidden_B3h),
-                **self._common_logs(),
             }
 
-            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
-                log_dict.update(
-                    {
-                        "media/tokens_since_fired": wandb_histogram(self.firing_tracker.examples_since_fired_A),
-                    }
-                )
+            return loss, log_dict
 
-            self.wandb_run.log(log_dict, step=self.step)
-        return loss
+        return loss, None
+
+    def _step_logs(self) -> dict[str, Any]:
+        log_dict: dict[str, Any] = {
+            **super()._step_logs(),
+            "train/lambda_s": self._lambda_s_scheduler(),
+            "train/lambda_p": self.cfg.lambda_p,
+        }
+        return log_dict
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""

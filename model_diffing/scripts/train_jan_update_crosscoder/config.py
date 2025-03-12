@@ -13,6 +13,7 @@ class JumpReLUConfig(BaseModel):
 class JanUpdateCrosscoderConfig(BaseModel):
     hidden_dim: int
     jumprelu: JumpReLUConfig = JumpReLUConfig()
+    # These 2 should really be on the JumpReLUConfig
     initial_approx_firing_pct: float
     n_tokens_for_threshold_setting: int = 100_000
     """
