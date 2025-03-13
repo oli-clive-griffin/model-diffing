@@ -1,17 +1,11 @@
 # %%
 import os
-
-# %%
 from pathlib import Path
 from typing import cast
 
 import torch
 import yaml  # type: ignore
-from transformer_lens import HookedTransformer  # type: ignore
-from transformers import (  # type: ignore
-    AutoModelForCausalLM,
-    PreTrainedTokenizerBase,  # type: ignore
-)
+from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.analysis import metrics, visualization
 from model_diffing.data.activation_harvester import ActivationsHarvester
@@ -21,33 +15,11 @@ from model_diffing.interp import (
     gather_max_activating_examples,
     iterate_activations_with_text,
 )
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
-from model_diffing.scripts.wandb_scripts.main import download_experiment_checkpoint
 from model_diffing.utils import get_device
 
-# %%
-
-BASE = "Qwen/Qwen2.5-Math-1.5B"
-R1 = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-CACHE_DIR = ".cache"
-DTYPE = torch.bfloat16
-
-# %%
-
-llm_math = HookedTransformer.from_pretrained_no_processing(
-    "Qwen/Qwen2.5-1.5B",
-    hf_model=AutoModelForCausalLM.from_pretrained(BASE, cache_dir=CACHE_DIR),
-    dtype=DTYPE,
-    cache_dir=CACHE_DIR,
-)
-
-llm_r1 = HookedTransformer.from_pretrained_no_processing(
-    "Qwen/Qwen2.5-1.5B",
-    hf_model=AutoModelForCausalLM.from_pretrained(R1, cache_dir=CACHE_DIR),
-    dtype=DTYPE,
-    cache_dir=CACHE_DIR,
-)
 # %% Setup
 
 print(f"Current working directory: {Path.cwd()}")
@@ -57,16 +29,18 @@ print(f"Current working directory: {Path.cwd()}")
 device = get_device()
 cache_dir = ".cache"
 
-DOWNLOAD_DIR = ".data/local"
-download_experiment_checkpoint(
-    run_id="gmiyehyq",
-    version="v6",
-    destination_dir=DOWNLOAD_DIR,
-)
+# DOWNLOAD_DIR = ".data/local"
+# download_experiment_checkpoint(
+#     run_id="bganjcqn",
+#     version="v3",
+#     destination_dir=DOWNLOAD_DIR,
+# )
+
+DOWNLOAD_DIR = ".checkpoints/oli-RL-math-v2_2025-02-25_12-18-37"
+
+sae = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "epoch_0_step_15000").to(device)
 
 # %%
-
-sae = DiffingCrosscoder.load(Path(DOWNLOAD_DIR) / "model").to(device)
 assert sae.is_folded.item()
 sae.make_decoder_max_unit_norm_()
 
@@ -162,7 +136,6 @@ model_aligned_latent_indices = torch.cat([model_1_topk.indices, model_2_topk.ind
 model_aligned_latent_vals = torch.cat([model_1_topk.values, model_2_topk.values])
 # %%
 
-
 torch.set_printoptions(precision=3, sci_mode=False)
 print(model_aligned_latent_indices)
 print(model_aligned_latent_vals)
@@ -170,9 +143,6 @@ print(model_aligned_latent_vals)
 torch.set_printoptions()
 
 # %%
-
-info = torch.cuda.mem_get_info()
-print(f"GPU memory: {info[0] / 1024**2} MB used, {info[1] / 1024**2} MB total")
 
 print(f"gathering {len(model_aligned_latent_indices)} latents")
 model_aligned_examples_by_latent = gather_max_activating_examples(
