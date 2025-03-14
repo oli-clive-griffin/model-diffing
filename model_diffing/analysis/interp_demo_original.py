@@ -1,4 +1,7 @@
 # %%
+import sys
+import matplotlib.pyplot as plt
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
 import os
 from collections.abc import Iterator
@@ -58,8 +61,6 @@ cc.to(device)
 with open(path / "experiment_config.yaml") as f:
     exp_config = JumpReLUModelDiffingFebUpdateExperimentConfig(**yaml.safe_load(f))
 
-# assert len(exp_config.data.activations_harvester.llms) == 1
-
 llms = build_llms(
     exp_config.data.activations_harvester.llms,
     cache_dir=cache_dir,
@@ -69,25 +70,21 @@ llms = build_llms(
 
 assert isinstance(exp_config.data.token_sequence_loader, MathDatasetConfig)
 
+
+tokenizer: Any = llms[0].tokenizer  # type: ignore
+
 # %%
 
 relative_decoder_norms_H = get_relative_decoder_norms_H(cc.with_decoder_unit_norm())
-import matplotlib.pyplot as plt
-
-# with log scale
 plt.hist(relative_decoder_norms_H.detach().cpu().numpy(), bins=100, density=True, log=True)
 plt.show()
 # %%
-
-# first, get an iterator over sequences of tokens
-batch_size = 2  # todo rethink me
-sequence_length = exp_config.data.token_sequence_loader.max_sequence_length  # type: ignore
 
 token_sequence_loader = build_tokens_sequence_loader(
     cfg=exp_config.data.token_sequence_loader,
     cache_dir=cache_dir,
     tokenizer=llms[0].tokenizer,  # type: ignore
-    batch_size=batch_size,
+    batch_size=exp_config.data.activations_harvester.harvesting_batch_size,
 )
 
 activations_harvester = ActivationsHarvester(
@@ -118,48 +115,46 @@ examples_iterator = iterate_activations_with_text(
 
 exam = LatentExaminer(cc=cc, activations_with_text_iter=examples_iterator)
 
+# %%
+
 # get the 1000 lowest and highest decoder norm indices
 high_norms, high_indices = relative_decoder_norms_H.topk(4000, dim=-1, sorted=True)
 low_norms, low_indices = relative_decoder_norms_H.topk(4000, dim=-1, largest=False, sorted=True)
-# print(high_norms[:10], high_norms[-10:])
-# # print(low_norms[:10], low_norms[-10:])
-
-# highish_indices = high_indices[1000:]
-# # lowish_indices = low_indices[1000:]
-
-# latents_to_inspect_Hl = highish_indices
 latents_to_inspect_Hl = torch.cat([low_indices, high_indices])
 
-# OR just inspect the first 100 latents
-# latents_to_inspect = list(range(100))
+# %%
+
+high_indices = (relative_decoder_norms_H > 0.8).nonzero()[:, 0]
+relative_decoder_norms_H[high_indices]
+# %%
+low_indices = (relative_decoder_norms_H < 0.2).nonzero()[:, 0]
+relative_decoder_norms_H[low_indices]
+# %%
+latents_to_inspect_Hl = torch.cat([low_indices, high_indices])
+latents_to_inspect_Hl.shape
+# %%
 
 latent_summaries = exam.gather_latent_summaries(
-    total_batches=2000,
-    context_size=20,
+    total_batches=3000,
     latents_to_inspect_Hl=latents_to_inspect_Hl,
+    topk_per_latent_per_batch=None,
 )
 
 # %%
 
-print({s.index: len(s.selected_examples) for s in latent_summaries})
+print(len(latent_summaries))
+print([(len(s.selected_examples), s.index, relative_decoder_norms_H[s.index].item()) for s in latent_summaries])
 
 # %%
 
-tokenizer: Any = llms[0].tokenizer  # type: ignore
-
-# %%
-# %%
 for summary in latent_summaries:
-    print(summary)
-    relative_decoder_norm = relative_decoder_norms_H[summary.index].item()
-    table = topk_seqs_table(
+    topk_seqs_table(
         summary,
         tokenizer,
-        extra_detail=f"relative decoder norm: {relative_decoder_norm:.3f}",
-        topk=20,
+        extra_detail=f"relative decoder norm: {relative_decoder_norms_H[summary.index].item():.3f}",
+        topk=50,
+        context_size=1000,
     )
-    rprint()
-    print("\n=========")
 
 # %%
 

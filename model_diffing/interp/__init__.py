@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from itertools import islice
 from typing import Any
 
-import polars as pl
 import tabulate  # type: ignore
 import torch
 from einops import rearrange
@@ -74,7 +73,6 @@ class LatentExaminer:
     def gather_latent_summaries(
         self,
         total_batches: int = 200,
-        context_size: int = 20,
         separation_threshold_tokens: int = 5,
         topk_per_latent_per_batch: int | None = None,
         latents_to_inspect_Hl: torch.Tensor | list[int] | None = None,
@@ -123,25 +121,25 @@ class LatentExaminer:
                 active_latents_mask_Hl = hidden_SH[:, latents_to_inspect_Hl].sum(dim=0)
                 active_latents_Ha = latents_to_inspect_Hl[active_latents_mask_Hl.nonzero(as_tuple=True)[0]]
                 pct_latents_active = active_latents_Ha.numel() / len(latents_to_inspect_Hl)
-                pbar.set_postfix(pct_latents_active=f"{pct_latents_active:.3%}", num_firings=total_firings)
+                pbar.set_postfix(
+                    pct_latents_active=f"{pct_latents_active:.3%}",
+                    num_firings=total_firings,
+                    n_latents_fired=len(examples_by_latent_idx),
+                )
 
                 for latent_idx in active_latents_Ha.tolist():
                     hidden_S = hidden_SH[:, latent_idx]
-
                     (seq_pos_indices,) = hidden_S.nonzero(as_tuple=True)
                     total_firings += seq_pos_indices.numel()
-
-                    start_indices = (seq_pos_indices - context_size).clamp(min=0)
-
                     last_pos = -separation_threshold_tokens
-                    for ctx_start, pos in zip(start_indices, seq_pos_indices, strict=False):
+                    for pos in seq_pos_indices:
                         # TODO <= vs <, not sure
                         if pos <= last_pos + separation_threshold_tokens:
                             skipped_firings += 1
                         else:
                             not_skipped_firings += 1
                             example = LatentExample(
-                                tokens_S=tokens_S[ctx_start : pos + 1],
+                                tokens_S=tokens_S[: pos + 1],
                                 last_tok_hidden_act=hidden_S[pos].item(),
                             )
                             examples_by_latent_idx[latent_idx].append(example)
@@ -225,6 +223,7 @@ def topk_seqs_table(
     tokenizer: PreTrainedTokenizerBase,
     extra_detail: str,
     topk: int = 10,
+    context_size: int = 20,
 ):
     """
     Given a list of (activation: float, str_toks: list[str]), displays a table of these sequences, with
@@ -240,9 +239,9 @@ def topk_seqs_table(
     )
 
     for example in summary.selected_examples[:topk]:
-        str_toks = [tokenizer.decode(tok) for tok in example.tokens_S]
+        str_toks = [tokenizer.decode(tok) for tok in example.tokens_S[-context_size:]]
         str_toks[-1] = f"[b u green]{str_toks[-1]}[/]"
-        formatted_seq = "".join(str_toks).replace("�", "").replace("\n", "↵")
+        formatted_seq = "".join(str_toks).replace("�", "").replace("\n", "↵").replace("<think>", "[b u orange_red1]<think>[/]").replace("</think>", "[b u orange_red1]</think>[/]")
 
         table.add_row(
             f"{example.last_tok_hidden_act:.3f}",
