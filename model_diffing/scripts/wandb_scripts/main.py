@@ -52,10 +52,12 @@ def download_experiment_checkpoint(
     destination_dir: Path | str,
     entity: str = "mars-model-diffing",
     project: str = "model-diffing",
-) -> None:
+) -> Path:
     api = wandb.Api()
     art = api.artifact(f"{entity}/{project}/{checkpoint_name(run_id)}:{version}")
-    art.download(root=destination_dir)
+    root = f"{destination_dir}/{checkpoint_name(run_id)}_{version}"
+    art.download(root=root)
+    return Path(root)
 
 
 def checkpoint_name(run_id: str) -> str:

@@ -1,6 +1,4 @@
 from abc import abstractmethod
-from collections.abc import Iterator
-from itertools import islice
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
@@ -28,35 +26,6 @@ from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=ActivationFunction)
-
-
-# class DiffingCrosscoder(AcausalCrosscoder[TAct]):
-#     CROSSCODING_DIMS = (2,)
-
-#     def __init__(
-#         self,
-#         d_model: int,
-#         hidden_dim: int,
-#         hidden_activation: TAct,
-#         skip_linear: bool = False,
-#         init_strategy: InitStrategy["AcausalCrosscoder[TAct]"] | None = None,
-#         dtype: t.dtype = t.float32,
-#     ):
-#         super().__init__(
-#             crosscoding_dims=self.CROSSCODING_DIMS,
-#             d_model=d_model,
-#             hidden_dim=hidden_dim,
-#             hidden_activation=hidden_activation,
-#             skip_linear=skip_linear,
-#             init_strategy=init_strategy,
-#             dtype=dtype,
-#         )
-
-#         # make aliases for the crosscoder weights with concrete dimensions for this case
-#         # according to self.CROSSCODING_DIMS
-#         self.W_dec_HMD = self.W_dec_HXD
-#         self.W_enc_MDH = self.W_enc_XDH
-#         self.b_dec_MD = self.b_dec_XD
 
 
 class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
@@ -171,7 +140,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
                 if log_dict is not None:
                     log_dicts.append(log_dict)
 
-            if log:
+            if log_dicts:
                 batch_log_dict_avgs = {
                     **{k: sum(v) / len(v) for k, v in dict_join(log_dicts).items()},
                     **self._step_logs(),

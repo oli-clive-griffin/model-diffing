@@ -173,9 +173,8 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
             hidden_dim=self.hidden_dim,
             hidden_activation=self.hidden_activation,
         )
-
+        cc.to(self.W_dec_HXD.device)
         cc.load_state_dict(self.state_dict())
-
         cc.make_decoder_max_unit_norm_()
 
         return cc
@@ -248,3 +247,21 @@ class AcausalCrosscoder(SaveableModule, Generic[TActivation]):
         # set buffer to prevent double-folding
         self.folded_scaling_factors_X = scaling_factors_X
         self.is_folded = t.tensor(True, dtype=t.bool)
+    
+    # def get_acts_BH(self, activation_BXD: t.Tensor, latents: t.Tensor | None) -> t.Tensor:
+    #     if latents is None:
+    #         return self._encode_BH(activation_BXD)
+        
+    #     assert latents.ndim == 1
+    #     assert latents.shape[0] <= self.hidden_dim
+
+    #     W_enc_latents_XDHl = self.W_enc_XDH[..., latents]
+    #     b_enc_latents_Hl = self.b_enc_H[latents]
+
+    #     pre_bias_BH = einsum(
+    #         activation_BXD,
+    #         W_enc_latents_XDHl,
+    #         "b ..., ... hl -> b hl",
+    #     )
+    #     pre_activation_BH = pre_bias_BH + b_enc_latents_Hl
+    #     return self.hidden_activation.forward(pre_activation_BH)

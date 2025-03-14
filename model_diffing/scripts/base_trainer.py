@@ -2,7 +2,6 @@ import os
 from abc import abstractmethod
 from collections.abc import Callable, Iterator
 from datetime import datetime
-from itertools import islice
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
@@ -87,7 +86,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
             epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
-            epoch_dataloader_BMPD = islice(epoch_dataloader_BMPD, self.num_steps_per_epoch)
             self._do_epoch(scaling_factors_MP, epoch_dataloader_BMPD)
             self.epoch += 1
 
@@ -100,7 +98,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
     ) -> None:
         for _ in tqdm(
             range(self.num_steps_per_epoch),
-            # epoch_dataloader_BMPD,
             desc="Epoch Train Steps",
             total=self.num_steps_per_epoch,
             smoothing=0.15,  # this loop is bursty because of activation harvesting
@@ -122,7 +119,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 if log_dict is not None:
                     log_dicts.append(log_dict)
 
-            if log:
+            if log_dicts:
                 batch_log_dict_avgs = {
                     **{k: sum(v) / len(v) for k, v in dict_join(log_dicts).items()},
                     **self._step_logs(),

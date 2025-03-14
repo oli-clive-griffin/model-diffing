@@ -215,15 +215,20 @@ def calculate_vector_norm_fvu_X(
         logger.warn("Batch size is 1, fvu is not meaningful. returning 0")
         return torch.zeros(y_BXD.shape[1:-1])
 
-    y_mean_BXD = y_BXD.mean(dim=0, keepdim=True)
+    variance_of_error_X = _norm_variance(y_BXD, y_pred_BXD)
 
-    var_err_BX = (y_BXD - y_pred_BXD).norm(p=2, dim=-1).square()  # variance
-    var_err_X = var_err_BX.mean(0)  # mean over batch
+    # think of this as "the average example"
+    y_mean_1XD = y_BXD.mean(dim=0, keepdim=True)
+    variance_of_data_X = _norm_variance(y_BXD, y_mean_1XD)
 
-    var_total_BX = (y_BXD - y_mean_BXD).norm(p=2, dim=-1).square()
-    var_total_X = var_total_BX.mean(0)  # mean over batch
+    return variance_of_error_X / (variance_of_data_X + eps)
 
-    return var_err_X / (var_total_X + eps)
+
+def _norm_variance(y: torch.Tensor, y_hat: torch.Tensor) -> torch.Tensor:
+    # The mean squared l2 norm of the error
+    variance_of_error_BX = (y - y_hat).norm(p=2, dim=-1).square()  # variance
+    variance_of_error_X = variance_of_error_BX.mean(0)
+    return variance_of_error_X
 
 
 def get_fvu_dict(
@@ -400,3 +405,7 @@ def pre_act_loss(log_threshold_H: torch.Tensor, hidden_BH: torch.Tensor, decoder
 def tanh_sparsity_loss(c: float, hidden_BH: torch.Tensor, decoder_norms_H: torch.Tensor) -> torch.Tensor:
     loss_BH = torch.tanh(c * hidden_BH * decoder_norms_H)
     return loss_BH.sum(-1).mean()
+
+
+def ceil_div(a: int, b: int) -> int:
+    return -(-a // b)

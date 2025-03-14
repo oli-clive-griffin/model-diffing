@@ -18,14 +18,12 @@ class NoBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReL
         activations_iterator_BXD: Iterator[torch.Tensor],
         initial_approx_firing_pct: float,
         device: torch.device,
-        n_tokens_for_threshold_setting: int = 100_000,
     ):
         """
         Args:
             activations_iterator_BXD: iterator over activations with which to calibrate the initial jumprelu threshold
             initial_approx_firing_pct: percentage of examples that should fire. In the update, this value is 10_000/n\
                 But we're often training with n << 10_000, so we allow setting this value directly.
-            n_tokens_for_threshold_setting: number of examples to sample
         """
         self.activations_iterator_BXD = activations_iterator_BXD
         self.n_tokens_for_threshold_setting = n_tokens_for_threshold_setting
@@ -49,8 +47,8 @@ class NoBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReL
         # Bias
         cc.b_enc_H.zero_()
         cc.b_dec_XD.zero_()
-        cc.b_enc_H.requires_grad_(False)
-        cc.b_dec_XD.requires_grad_(False)
+        # cc.b_enc_H.requires_grad_(False)
+        # cc.b_dec_XD.requires_grad_(False)
 
         # JR
         jumprelu_threshold_H = compute_jumprelu_threshold_H(

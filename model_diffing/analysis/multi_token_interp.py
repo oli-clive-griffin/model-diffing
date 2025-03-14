@@ -11,8 +11,8 @@ from model_diffing.analysis import metrics, visualization
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.token_loader import MathDatasetTokenSequenceLoader
 from model_diffing.interp import (
-    display_topk_seqs_cross_model,
-    gather_max_activating_examples,
+    topk_seqs_table,
+    gather_latent_summaries,
     iterate_activations_with_text,
 )
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
@@ -96,7 +96,7 @@ examples_iterator = iterate_activations_with_text(
 
 # %% Interp
 
-examples_by_latent = gather_max_activating_examples(
+examples_by_latent = gather_latent_summaries(
     examples_iterator,
     cc=sae,
     total_batches=4,
@@ -115,7 +115,7 @@ for summary in examples_by_latent.values():
     if 0.4 < relative_decoder_norm < 0.6:
         continue
 
-    display_topk_seqs_cross_model(
+    topk_seqs_table(
         summary,
         tokenizer,
         relative_decoder_norm,
@@ -145,7 +145,7 @@ torch.set_printoptions()
 # %%
 
 print(f"gathering {len(model_aligned_latent_indices)} latents")
-model_aligned_examples_by_latent = gather_max_activating_examples(
+model_aligned_examples_by_latent = gather_latent_summaries(
     examples_iterator,
     cc=sae,
     total_batches=3000,
@@ -164,6 +164,6 @@ for summary in model_aligned_examples_by_latent.values():
     if 0.4 < relative_decoder_norm < 0.6:
         continue
 
-    display_topk_seqs_cross_model(summary, tokenizer, relative_decoder_norm)
+    topk_seqs_table(summary, tokenizer, relative_decoder_norm)
 
 # %%

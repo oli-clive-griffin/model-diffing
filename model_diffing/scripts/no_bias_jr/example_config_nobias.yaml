@@ -10,6 +10,7 @@ crosscoder:
   hidden_dim: 65_536
   jumprelu:
     backprop_through_jumprelu_input: true
+    log_threshold_init: -10
   initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!
   n_tokens_for_threshold_setting: 100_000
 train:
@@ -25,7 +26,8 @@ train:
   c: 4.0
   final_lambda_s: 3.0
   lambda_p: 0.000003
-experiment_name: no_bias_jr_test
+experiment_name: basic_nobias
 hookpoints: ["blocks.8.hook_resid_post"]
 wandb:
   project: no_bias_jr
+bias: false

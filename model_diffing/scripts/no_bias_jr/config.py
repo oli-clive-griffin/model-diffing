@@ -7,3 +7,4 @@ class NoBiasJanUpdateExperimentConfig(BaseExperimentConfig):
     crosscoder: JanUpdateCrosscoderConfig
     train: TanHSparsityTrainConfig
     hookpoints: list[str]
+    bias: bool

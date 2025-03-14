@@ -44,11 +44,13 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
         special_ids = torch.tensor(self._tokenizer.all_special_ids)
 
         def tensorize_batch(batch: dict[str, Any]) -> dict[str, Any]:
-            batch_conversations = batch["reannotated_messages"]  # list(batch) of list(user, assistant) of message dicts
             batch_base_convs = batch["messages"]
+            batch_thinking_convs = batch[
+                "reannotated_messages"
+            ]  # list(batch) of list(user, assistant) of message dicts
 
             sequences: list[str] = []
-            for base_conversation, thinking_conversation in zip(batch_base_convs, batch_conversations, strict=True):
+            for base_conversation, thinking_conversation in zip(batch_base_convs, batch_thinking_convs, strict=True):
                 user_question = thinking_conversation[0]
                 assert user_question["role"] == "user"
                 question = user_question["content"]
@@ -76,20 +78,16 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                             f"Invalid combination of base_answers and reasoning_answers: {self._include_base_answers=}, {self._include_reasoning_answers=}"
                         )
 
-            tok_res = self._tokenizer.__call__(
+            tok_res = self._tokenizer(
                 sequences,
                 return_tensors="pt",
                 padding="longest",
                 padding_side="right",  # type: ignore # this type is just plain wrong for some reason
                 max_length=self._max_sequence_length,
+                truncation=True,
             )
-
-            return {  # TODO: figure out why this is needed. Sequences are coming out of the tokenizer with length > max_sequence_length
-                "tokens_HS": cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length],
-                "special_tokens_mask_HS": torch.isin(
-                    cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length], special_ids
-                ),
-            }
+            seq = cast(torch.Tensor, tok_res["input_ids"])
+            return {"tokens_HS": seq, "special_tokens_mask_HS": torch.isin(seq, special_ids)}
 
         assert self._batch_size % 2 == 0
         will_double_example_count = self._include_base_answers and self._include_reasoning_answers
@@ -119,8 +117,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
 
 if __name__ == "__main__":
-    from itertools import islice
-
+    from tqdm import tqdm  # type: ignore
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B")
@@ -132,11 +129,7 @@ if __name__ == "__main__":
         include_base_answers=True,
         include_reasoning_answers=True,
     )
-    for batch in islice(loader.get_sequences_batch_iterator(), 10):
-        print()
+    pbar = tqdm(desc="tokens processed", unit="tokens", total=None)
+    for batch in loader.get_sequences_batch_iterator():
+        pbar.update((~batch.special_tokens_mask_HS).sum().item())
         print(batch.tokens_HS.shape)
-        print()
-        for seq in batch.tokens_HS.unbind(0):
-            print(
-                tokenizer.decode(seq),
-            )

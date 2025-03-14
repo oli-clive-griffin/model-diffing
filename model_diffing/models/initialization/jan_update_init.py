@@ -8,7 +8,7 @@ from tqdm import tqdm  # type: ignore
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations import AnthropicJumpReLUActivation
-from model_diffing.utils import inspect, round_up
+from model_diffing.utils import ceil_div, inspect, round_up
 
 
 class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReLUActivation]]):
@@ -65,6 +65,9 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
         cc.b_dec_XD.zero_()
 
 
+CHUNK_SIZE = 4096
+
+
 def compute_b_enc_H(
     activations_iterator_BXD: Iterator[torch.Tensor],
     W_enc_XDH: torch.Tensor,
@@ -76,12 +79,11 @@ def compute_b_enc_H(
 
     pre_bias_NH = harvest_pre_bias_NH(W_enc_XDH, activations_iterator_BXD, n_tokens_for_threshold_setting)
 
-    logger.info("computing pre-bias firing threshold quantile")
-
     pre_bias_firing_threshold_quantile_H = torch.empty_like(initial_jumprelu_threshold_H)
-    n_chunks = pre_bias_firing_threshold_quantile_H.shape[0] // 1024
-    for i in range(n_chunks):
-        start, end = i * 1024, (i + 1) * 1024
+    n_chunks = ceil_div(pre_bias_firing_threshold_quantile_H.shape[0], CHUNK_SIZE)
+    for i in tqdm(range(n_chunks), desc="computing pre-bias firing threshold quantile"):
+        start = i * CHUNK_SIZE
+        end = min(start + CHUNK_SIZE, pre_bias_NH.shape[1])
         pre_bias_firing_threshold_quantile_H[start:end] = torch.quantile(
             pre_bias_NH[:, start:end],
             1 - initial_approx_firing_pct,

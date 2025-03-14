@@ -41,7 +41,6 @@ def _build_sliding_window_crosscoder_trainer(
         cache_dir=cfg.cache_dir,
         window_size=2,
     )
-    # assert next(dataloader.get_activations_iterator_BTPD()).shape[0] == cfg.train.minibatch_size(), "should be the same"
 
     crosscoder1, crosscoder2 = [
         AcausalCrosscoder(
@@ -52,7 +51,6 @@ def _build_sliding_window_crosscoder_trainer(
                 size=cfg.crosscoder.hidden_dim,
                 bandwidth=cfg.crosscoder.jumprelu.bandwidth,
                 log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
-                backprop_through_input=cfg.crosscoder.jumprelu.backprop_through_jumprelu_input,
             ),
             init_strategy=DataDependentJumpReLUInitStrategy(
                 activations_iterator_BXD=dataloader.get_activations_iterator_BTPD(),

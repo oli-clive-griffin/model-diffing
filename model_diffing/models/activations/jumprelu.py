@@ -22,7 +22,6 @@ class AnthropicJumpReLUActivation(ActivationFunction):
         size: int,
         bandwidth: float,
         log_threshold_init: float | None = None,
-        backprop_through_input: bool = True,
     ):
         super().__init__()
 
@@ -32,18 +31,14 @@ class AnthropicJumpReLUActivation(ActivationFunction):
         if log_threshold_init is not None:
             with t.no_grad():
                 self.log_threshold_H.mul_(log_threshold_init)
-        self.backprop_through_input = backprop_through_input
 
     def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
-        return AnthropicJumpReLU.apply(
-            hidden_preact_BH, self.log_threshold_H, self.bandwidth, self.backprop_through_input
-        )  # type: ignore
+        return AnthropicJumpReLU.apply(hidden_preact_BH, self.log_threshold_H, self.bandwidth)  # type: ignore
 
     def _dump_cfg(self) -> dict[str, int | float | str | list[float]]:
         return {
             "size": self.size,
             "bandwidth": self.bandwidth,
-            "backprop_through_input": self.backprop_through_input,
         }
 
     @classmethod
@@ -52,7 +47,6 @@ class AnthropicJumpReLUActivation(ActivationFunction):
             size=cfg["size"],
             bandwidth=cfg["bandwidth"],
             log_threshold_init=None,  # will be handled by loading the state dict
-            backprop_through_input=cfg["backprop_through_input"],
         )
 
 
@@ -70,7 +64,6 @@ class AnthropicJumpReLU(t.autograd.Function):
         input_BX: t.Tensor,
         log_threshold_X: t.Tensor,
         bandwidth: float,
-        backprop_through_input: bool,
     ) -> t.Tensor:
         """
         threshold_X is $\\theta$ in the GDM paper, $t$ in the Anthropic paper.
@@ -79,33 +72,106 @@ class AnthropicJumpReLU(t.autograd.Function):
         """
         threshold_X = log_threshold_X.exp()
         ctx.save_for_backward(input_BX, threshold_X, t.tensor(bandwidth))
-        ctx.backprop_through_input = backprop_through_input
         return (input_BX > threshold_X) * input_BX
 
     @staticmethod
-    def backward(ctx: Any, grad_output_BX: t.Tensor) -> tuple[t.Tensor | None, t.Tensor, None, None]:  # type: ignore
+    def backward(ctx: Any, output_grad_BX: t.Tensor) -> tuple[t.Tensor | None, t.Tensor, None]:  # type: ignore
         input_BX, threshold_X, bandwidth = ctx.saved_tensors
 
-        grad_threshold_BX = (
-            threshold_X  #
-            * -(1 / bandwidth)
-            * rectangle((input_BX - threshold_X) / bandwidth)
-            * grad_output_BX
-        )
+        threshold_local_grad_BX = -(threshold_X / bandwidth) * rectangle((input_BX - threshold_X) / bandwidth)
+        input_local_grad_BX = (input_BX > threshold_X)
 
-        grad_threshold_X = grad_threshold_BX.sum(0)  # this is technically unnecessary as torch will automatically do it
 
-        if ctx.backprop_through_input:
-            return (
-                (input_BX > threshold_X) * grad_output_BX,  # input_BX
-                grad_threshold_X,
-                None,  # bandwidth
-                None,  # backprop_through_input
-            )
+        input_grad_BX = input_local_grad_BX * output_grad_BX
+        threshold_grad_BX = threshold_local_grad_BX * output_grad_BX
+
+        # print(f'{input_local_grad_BX=}')
+        # print(f'{input_grad_BX=}')
 
         return (
-            None,  # input_BX
-            grad_threshold_X,
+            input_grad_BX,
+            threshold_grad_BX,
             None,  # bandwidth
-            None,  # backprop_through_input
         )
+
+
+# # sanity check STE
+# def new_func():
+#     import math
+#     jr = AnthropicJumpReLUActivation(
+#         size=1,
+#         bandwidth=2.0,
+#         log_threshold_init=math.log(1),
+#     )
+
+#     optim = t.optim.SGD(jr.parameters(), lr=0.01)
+
+#     for _ in range(1000):
+#         optim.zero_grad()
+
+#         x = t.tensor([[0.5]], requires_grad=True)
+#         out = jr.forward(x)
+#         loss = (0.5 - out) ** 2
+#         loss.backward()
+#         optim.step()
+
+#     if jr.log_threshold_H.exp().item() > 0.5:
+#         raise ValueError("t > 0.5")
+#     return jr
+
+# def new_func1():
+#     threshold = 1.0
+#     # optimize inputs to be above threshold
+#     x = nn.Parameter(t.tensor([[0.9]]))
+#     y_hat = t.tensor([[1.1]])
+
+
+#     jr = AnthropicJumpReLUActivation(
+#         size=1,
+#         bandwidth=2.0,
+#         log_threshold_init=math.log(threshold),
+#     )
+
+#     optim = t.optim.SGD([x], lr=0.01)
+
+#     for _ in range(1000):
+#         optim.zero_grad()
+#         y = jr.forward(x)
+#         loss = (y_hat - y) ** 2
+#         loss.backward()
+#         print(f"d(x)={x.grad.item():.3f}, x={x.item():.3f}, y={y.item():.3f}")
+#         optim.step()
+#         sleep(0.01)
+    
+#     if (x - y_hat).abs() < 1e-6:
+#         raise ValueError("didnt optimize x correctly")
+
+# # sanity check STE
+# def new_func2():
+#     jr = AnthropicJumpReLUActivation(
+#         size=1,
+#         bandwidth=2.0,
+#         log_threshold_init=math.log(0.01),
+#     )
+
+#     optim = t.optim.SGD(jr.parameters(), lr=0.01)
+
+#     for i in range(100000):
+#         optim.zero_grad()
+
+#         x = t.tensor([[0.5]], requires_grad=True)
+#         out = jr.forward(x)
+#         loss = out ** 2
+#         loss.backward()
+#         optim.step()
+#         if i % 1000 == 0:
+#             print(f"t={jr.log_threshold_H.exp().item():.3f}, x={x.item():.3f}, out={out.item():.3f}")
+#         # print(jr.log_threshold_H.exp().item())
+#         # sleep(0.01)
+
+
+
+# if __name__ == "__main__":
+#     from time import sleep
+
+#     new_func2()

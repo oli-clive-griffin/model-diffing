@@ -1,5 +1,6 @@
 from typing import Literal
 
+import einops
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
 
@@ -54,11 +55,12 @@ class ActivationsHarvester:
                 return activations_HSPD
 
         acts_HSPD = torch.empty((*sequence_HS.shape, self._num_hookpoints, llm.cfg.d_model), device=self._device)
-        _, cache = llm.run_with_cache(
-            sequence_HS.to(self._device),
-            names_filter=lambda name: name in self._hookpoints,
-            stop_at_layer=self._layer_to_stop_at,
-        )
+        with torch.inference_mode():
+            _, cache = llm.run_with_cache(
+                sequence_HS.to(self._device),
+                names_filter=lambda name: name in self._hookpoints,
+                stop_at_layer=self._layer_to_stop_at,
+            )
         for p, hookpoint in enumerate(self._hookpoints):
             acts_HSPD[:, :, p, :] = cache[hookpoint]  # cache[hookpoint] is shape (H, S, D)
 
@@ -75,9 +77,7 @@ class ActivationsHarvester:
         MPD = (len(self._llms), len(self._hookpoints), self._llms[0].cfg.d_model)
         activations_HSMPD = torch.empty(*sequence_HS.shape, *MPD, device=self._device)
         for m, model in enumerate(self._llms):
-            with torch.no_grad():
-                acts_HSPD = self._get_acts_HSPD(model, sequence_HS)
-                activations_HSMPD[:, :, m, :, :] = acts_HSPD
+            activations_HSMPD[:, :, m, :, :] = self._get_acts_HSPD(model, sequence_HS)
         return activations_HSMPD
 
 

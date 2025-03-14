@@ -155,7 +155,7 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                 if log_dict is not None:
                     log_dicts.append(log_dict)
 
-            if log:
+            if log_dicts:
                 batch_log_dict_avgs = {
                     **{k: sum(v) / len(v) for k, v in dict_join(log_dicts).items()},
                     **self._step_logs(),

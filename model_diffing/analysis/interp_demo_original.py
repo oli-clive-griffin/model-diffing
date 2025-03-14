@@ -1,4 +1,5 @@
 # %%
+
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -21,11 +22,9 @@ from model_diffing.data.token_loader import (
 from model_diffing.data.token_loader.base import TokenSequenceLoader
 from model_diffing.interp import (
     ActivationsWithText,
-    LatentExample,
-    LatentSummary,
-    display_top_seqs,
-    gather_max_activating_examples,
-    top_and_bottom_logits,
+    LatentExaminer,
+    get_relative_decoder_norms_H,
+    topk_seqs_table,
 )
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
@@ -42,22 +41,21 @@ print(f"Current working directory: {Path.cwd()}")
 device = get_device()
 cache_dir = ".cache"
 
-DOWNLOAD_DIR = ".data/artifact_download"
-download_experiment_checkpoint(
+path = download_experiment_checkpoint(
     # this run is a layer-8 jumprelu SAE on pythia-160m for ≈ 90m tokens
     # tokens = (checkpoint_idx * checkpoint_every_n_batches * batch_size)
     #        = (12 * 1000 * 8192)
-    run_id="ar86synr",
+    run_id="24bnrl1g",
     version="v1",
-    destination_dir=DOWNLOAD_DIR,
+    destination_dir=".data/artifact_download",
 )
 
 # %%
-sae: AcausalCrosscoder[Any] = AcausalCrosscoder.load(Path(DOWNLOAD_DIR) / "model")
-assert sae.is_folded.item()
-sae.to(device)
+cc: AcausalCrosscoder[Any] = AcausalCrosscoder.load(path / "model")
+assert cc.is_folded.item()
+cc.to(device)
 
-with open(Path(DOWNLOAD_DIR) / "experiment_config.yaml") as f:
+with open(path / "experiment_config.yaml") as f:
     exp_config = JumpReLUModelDiffingFebUpdateExperimentConfig(**yaml.safe_load(f))
 
 # assert len(exp_config.data.activations_harvester.llms) == 1
@@ -71,6 +69,14 @@ llms = build_llms(
 
 assert isinstance(exp_config.data.token_sequence_loader, MathDatasetConfig)
 
+# %%
+
+relative_decoder_norms_H = get_relative_decoder_norms_H(cc.with_decoder_unit_norm())
+import matplotlib.pyplot as plt
+
+# with log scale
+plt.hist(relative_decoder_norms_H.detach().cpu().numpy(), bins=100, density=True, log=True)
+plt.show()
 # %%
 
 # first, get an iterator over sequences of tokens
@@ -90,6 +96,7 @@ activations_harvester = ActivationsHarvester(
 )
 # %%
 
+
 def iterate_activations_with_text(
     token_sequence_loader: TokenSequenceLoader,
     activations_harvester: ActivationsHarvester,
@@ -98,9 +105,10 @@ def iterate_activations_with_text(
         activations_HSMPD = activations_harvester.get_activations_HSMPD(seq.tokens_HS)
         assert activations_HSMPD.shape[3] == 1
         yield ActivationsWithText(
-            activations_HSMD=activations_HSMPD[:, :, :, 0].to(device),
-            tokens_HS=seq.tokens_HS.to(device),
+            activations_HbSXD=activations_HSMPD[:, :, :, 0].to(device),
+            tokens_HbS=seq.tokens_HS.to(device),
         )
+
 
 examples_iterator = iterate_activations_with_text(
     token_sequence_loader=token_sequence_loader,
@@ -108,47 +116,49 @@ examples_iterator = iterate_activations_with_text(
 )
 # %%
 
-# max-activating-examples
+exam = LatentExaminer(cc=cc, activations_with_text_iter=examples_iterator)
 
-latents_to_inspect = list(range(10))
+# get the 1000 lowest and highest decoder norm indices
+high_norms, high_indices = relative_decoder_norms_H.topk(4000, dim=-1, sorted=True)
+low_norms, low_indices = relative_decoder_norms_H.topk(4000, dim=-1, largest=False, sorted=True)
+# print(high_norms[:10], high_norms[-10:])
+# # print(low_norms[:10], low_norms[-10:])
 
-examples_by_latent = gather_max_activating_examples(
-    examples_iterator,
-    cc=sae,
-    total_batches=2,
+# highish_indices = high_indices[1000:]
+# # lowish_indices = low_indices[1000:]
+
+# latents_to_inspect_Hl = highish_indices
+latents_to_inspect_Hl = torch.cat([low_indices, high_indices])
+
+# OR just inspect the first 100 latents
+# latents_to_inspect = list(range(100))
+
+latent_summaries = exam.gather_latent_summaries(
+    total_batches=2000,
     context_size=20,
-    topk_per_latent_per_batch=5,
-    latents_to_inspect=latents_to_inspect,
+    latents_to_inspect_Hl=latents_to_inspect_Hl,
 )
 
 # %%
 
-tokenizer = llms[0].tokenizer  # type: ignore
+print({s.index: len(s.selected_examples) for s in latent_summaries})
 
-def as_table_data(ex: LatentExample) -> tuple[float, list[str]]:
-    tokens_strings = [tokenizer.decode(tok) for tok in ex.tokens_S]  # type: ignore
-    return (ex.last_tok_hidden_act, tokens_strings)
+# %%
 
+tokenizer: Any = llms[0].tokenizer  # type: ignore
 
-# display up to 10 examples for each latent
-sae_W_dec_HD = sae.W_dec_HXD[:, 0, 0, :]
-
-
-def examine_latent(latent_index: int, summary: LatentSummary):
-    display_top_seqs(
-        data=[as_table_data(example) for example in summary.selected_examples[:20]],
-        latent_index=latent_index,
-        density=summary.density,
+# %%
+# %%
+for summary in latent_summaries:
+    print(summary)
+    relative_decoder_norm = relative_decoder_norms_H[summary.index].item()
+    table = topk_seqs_table(
+        summary,
+        tokenizer,
+        extra_detail=f"relative decoder norm: {relative_decoder_norm:.3f}",
+        topk=20,
     )
-    # top_and_bottom_logits(
-    #     llm,
-    #     sae_W_dec_HD=sae_W_dec_HD,
-    #     latent_indices=[latent_index],
-    # )
-
-
-for latent_index, summary in examples_by_latent.items():
-    examine_latent(latent_index, summary)
+    rprint()
     print("\n=========")
 
 # %%
