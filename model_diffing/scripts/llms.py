@@ -2,7 +2,7 @@ from typing import cast
 
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
-from transformers import AutoModelForCausalLM  # type: ignore
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.log import logger
 from model_diffing.scripts.config_common import LLMConfig
@@ -10,8 +10,9 @@ from model_diffing.scripts.config_common import LLMConfig
 
 def build_llms(
     llms: list[LLMConfig], cache_dir: str, device: torch.device, inferenced_type: str
+# ) -> list[tuple[HookedTransformer, PreTrainedTokenizerBase]]:
 ) -> list[HookedTransformer]:
-    return [build_llm(llm, cache_dir, device, inferenced_type) for llm in llms]
+    return [build_llm(llm, cache_dir, device, inferenced_type)[0] for llm in llms]
 
 
 def build_llm(
@@ -19,7 +20,7 @@ def build_llm(
     cache_dir: str,
     device: torch.device,
     inference_dtype: str,
-) -> HookedTransformer:
+) -> tuple[HookedTransformer, PreTrainedTokenizerBase]:
     dtype = DTYPE_FROM_STRING[inference_dtype]
 
     if llm.name is not None:
@@ -32,6 +33,11 @@ def build_llm(
             revision=llm.revision,
             cache_dir=cache_dir,
             dtype=dtype,
+        )
+        tokenizer = AutoTokenizer.from_pretrained(
+            llm.name,
+            revision=llm.revision,
+            cache_dir=cache_dir,
         )
     else:
         assert llm.base_archicteture_name is not None
@@ -59,7 +65,7 @@ def build_llm(
 
     logger.info(f"Assigned model key: {model_key} to model {llm_out.cfg.model_name}")
 
-    return cast(HookedTransformer, llm_out.to(device))
+    return cast(HookedTransformer, llm_out.to(device)), tokenizer
 
 
 DTYPE_FROM_STRING = {

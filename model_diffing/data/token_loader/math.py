@@ -24,6 +24,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
         include_base_answers: bool = False,
         include_reasoning_answers: bool = False,
     ):
+        raise ValueError("TOKENIZATION IS NOT WORKING WIHT <think> TAGS")
         self._tokenizer = tokenizer
         self._batch_size = batch_size
         self._max_sequence_length = max_sequence_length
@@ -39,6 +40,12 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                 cache_dir=cache_dir,
             ),
         )
+    
+    def _format_question(self, question: str, answer: str | None = None) -> str:
+        out = f"User: {question}\n"
+        if answer is not None:
+            out += f"Assistant: {answer}\n"
+        return out
 
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:
         special_ids = torch.tensor(self._tokenizer.all_special_ids)
@@ -65,14 +72,14 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
                 match self._include_base_answers, self._include_reasoning_answers:
                     case (True, True):
-                        sequences.append(question + base_answer)
-                        sequences.append(question + reasoning)
+                        sequences.append(self._format_question(question, base_answer))
+                        sequences.append(self._format_question(question, reasoning))
                     case (True, False):
-                        sequences.append(question + base_answer)
+                        sequences.append(self._format_question(question, base_answer))
                     case (False, True):
-                        sequences.append(question + reasoning)
+                        sequences.append(self._format_question(question, reasoning))
                     case (False, False):
-                        sequences.append(question)
+                        sequences.append(self._format_question(question))
                     case _:
                         raise ValueError(
                             f"Invalid combination of base_answers and reasoning_answers: {self._include_base_answers=}, {self._include_reasoning_answers=}"
@@ -89,9 +96,13 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
             seq = cast(torch.Tensor, tok_res["input_ids"])
             return {"tokens_HS": seq, "special_tokens_mask_HS": torch.isin(seq, special_ids)}
 
-        assert self._batch_size % 2 == 0
+
+        tensorize_batch_size = self._batch_size
+
         will_double_example_count = self._include_base_answers and self._include_reasoning_answers
-        tensorize_batch_size = self._batch_size // 2 if will_double_example_count else self._batch_size
+        if will_double_example_count:
+            assert tensorize_batch_size % 2 == 0
+            tensorize_batch_size //= 2
 
         tokens_dataset = (
             self._base_ds.map(
