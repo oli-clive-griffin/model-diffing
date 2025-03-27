@@ -57,6 +57,8 @@ def _build_sliding_window_crosscoder_trainer(
                 initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
                 device=device,
             ),
+            use_encoder_bias=cfg.crosscoder.use_encoder_bias,
+            use_decoder_bias=cfg.crosscoder.use_decoder_bias,
         )
         for window_size in [1, 2]
     ]

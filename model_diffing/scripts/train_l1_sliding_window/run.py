@@ -41,6 +41,8 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
             n_latents=cfg.crosscoder.n_latents,
             init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
             activation_fn=ReLUActivation(),
+            use_encoder_bias=cfg.crosscoder.use_encoder_bias,
+            use_decoder_bias=cfg.crosscoder.use_decoder_bias,
         )
         for window_size in [1, 2]
     ]
