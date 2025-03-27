@@ -2,6 +2,7 @@ from pathlib import Path
 
 import wandb
 
+from model_diffing.saveable_module import SaveableModule
 from model_diffing.scripts.config_common import WandbConfig
 
 
@@ -31,8 +32,8 @@ def create_checkpoint_artifact(
     step: int,
     epoch: int,
 ) -> wandb.Artifact:
-    model_pt_path = Path(model_checkpoint_path) / "model.pt"
-    model_config_path = Path(model_checkpoint_path) / "model_cfg.yaml"
+    model_pt_path = Path(model_checkpoint_path) / SaveableModule.STATE_DICT_FNAME
+    model_config_path = Path(model_checkpoint_path) / SaveableModule.MODEL_CFG_FNAME
     exp_config_path = Path(model_checkpoint_path).parent / "experiment_config.yaml"
 
     assert model_pt_path.exists(), f"Model file {model_pt_path} does not exist."

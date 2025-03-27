@@ -1,23 +1,23 @@
 from collections.abc import Iterator
-from math import prod
 
 import torch
 from einops import rearrange
 
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
-from model_diffing.models.activations import AnthropicJumpReLUActivation
-from model_diffing.models.initialization.jan_update_init import harvest_pre_bias_NH
+from model_diffing.models.activations import AnthropicSTEJumpReLUActivation
+from model_diffing.models.initialization.jan_update_init import get_quantile_L, harvest_pre_bias_NL
 from model_diffing.utils import random_direction_init_
 
 
-class NoBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReLUActivation]]):
+class NoEncoderBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicSTEJumpReLUActivation]]):
     def __init__(
         self,
         dec_init_norm: float,
         activations_iterator_BXD: Iterator[torch.Tensor],
         initial_approx_firing_pct: float,
         device: torch.device,
+        n_tokens_for_threshold_setting: int,
     ):
         """
         Args:
@@ -36,58 +36,40 @@ class NoBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReL
 
         self.dec_init_norm = dec_init_norm
 
-
-
     @torch.no_grad()
-    def init_weights(self, cc: AcausalCrosscoder[AnthropicJumpReLUActivation]) -> None:
+    def init_weights(self, cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation]) -> None:
         # W
-        random_direction_init_(cc.W_dec_HXD, self.dec_init_norm)
-        cc.W_enc_XDH.copy_(rearrange(cc.W_dec_HXD.clone(), "h ... -> ... h"))
+        random_direction_init_(cc.W_dec_LXD, self.dec_init_norm)
+        cc.W_enc_XDL.copy_(rearrange(cc.W_dec_LXD.clone(), "h ... -> ... h"))
 
         # Bias
-        cc.b_enc_H.zero_()
-        cc.b_dec_XD.zero_()
-        # cc.b_enc_H.requires_grad_(False)
-        # cc.b_dec_XD.requires_grad_(False)
+        assert cc.b_enc_L is None, "this strategy requires no encoder bias"
 
-        # JR
-        jumprelu_threshold_H = compute_jumprelu_threshold_H(
+        if cc.b_dec_XD is not None:
+            cc.b_dec_XD.zero_()
+
+        # Jumprelu threshold
+        jumprelu_threshold_L = compute_jumprelu_threshold_L(
+            cc,
             self.activations_iterator_BXD,
-            cc.W_enc_XDH,
             self.initial_approx_firing_pct,
             self.n_tokens_for_threshold_setting,
         )
-        logger.info(f"computed jumprelu_threshold_H. sample: {jumprelu_threshold_H[:10]}")
-        clamped_threshold_H = jumprelu_threshold_H.clamp(min=0.001)
-        pct_clamped = (jumprelu_threshold_H < 0.001).float().mean().item()
-        logger.info(f"clamped {pct_clamped:.2%} of jumprelu_threshold_H. sample: {clamped_threshold_H[:10]}")
-        cc.hidden_activation.log_threshold_H.copy_(clamped_threshold_H.log())
+        logger.info(f"computed jumprelu_threshold_L. sample: {jumprelu_threshold_L[:10]}")
+        clamped_threshold_L = jumprelu_threshold_L.clamp(min=0.001)
+        pct_clamped = (jumprelu_threshold_L < 0.001).float().mean().item()
+        logger.info(f"clamped {pct_clamped:.2%} of jumprelu_threshold_L. sample: {clamped_threshold_L[:10]}")
+        cc.activation_fn.log_threshold_L.copy_(clamped_threshold_L.log())
 
 
-
-def compute_jumprelu_threshold_H(
+def compute_jumprelu_threshold_L(
+    cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation],
     activations_iterator_BXD: Iterator[torch.Tensor],
-    W_enc_XDH: torch.Tensor,
     initial_approx_firing_pct: float,
     n_tokens_for_threshold_setting: int,
 ) -> torch.Tensor:
     logger.info(f"Harvesting pre-bias for {n_tokens_for_threshold_setting} examples")
-    pre_bias_NH = harvest_pre_bias_NH(W_enc_XDH, activations_iterator_BXD, n_tokens_for_threshold_setting)
+    pre_bias_NL = harvest_pre_bias_NL(cc, activations_iterator_BXD, n_tokens_for_threshold_setting)
 
     logger.info("computing pre-bias firing threshold quantile")
-    
-    return get_quantile_H(pre_bias_NH, initial_approx_firing_pct)
-
-
-def get_quantile_H(pre_bias_NH: torch.Tensor, initial_approx_firing_pct: float) -> torch.Tensor:
-    pre_bias_firing_threshold_quantile_H = torch.empty(pre_bias_NH.shape[1])
-    n_chunks = pre_bias_firing_threshold_quantile_H.shape[0] // 1024
-    for i in range(n_chunks):
-        start, end = i * 1024, (i + 1) * 1024
-        pre_bias_firing_threshold_quantile_H[start:end] = torch.quantile(
-            pre_bias_NH[:, start:end],
-            1 - initial_approx_firing_pct,
-            dim=0,
-        )
-
-    return pre_bias_firing_threshold_quantile_H
+    return get_quantile_L(pre_bias_NL, initial_approx_firing_pct)

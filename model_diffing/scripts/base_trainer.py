@@ -11,7 +11,9 @@ from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
-from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
+from model_diffing.data.model_hookpoint_dataloader import (
+    BaseModelHookpointActivationsDataloader,
+)
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.activation_function import ActivationFunction
@@ -75,7 +77,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
-        self.firing_tracker = FiringTracker(activation_size=crosscoder.hidden_dim)
+        self.firing_tracker = FiringTracker(activation_size=crosscoder.n_latents, device=self.device)
 
         self.step = 0
         self.epoch = 0
@@ -111,7 +113,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
             for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
                 batch_BMPD = next(epoch_dataloader_BMPD).to(self.device)
                 train_res = self.crosscoder.forward_train(batch_BMPD)
-                self.firing_tracker.add_batch(train_res.hidden_BH)
+                self.firing_tracker.add_batch(train_res.latents_BL)
 
                 loss, log_dict = self._calculate_loss_and_log(batch_BMPD, train_res, log=log)
 
@@ -158,7 +160,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
             self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
 
     def _step_logs(self) -> dict[str, Any]:
-        log_dict = {
+        log_dict: dict[str, Any] = {
             "train/epoch": self.epoch,
             "train/unique_tokens_trained": self.unique_tokens_trained,
             "train/learning_rate": self.optimizer.param_groups[0]["lr"],
@@ -168,13 +170,21 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
             self.cfg.log_every_n_steps is not None
             and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
         ):
-            tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
+            tokens_since_fired_hist = wandb_histogram(self.firing_tracker.tokens_since_fired_L)
             log_dict.update({"media/tokens_since_fired": tokens_since_fired_hist})
 
             if self.n_models == 2:
-                W_dec_HXD = self.crosscoder.W_dec_HXD.detach().cpu()
-                assert W_dec_HXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
-                log_dict.update(create_cosine_sim_and_relative_norm_histograms(W_dec_HXD, self.hookpoints))
+                W_dec_LXD = self.crosscoder.W_dec_LXD.detach().cpu()
+                assert W_dec_LXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
+                log_dict.update(create_cosine_sim_and_relative_norm_histograms(W_dec_LXD, self.hookpoints))
+
+            if self.crosscoder.b_enc_L is not None:
+                log_dict["b_enc_values"] = wandb_histogram(self.crosscoder.b_enc_L)
+
+            if self.crosscoder.b_dec_XD is not None:
+                for i in range(self.n_models):
+                    for j in range(self.n_hookpoints):
+                        log_dict[f"b_dec_values_m{i}_hp{j}"] = wandb_histogram(self.crosscoder.b_dec_XD[i, j])
 
         return log_dict
 

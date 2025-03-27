@@ -7,7 +7,12 @@ from model_diffing.models.activations.relu import ReLUActivation
 from model_diffing.scripts.base_sliding_window_trainer import BaseSlidingWindowCrosscoderTrainer, BiTokenCCWrapper
 from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
 from model_diffing.scripts.utils import get_l0_stats
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, l1_norm, l2_norm, weighted_l1_sparsity_loss
+from model_diffing.utils import (
+    calculate_reconstruction_loss_summed_norm_MSEs,
+    l1_norm,
+    l2_norm,
+    weighted_l1_sparsity_loss,
+)
 
 
 class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUActivation, L1TrainConfig]):
@@ -21,7 +26,7 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         assert reconstructed_acts_BTPD.shape == batch_BTPD.shape, "fuck"
 
         # losses
-        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BTPD, reconstructed_acts_BTPD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BTPD, reconstructed_acts_BTPD)
 
         sparsity_loss_fn = partial(
             weighted_l1_sparsity_loss,
@@ -31,23 +36,23 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         )
 
         sparsity_loss_single1 = sparsity_loss_fn(
-            W_dec_HTMPD=self.crosscoders.single_cc.W_dec_HXD[:, :, None],
-            hidden_BH=res.hidden_single1_BH,
+            W_dec_LTMPD=self.crosscoders.single_cc.W_dec_LXD[:, :, None],
+            latents_BL=res.hidden_single1_BL,
         )
         sparsity_loss_single2 = sparsity_loss_fn(
-            W_dec_HTMPD=self.crosscoders.single_cc.W_dec_HXD[:, :, None],
-            hidden_BH=res.hidden_single2_BH,
+            W_dec_LTMPD=self.crosscoders.single_cc.W_dec_LXD[:, :, None],
+            latents_BL=res.hidden_single2_BL,
         )
         sparsity_loss_double = sparsity_loss_fn(
-            W_dec_HTMPD=self.crosscoders.double_cc.W_dec_HXD[:, :, None],
-            hidden_BH=res.hidden_double_BH,
+            W_dec_LTMPD=self.crosscoders.double_cc.W_dec_LXD[:, :, None],
+            latents_BL=res.hidden_double_BL,
         )
         sparsity_loss = sparsity_loss_single1 + sparsity_loss_single2 + sparsity_loss_double
 
         loss = reconstruction_loss + self._lambda_s_scheduler() * sparsity_loss
 
         hidden_B3H = t.cat(
-            [res.hidden_single1_BH, res.hidden_double_BH, res.hidden_single2_BH],
+            [res.hidden_single1_BL, res.hidden_double_BL, res.hidden_single2_BL],
             dim=-1,
         )
 

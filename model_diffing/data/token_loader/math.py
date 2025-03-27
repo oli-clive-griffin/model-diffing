@@ -24,7 +24,6 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
         include_base_answers: bool = False,
         include_reasoning_answers: bool = False,
     ):
-        raise ValueError("TOKENIZATION IS NOT WORKING WIHT <think> TAGS")
         self._tokenizer = tokenizer
         self._batch_size = batch_size
         self._max_sequence_length = max_sequence_length
@@ -40,7 +39,8 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                 cache_dir=cache_dir,
             ),
         )
-    
+        raise ValueError("TOKENIZATION IS NOT WORKING WITH <think> TAGS")
+
     def _format_question(self, question: str, answer: str | None = None) -> str:
         out = f"User: {question}\n"
         if answer is not None:
@@ -95,7 +95,6 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
             )
             seq = cast(torch.Tensor, tok_res["input_ids"])
             return {"tokens_HS": seq, "special_tokens_mask_HS": torch.isin(seq, special_ids)}
-
 
         tensorize_batch_size = self._batch_size
 

@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 
 import torch
 
-from model_diffing.utils import SaveableModule
+from model_diffing.saveable_module import SaveableModule
 
 
 class ActivationFunction(SaveableModule, ABC):
     @abstractmethod
-    def forward(self, hidden_preact_BH: torch.Tensor) -> torch.Tensor: ...
+    def forward(self, latent_preact_BL: torch.Tensor) -> torch.Tensor: ...

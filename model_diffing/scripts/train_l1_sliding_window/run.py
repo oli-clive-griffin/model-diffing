@@ -38,9 +38,9 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
         AcausalCrosscoder(
             crosscoding_dims=(window_size, len(cfg.hookpoints)),
             d_model=d_model,
-            hidden_dim=cfg.crosscoder.hidden_dim,
+            n_latents=cfg.crosscoder.n_latents,
             init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
-            hidden_activation=ReLUActivation(),
+            activation_fn=ReLUActivation(),
         )
         for window_size in [1, 2]
     ]

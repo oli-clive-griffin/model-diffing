@@ -31,12 +31,12 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         self,
         token_sequence_loader: TokenSequenceLoader,
         activations_harvester: ActivationsHarvester,
-        yield_batch_size: int,
+        yield_batch_size_B: int,
         n_tokens_for_norm_estimate: int,
     ):
         self._token_sequence_loader = token_sequence_loader
         self._activations_harvester = activations_harvester
-        self._yield_batch_size = yield_batch_size
+        self._yield_batch_size_B = yield_batch_size_B
         self._device = self._activations_harvester._llms[0].W_E.device
 
         norm_scaling_factors_MP = estimate_norm_scaling_factor_X(
@@ -64,20 +64,17 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
 
     def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
         iterator_HsMPD = self._activations_iterator_HsMPD()
+        batch_iter_BMPD = change_batch_size_BX(iterator_HX=iterator_HsMPD, new_batch_size_B=self._yield_batch_size_B)
 
         if scaling_factors_MP is None:
             scaling_factors_MP1 = torch.ones((1, 1, 1), device=self._device)
         else:
             scaling_factors_MP1 = rearrange(scaling_factors_MP.to(self._device), "m p -> m p 1")
 
-        for i, batch_BMPD in enumerate(
-            change_batch_size_BX(iterator_HX=iterator_HsMPD, new_batch_size_B=self._yield_batch_size)
-        ):
-            assert batch_BMPD.shape[0] == self._yield_batch_size, (
-                f"batch_BMPD.shape[0] {batch_BMPD.shape[0]} != self._yield_batch_size {self._yield_batch_size}"
-            )  # REMOVE ME
+        cuda_avail = torch.cuda.is_available()
+        for i, batch_BMPD in enumerate(batch_iter_BMPD):
             yield batch_BMPD * scaling_factors_MP1
-            if i % 5 == 0 and torch.cuda.is_available():
+            if i % 5 == 0 and cuda_avail:
                 torch.cuda.empty_cache()
 
 
@@ -121,7 +118,7 @@ def build_dataloader(
     activations_dataloader = ScaledModelHookpointActivationsDataloader(
         token_sequence_loader=token_sequence_loader,
         activations_harvester=activations_harvester,
-        yield_batch_size=batch_size,
+        yield_batch_size_B=batch_size,
         n_tokens_for_norm_estimate=cfg.n_tokens_for_norm_estimate,
     )
 

@@ -42,7 +42,7 @@ def test_MP():
     dataloader = ScaledModelHookpointActivationsDataloader(
         activations_harvester=activations_harvester,
         token_sequence_loader=sequence_loader,
-        yield_batch_size=training_batch_size,
+        yield_batch_size_B=training_batch_size,
         n_tokens_for_norm_estimate=1,
     )
 

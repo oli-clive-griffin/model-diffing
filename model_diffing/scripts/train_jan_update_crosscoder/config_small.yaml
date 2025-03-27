@@ -1,7 +1,4 @@
 data:
-  token_sequence_loader:
-    type: MathDatasetTokenSequenceLoader
-    max_sequence_length: 1024
   activations_harvester:
     llms:
       - base_archicteture_name: Qwen/Qwen2.5-1.5B

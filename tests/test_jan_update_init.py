@@ -1,13 +1,25 @@
 import torch
 
-from model_diffing.models.initialization.jan_update_init import compute_b_enc_H
+from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
+from model_diffing.models.initialization.jan_update_init import compute_b_enc_L
 
 
-def test_compute_b_enc_H():
-    hidden_dim = 2
+def test_compute_b_enc_L():
+    d_model = 2
+    n_latents = 2
 
     # use an identity matrix for the encoder weights so that the pre-bias is just the feature values
-    W_enc_DH = torch.eye(hidden_dim).float()
+    cc = AcausalCrosscoder(
+        n_latents=n_latents,
+        d_model=d_model,
+        activation_fn=AnthropicSTEJumpReLUActivation(size=n_latents, bandwidth=1.0, log_threshold_init=0.1),
+        init_strategy=None,
+        crosscoding_dims=(),
+        use_encoder_bias=False,
+        use_decoder_bias=False,
+    )
+    cc.W_enc_XDL.copy_(torch.eye(n_latents).float())
 
     initial_approx_firing_pct = 0.25
 
@@ -25,38 +37,45 @@ def test_compute_b_enc_H():
 
     # use a jumprelu threshold of 2 for simplicity
     initial_jumprelu_threshold = 2
-    initial_jumprelu_threshold_H = torch.ones(hidden_dim).float() * initial_jumprelu_threshold
+    initial_jumprelu_threshold_L = torch.ones(n_latents).float() * initial_jumprelu_threshold
 
-    b_enc_H = compute_b_enc_H(
+    b_enc_L = compute_b_enc_L(
+        cc,
         activations_iterator_BD,
-        W_enc_DH,
-        initial_jumprelu_threshold_H,
+        initial_jumprelu_threshold_L,
         initial_approx_firing_pct,
         n_tokens_for_threshold_setting=12,  # just the size of the dataset (3 batches of 2 examples each)
     )
 
-    assert b_enc_H.shape == (hidden_dim,)
+    assert b_enc_L.shape == (n_latents,)
 
     # the threshold should be the 75th percentile of the pre-bias values, minus the jumprelu threshold
     # - 75th quantile of the pre-bias values is [2.25, 6.25] (see linear interpolation in torch.quantile)
     # - the jumprelu threshold is 2.0, so the threshold is 2 - [2.25, 6.25]
-    expected_b_enc_H = torch.tensor([initial_jumprelu_threshold - 2.25, initial_jumprelu_threshold - 6.25])
-    assert torch.allclose(b_enc_H, expected_b_enc_H), f"b_enc_H: {b_enc_H}, expected_b_enc_H: {expected_b_enc_H}"
+    expected_b_enc_L = torch.tensor([initial_jumprelu_threshold - 2.25, initial_jumprelu_threshold - 6.25])
+    assert torch.allclose(b_enc_L, expected_b_enc_L), f"b_enc_L: {b_enc_L}, expected_b_enc_L: {expected_b_enc_L}"
 
     # Test that `initial_approx_firing_pct` of features fire when processing the batch
-    pre_acts_BH = (batch_BD @ W_enc_DH) + b_enc_H
-    acts_BH = (pre_acts_BH > initial_jumprelu_threshold) * pre_acts_BH
-    assert (acts_BH != 0.0).float().mean() == initial_approx_firing_pct
+    pre_acts_BL = (batch_BD @ cc.W_enc_XDL) + cc.b_enc_L # type: ignore
+    acts_BL = (pre_acts_BL > initial_jumprelu_threshold) * pre_acts_BL
+    assert (acts_BL != 0.0).float().mean() == initial_approx_firing_pct
 
 
-test_compute_b_enc_H()
+def test_compute_b_enc_L_batches_rounding():
+    n_latents = 1
+    d_model = 1
 
-
-def test_compute_b_enc_H_batches_rounding():
-    hidden_dim = 1
-
+    cc = AcausalCrosscoder(
+        n_latents=n_latents,
+        d_model=d_model,
+        activation_fn=AnthropicSTEJumpReLUActivation(size=n_latents, bandwidth=1.0, log_threshold_init=0.1),
+        init_strategy=None,
+        crosscoding_dims=(),
+        use_encoder_bias=False,
+        use_decoder_bias=False,
+    )
     # use an identity matrix for the encoder weights so that the pre-bias is just the feature values
-    W_enc_XDH = torch.eye(hidden_dim).float()  # this is just [1.], but wanting to make the identity transform explicit
+    cc.W_enc_XDL.copy_(torch.eye(n_latents).float())
 
     initial_approx_firing_pct = 0.25
 
@@ -65,20 +84,20 @@ def test_compute_b_enc_H_batches_rounding():
 
     activations_iterator_BD = iter([batch_1_BD, batch_2_BD])
 
-    initial_jumprelu_threshold_H = torch.randn(hidden_dim).float()
+    initial_jumprelu_threshold_L = torch.randn(n_latents).float()
 
-    b_enc_H = compute_b_enc_H(
+    b_enc_L = compute_b_enc_L(
+        cc,
         activations_iterator_BD,
-        W_enc_XDH,
-        initial_jumprelu_threshold_H,
+        initial_jumprelu_threshold_L,
         initial_approx_firing_pct,
         n_tokens_for_threshold_setting=5,  # should round up to 6 (taking in both batches)
     )
 
-    assert b_enc_H.shape == (hidden_dim,)
+    assert b_enc_L.shape == (n_latents,)
 
     # the threshold should be the 75th percentile of the pre-bias values, minus the jumprelu threshold
     whole_dataset_BD = torch.cat([batch_1_BD, batch_2_BD])
-    expected_b_enc_H = initial_jumprelu_threshold_H - torch.quantile(whole_dataset_BD, 1 - initial_approx_firing_pct)
+    expected_b_enc_L = initial_jumprelu_threshold_L - torch.quantile(whole_dataset_BD, 1 - initial_approx_firing_pct)
 
-    assert torch.allclose(b_enc_H, expected_b_enc_H), f"b_enc_H: {b_enc_H}, expected_b_enc_H: {expected_b_enc_H}"
+    assert torch.allclose(b_enc_L, expected_b_enc_L), f"b_enc_L: {b_enc_L}, expected_b_enc_L: {expected_b_enc_L}"

@@ -35,9 +35,11 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=llms[0].cfg.d_model,
-        hidden_dim=cfg.crosscoder.hidden_dim,
+        n_latents=cfg.crosscoder.n_latents,
         init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
-        hidden_activation=ReLUActivation(),
+        activation_fn=ReLUActivation(),
+        use_encoder_bias=cfg.crosscoder.use_encoder_bias,
+        use_decoder_bias=cfg.crosscoder.use_decoder_bias,
     )
 
     crosscoder = crosscoder.to(device)

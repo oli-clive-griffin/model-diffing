@@ -1,6 +1,6 @@
 from typing import Any
 
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, DataConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig, DataConfig
 from model_diffing.utils import BaseModel
 
 
@@ -10,10 +10,8 @@ class JumpReLUConfig(BaseModel):
     backprop_through_jumprelu_input: bool = True
 
 
-class JanUpdateCrosscoderConfig(BaseModel):
-    hidden_dim: int
+class JanUpdateCrosscoderConfig(CrosscoderConfig):
     jumprelu: JumpReLUConfig = JumpReLUConfig()
-    # These 2 should really be on the JumpReLUConfig
     initial_approx_firing_pct: float
     n_tokens_for_threshold_setting: int = 100_000
     """

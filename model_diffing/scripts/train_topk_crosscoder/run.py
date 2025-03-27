@@ -3,15 +3,16 @@ import fire  # type: ignore
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
 from model_diffing.models import AcausalCrosscoder, AnthropicTransposeInit, TopkActivation
+from model_diffing.models.activations.topk import BatchTopkActivation, GroupMaxActivation
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_topk_crosscoder.config import TopKExperimentConfig
-from model_diffing.scripts.train_topk_crosscoder.trainer import TopKTrainer
+from model_diffing.scripts.train_topk_crosscoder.trainer import TopKStyleTrainer
 from model_diffing.scripts.utils import build_wandb_run
 from model_diffing.utils import get_device
 
 
-def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
+def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
     device = get_device()
 
     llms = build_llms(
@@ -21,6 +22,32 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
         inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
+    n_models = len(llms)
+    n_hookpoints = len(cfg.hookpoints)
+    d_model = llms[0].cfg.d_model
+
+    match cfg.train.topk_style:
+        case "topk":
+            cc_act = TopkActivation(k=cfg.crosscoder.k)
+        case "batch_topk":
+            cc_act = BatchTopkActivation(k_per_example=cfg.crosscoder.k)
+        case "groupmax":
+            cc_act = GroupMaxActivation(k_groups=cfg.crosscoder.k, latents_size=cfg.crosscoder.n_latents)
+
+    crosscoder = AcausalCrosscoder(
+        crosscoding_dims=(n_models, n_hookpoints),
+        d_model=d_model,
+        n_latents=cfg.crosscoder.n_latents,
+        init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
+        activation_fn=cc_act,
+        use_encoder_bias=cfg.crosscoder.use_encoder_bias,
+        use_decoder_bias=cfg.crosscoder.use_decoder_bias,
+    )
+
+    crosscoder = crosscoder.to(device)
+
+    wandb_run = build_wandb_run(cfg)
+
     dataloader = build_dataloader(
         cfg=cfg.data,
         llms=llms,
@@ -29,22 +56,11 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
         cache_dir=cfg.cache_dir,
     )
 
-    n_models = len(llms)
-    n_hookpoints = len(cfg.hookpoints)
+    if cfg.train.k_aux is None:
+        cfg.train.k_aux = d_model // 2
+        logger.info(f"defaulting to k_aux={cfg.train.k_aux} for crosscoder (({d_model=}) // 2)")
 
-    crosscoder = AcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
-        d_model=llms[0].cfg.d_model,
-        hidden_dim=cfg.crosscoder.hidden_dim,
-        init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
-        hidden_activation=TopkActivation(k=cfg.crosscoder.k),
-    )
-
-    crosscoder = crosscoder.to(device)
-
-    wandb_run = build_wandb_run(cfg)
-
-    return TopKTrainer(
+    return TopKStyleTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
         crosscoder=crosscoder,
@@ -52,6 +68,7 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKTrainer:
         device=device,
         hookpoints=cfg.hookpoints,
         save_dir=cfg.save_dir,
+        k_aux=cfg.train.k_aux,
     )
 
 

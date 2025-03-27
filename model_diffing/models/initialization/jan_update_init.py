@@ -7,11 +7,11 @@ from tqdm import tqdm  # type: ignore
 
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
-from model_diffing.models.activations import AnthropicJumpReLUActivation
+from model_diffing.models.activations import AnthropicSTEJumpReLUActivation
 from model_diffing.utils import ceil_div, inspect, round_up
 
 
-class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicJumpReLUActivation]]):
+class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicSTEJumpReLUActivation]]):
     """
     Base class for the data-dependent JumpReLU initialization strategy described in:
         https://transformer-circuits.pub/2025/january-update/index.html.
@@ -39,88 +39,67 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
             raise ValueError(f"initial_approx_firing_pct must be between 0 and 1, got {initial_approx_firing_pct}")
         self.initial_approx_firing_pct = initial_approx_firing_pct
 
-    def get_calibrated_b_enc_H(
-        self, W_enc_XDH: torch.Tensor, hidden_activation: AnthropicJumpReLUActivation
+    @torch.no_grad()
+    def init_weights(self, cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation]) -> None:
+        n = prod(cc.crosscoding_dims) * cc.d_model
+        m = cc.n_latents
+
+        cc.W_dec_LXD.uniform_(-1.0 / n, 1.0 / n)
+        cc.W_enc_XDL.copy_(
+            rearrange(cc.W_dec_LXD, "hidden ... -> ... hidden")  #
+            * (n / m)
+        )
+
+        assert cc.b_enc_L is not None, "this strategy requires an encoder bias"
+        cc.b_enc_L.copy_(self._get_calibrated_b_enc_L(cc, cc.activation_fn).to(cc.b_enc_L.device))
+
+        if cc.b_dec_XD is not None:
+            cc.b_dec_XD.zero_()
+
+    def _get_calibrated_b_enc_L(
+        self, cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation], hidden_activation: AnthropicSTEJumpReLUActivation
     ) -> torch.Tensor:
-        return compute_b_enc_H(
+        return compute_b_enc_L(
+            cc,
             self.activations_iterator_BXD,
-            W_enc_XDH.to(self.device),
-            hidden_activation.log_threshold_H.exp(),
+            hidden_activation.log_threshold_L.exp(),
             self.initial_approx_firing_pct,
             self.n_tokens_for_threshold_setting,
         )
 
-    @torch.no_grad()
-    def init_weights(self, cc: AcausalCrosscoder[AnthropicJumpReLUActivation]) -> None:
-        n = prod(cc.crosscoding_dims) * cc.d_model
-        m = cc.hidden_dim
 
-        cc.W_dec_HXD.uniform_(-1.0 / n, 1.0 / n)
-        cc.W_enc_XDH.copy_(
-            rearrange(cc.W_dec_HXD, "hidden ... -> ... hidden")  #
-            * (n / m)
-        )
-
-        cc.b_enc_H.copy_(self.get_calibrated_b_enc_H(cc.W_enc_XDH, cc.hidden_activation).to(cc.b_enc_H.device))
-        cc.b_dec_XD.zero_()
-
-
-CHUNK_SIZE = 4096
-
-
-def compute_b_enc_H(
+def compute_b_enc_L(
+    cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation],
     activations_iterator_BXD: Iterator[torch.Tensor],
-    W_enc_XDH: torch.Tensor,
-    initial_jumprelu_threshold_H: torch.Tensor,
+    initial_jumprelu_threshold_L: torch.Tensor,
     initial_approx_firing_pct: float,
     n_tokens_for_threshold_setting: int,
 ) -> torch.Tensor:
     logger.info(f"Harvesting pre-bias for {n_tokens_for_threshold_setting} examples")
 
-    pre_bias_NH = harvest_pre_bias_NH(W_enc_XDH, activations_iterator_BXD, n_tokens_for_threshold_setting)
+    pre_bias_NL = harvest_pre_bias_NL(cc, activations_iterator_BXD, n_tokens_for_threshold_setting)
 
-    pre_bias_firing_threshold_quantile_H = torch.empty_like(initial_jumprelu_threshold_H)
-    n_chunks = ceil_div(pre_bias_firing_threshold_quantile_H.shape[0], CHUNK_SIZE)
-    for i in tqdm(range(n_chunks), desc="computing pre-bias firing threshold quantile"):
-        start = i * CHUNK_SIZE
-        end = min(start + CHUNK_SIZE, pre_bias_NH.shape[1])
-        pre_bias_firing_threshold_quantile_H[start:end] = torch.quantile(
-            pre_bias_NH[:, start:end],
-            1 - initial_approx_firing_pct,
-            dim=0,
-        )
+    pre_bias_firing_threshold_quantile_L = get_quantile_L(pre_bias_NL, initial_approx_firing_pct)
 
     # firing is when the post-bias is above the jumprelu threshold, therefore we subtract
     # the quantile from the initial jumprelu threshold, so that for a given example,
     # inital_approx_firing_pct of the examples are above the threshold.
-    b_enc_H = initial_jumprelu_threshold_H - pre_bias_firing_threshold_quantile_H.to(
-        initial_jumprelu_threshold_H.device
+    b_enc_L = initial_jumprelu_threshold_L - pre_bias_firing_threshold_quantile_L.to(
+        initial_jumprelu_threshold_L.device
     )
 
-    logger.info(f"computed b_enc_H. Sample: {b_enc_H[:10]}. mean: {b_enc_H.mean()}, std: {b_enc_H.std()}")
+    logger.info(f"computed b_enc_L. Sample: {b_enc_L[:10]}. mean: {b_enc_L.mean()}, std: {b_enc_L.std()}")
 
-    return b_enc_H
+    return b_enc_L
 
 
-def harvest_pre_bias_NH(
-    W_enc_XDH: torch.Tensor,
+def harvest_pre_bias_NL(
+    cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation],
     activations_iterator_BXD: Iterator[torch.Tensor],
     n_tokens_for_threshold_setting: int,
 ) -> torch.Tensor:
-    # print(f"W_enc_XDH.device: {W_enc_XDH.device}")
-    # print(f"activations_iterator_BXD.device: {next(activations_iterator_BXD).device}")
-    # print(f"device: {device}")
-
-    def get_batch_pre_bias() -> torch.Tensor:
-        # this is essentially the first step of the crosscoder forward pass, but not worth
-        # creating a new method for it, just (easily) reimplementing it here
-        batch_BXD = next(activations_iterator_BXD)
-        # TODO make this a method
-        x_BH = einsum(batch_BXD.to(W_enc_XDH.device), W_enc_XDH, "b ... d, ... d h -> b h")
-        return x_BH
-
-    sample_BH = get_batch_pre_bias()
-    batch_size, hidden_size = sample_BH.shape
+    sample_BL = cc.get_pre_bias_BL(next(activations_iterator_BXD))
+    batch_size, latent_size = sample_BL.shape
 
     rounded_n_tokens_for_threshold_setting = round_up(n_tokens_for_threshold_setting, to_multiple_of=batch_size)
 
@@ -132,19 +111,36 @@ def harvest_pre_bias_NH(
 
     num_batches = rounded_n_tokens_for_threshold_setting // batch_size
 
-    pre_bias_buffer_NH = torch.empty(
-        (rounded_n_tokens_for_threshold_setting, hidden_size),
-        device=W_enc_XDH.device,
+    pre_bias_buffer_NL = torch.empty(
+        (rounded_n_tokens_for_threshold_setting, latent_size),
+        device=cc.W_enc_XDL.device,
     )
 
-    logger.info(f"pre_bias_buffer_NH: {inspect(pre_bias_buffer_NH)}")
+    logger.info(f"pre_bias_buffer_NL: {inspect(pre_bias_buffer_NL)}")
 
-    pre_bias_buffer_NH[:batch_size] = sample_BH
+    pre_bias_buffer_NL[:batch_size] = sample_BL
 
     # start at 1 because we already sampled the first batch
     for i in tqdm(range(1, num_batches), desc="Harvesting pre-bias"):
-        batch_pre_bias_BH = get_batch_pre_bias()
-        pre_bias_buffer_NH[i * batch_size : (i + 1) * batch_size] = batch_pre_bias_BH
+        batch_pre_bias_BL = cc.get_pre_bias_BL(next(activations_iterator_BXD))
+        pre_bias_buffer_NL[i * batch_size : (i + 1) * batch_size] = batch_pre_bias_BL
 
-    print(f"pre_bias_buffer_NH.device: {pre_bias_buffer_NH.device}")
-    return pre_bias_buffer_NH
+    return pre_bias_buffer_NL
+
+
+CHUNK_SIZE = 4096
+
+
+def get_quantile_L(pre_bias_NL: torch.Tensor, initial_approx_firing_pct: float) -> torch.Tensor:
+    pre_bias_firing_threshold_quantile_L = torch.empty(pre_bias_NL.shape[1])
+    n_chunks = ceil_div(pre_bias_firing_threshold_quantile_L.shape[0], CHUNK_SIZE)
+    for i in tqdm(range(n_chunks), desc="computing pre-bias firing threshold quantile"):
+        start = i * CHUNK_SIZE
+        end = min(start + CHUNK_SIZE, pre_bias_NL.shape[1])
+        pre_bias_firing_threshold_quantile_L[start:end] = torch.quantile(
+            pre_bias_NL[:, start:end],
+            1 - initial_approx_firing_pct,
+            dim=0,
+        )
+
+    return pre_bias_firing_threshold_quantile_L

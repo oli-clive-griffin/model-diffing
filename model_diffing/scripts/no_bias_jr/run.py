@@ -6,7 +6,7 @@ from einops import rearrange
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models import AcausalCrosscoder, AnthropicJumpReLUActivation
+from model_diffing.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation
 from model_diffing.models.acausal_crosscoder import InitStrategy
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
@@ -17,22 +17,19 @@ from model_diffing.utils import get_device, random_direction_init_
 
 
 class AnthropicTransposeInit(InitStrategy[AcausalCrosscoder[Any]]):
-    def __init__(self, dec_init_norm: float, use_bias: bool):
+    def __init__(self, dec_init_norm: float):
         self.dec_init_norm = dec_init_norm
-        self.use_bias = use_bias
 
     @torch.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
-        random_direction_init_(cc.W_dec_HXD, self.dec_init_norm)
+        random_direction_init_(cc.W_dec_LXD, self.dec_init_norm)
 
-        cc.W_enc_XDH.copy_(rearrange(cc.W_dec_HXD.clone(), "h ... -> ... h"))
+        cc.W_enc_XDL.copy_(rearrange(cc.W_dec_LXD.clone(), "h ... -> ... h"))
 
-        cc.b_enc_H.zero_()
-        cc.b_dec_XD.zero_()
-
-        if not self.use_bias:
-            cc.b_dec_XD.requires_grad_(False)
-            cc.b_enc_H.requires_grad_(False)
+        if cc.b_enc_L is not None:
+            cc.b_enc_L.zero_()
+        if cc.b_dec_XD is not None:
+            cc.b_dec_XD.zero_()
 
 
 def build_trainer(cfg: NoBiasJanUpdateExperimentConfig) -> JanUpdateCrosscoderTrainer:
@@ -59,13 +56,15 @@ def build_trainer(cfg: NoBiasJanUpdateExperimentConfig) -> JanUpdateCrosscoderTr
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=llms[0].cfg.d_model,
-        hidden_dim=cfg.crosscoder.hidden_dim,
-        hidden_activation=AnthropicJumpReLUActivation(
-            size=cfg.crosscoder.hidden_dim,
+        n_latents=cfg.crosscoder.n_latents,
+        activation_fn=AnthropicSTEJumpReLUActivation(
+            size=cfg.crosscoder.n_latents,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
             log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
         ),
-        init_strategy=AnthropicTransposeInit(dec_init_norm=0.1, use_bias=cfg.bias),
+        init_strategy=AnthropicTransposeInit(dec_init_norm=0.1),
+        use_encoder_bias=cfg.encoder_bias,
+        use_decoder_bias=cfg.decoder_bias,
     )
 
     crosscoder = crosscoder.to(device)
@@ -85,4 +84,4 @@ def build_trainer(cfg: NoBiasJanUpdateExperimentConfig) -> JanUpdateCrosscoderTr
 
 if __name__ == "__main__":
     logger.info("Starting...")
-    fire.Fire(run_exp(lambda cfg: build_trainer(cfg), NoBiasJanUpdateExperimentConfig))
+    fire.Fire(run_exp(build_trainer, NoBiasJanUpdateExperimentConfig))

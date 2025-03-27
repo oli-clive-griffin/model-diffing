@@ -5,7 +5,7 @@ import fire  # type: ignore
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.activations import AnthropicJumpReLUActivation
+from model_diffing.models.activations import AnthropicSTEJumpReLUActivation
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.models.initialization.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
@@ -46,9 +46,9 @@ def _build_sliding_window_crosscoder_trainer(
         AcausalCrosscoder(
             crosscoding_dims=(window_size, len(cfg.hookpoints)),
             d_model=llms[0].cfg.d_model,
-            hidden_dim=cfg.crosscoder.hidden_dim,
-            hidden_activation=AnthropicJumpReLUActivation(
-                size=cfg.crosscoder.hidden_dim,
+            n_latents=cfg.crosscoder.n_latents,
+            activation_fn=AnthropicSTEJumpReLUActivation(
+                size=cfg.crosscoder.n_latents,
                 bandwidth=cfg.crosscoder.jumprelu.bandwidth,
                 log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
             ),

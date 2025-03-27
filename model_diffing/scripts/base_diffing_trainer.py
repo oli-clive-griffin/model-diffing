@@ -44,15 +44,15 @@ class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
 
     @t.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
-        assert cc.W_dec_HXD.shape[1] == 2, "expected the model dimension to be 2"
+        assert cc.W_dec_LXD.shape[1] == 2, "expected the model dimension to be 2"
 
         # do the regular init
         self.first_init.init_weights(cc)
 
         # BUT: sync the shared decoder weights
-        cc.W_dec_HXD[: self.n_shared_latents, 0].copy_(cc.W_dec_HXD[: self.n_shared_latents, 1])
+        cc.W_dec_LXD[: self.n_shared_latents, 0].copy_(cc.W_dec_LXD[: self.n_shared_latents, 1])
 
-        assert (cc.W_dec_HXD[: self.n_shared_latents, 0] == cc.W_dec_HXD[: self.n_shared_latents, 1]).all()
+        assert (cc.W_dec_LXD[: self.n_shared_latents, 0] == cc.W_dec_LXD[: self.n_shared_latents, 1]).all()
 
 
 class BaseDiffingTrainer(Generic[TConfig, TAct]):
@@ -96,7 +96,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
-        self.firing_tracker = FiringTracker(activation_size=crosscoder.hidden_dim)
+        self.firing_tracker = FiringTracker(activation_size=crosscoder.n_latents, device=self.device)
 
         self.step = 0
         self.epoch = 0
@@ -132,7 +132,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
                 batch_BMD = batch_BMPD.squeeze(2).to(self.device)
 
                 train_res = self.crosscoder.forward_train(batch_BMD)
-                self.firing_tracker.add_batch(train_res.hidden_BH)
+                self.firing_tracker.add_batch(train_res.latents_BL)
 
                 loss, log_dict = self._loss_and_log_dict(batch_BMD, train_res, log=log)
 
@@ -175,18 +175,18 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
     ) -> tuple[t.Tensor, dict[str, float] | None]: ...
 
     def _synchronise_shared_weight_grads(self) -> None:
-        assert self.crosscoder.W_dec_HXD.grad is not None
-        model_0_grad = self.crosscoder.W_dec_HXD.grad[: self.n_shared_latents, 0]
-        model_1_grad = self.crosscoder.W_dec_HXD.grad[: self.n_shared_latents, 1]
+        assert self.crosscoder.W_dec_LXD.grad is not None
+        model_0_grad = self.crosscoder.W_dec_LXD.grad[: self.n_shared_latents, 0]
+        model_1_grad = self.crosscoder.W_dec_LXD.grad[: self.n_shared_latents, 1]
 
         summed_grad = model_0_grad + model_1_grad
         model_0_grad.copy_(summed_grad)
         model_1_grad.copy_(summed_grad)
 
-        m0_grads, m1_grads = self.crosscoder.W_dec_HXD.grad[: self.n_shared_latents].unbind(dim=1)
+        m0_grads, m1_grads = self.crosscoder.W_dec_LXD.grad[: self.n_shared_latents].unbind(dim=1)
         assert (m0_grads == m1_grads).all()
 
-        m0_weights, m1_weights = self.crosscoder.W_dec_HXD[: self.n_shared_latents].unbind(dim=1)
+        m0_weights, m1_weights = self.crosscoder.W_dec_LXD[: self.n_shared_latents].unbind(dim=1)
         assert (m0_weights == m1_weights).all()
 
     def _lr_step(self) -> None:
@@ -205,13 +205,15 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
             self.cfg.log_every_n_steps is not None
             and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
         ):
-            tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
+            tokens_since_fired_hist = wandb_histogram(self.firing_tracker.tokens_since_fired_L)
             log_dict.update({"media/tokens_since_fired": tokens_since_fired_hist})
 
-            W_dec_HiMD = self.crosscoder.W_dec_HXD[self.n_shared_latents :].detach()
-            log_dict.update(create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_HMD=W_dec_HiMD))
+            W_dec_LiMD = self.crosscoder.W_dec_LXD[self.n_shared_latents :].detach()
+            log_dict.update(create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_LMD=W_dec_LiMD))
+
+            # log bias histograms?
 
         return log_dict
-    
+
     def _get_fvu_dict(self, batch_BMD: t.Tensor, recon_acts_BMD: t.Tensor) -> dict[str, float]:
         return get_fvu_dict(batch_BMD, recon_acts_BMD, ("model", [0, 1]))

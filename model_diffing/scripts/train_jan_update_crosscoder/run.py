@@ -2,7 +2,7 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models import AcausalCrosscoder, AnthropicJumpReLUActivation, DataDependentJumpReLUInitStrategy
+from model_diffing.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
@@ -35,18 +35,20 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=llms[0].cfg.d_model,
-        hidden_dim=cfg.crosscoder.hidden_dim,
+        n_latents=cfg.crosscoder.n_latents,
         init_strategy=DataDependentJumpReLUInitStrategy(
             activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
             initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
             n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
             device=device,
         ),
-        hidden_activation=AnthropicJumpReLUActivation(
-            size=cfg.crosscoder.hidden_dim,
+        activation_fn=AnthropicSTEJumpReLUActivation(
+            size=cfg.crosscoder.n_latents,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
             log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
         ),
+        use_encoder_bias=cfg.crosscoder.use_encoder_bias,
+        use_decoder_bias=cfg.crosscoder.use_decoder_bias,
     )
     crosscoder = crosscoder.to(device)
 

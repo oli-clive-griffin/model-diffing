@@ -1,6 +1,5 @@
 from typing import Literal
 
-import einops
 import torch
 from transformer_lens import HookedTransformer  # type: ignore
 

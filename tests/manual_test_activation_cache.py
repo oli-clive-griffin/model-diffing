@@ -65,7 +65,7 @@ def main():
                     cache_dir=str(cache_dir),
                     cache_mode="cache",
                 ),
-                yield_batch_size=4,
+                yield_batch_size_B=4,
                 n_tokens_for_norm_estimate=16,
             )
 

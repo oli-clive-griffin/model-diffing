@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from itertools import islice
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
@@ -44,9 +43,9 @@ class BiTokenCCWrapper(nn.Module, Generic[TAct]):
         recon_single1_B1PD: t.Tensor
         recon_single2_B1PD: t.Tensor
         recon_double_B2PD: t.Tensor
-        hidden_single1_BH: t.Tensor
-        hidden_single2_BH: t.Tensor
-        hidden_double_BH: t.Tensor
+        hidden_single1_BL: t.Tensor
+        hidden_single2_BL: t.Tensor
+        hidden_double_BL: t.Tensor
 
     def forward_train(self, x_BTPD: t.Tensor) -> TrainResult:
         assert x_BTPD.shape[1] == 2
@@ -59,9 +58,9 @@ class BiTokenCCWrapper(nn.Module, Generic[TAct]):
             recon_single1_B1PD=output_single1.recon_acts_BXD,
             recon_single2_B1PD=output_single2.recon_acts_BXD,
             recon_double_B2PD=output_both.recon_acts_BXD,
-            hidden_single1_BH=output_single1.hidden_BH,
-            hidden_single2_BH=output_single2.hidden_BH,
-            hidden_double_BH=output_both.hidden_BH,
+            hidden_single1_BL=output_single1.latents_BL,
+            hidden_single2_BL=output_single2.latents_BL,
+            hidden_double_BL=output_both.latents_BL,
         )
 
     # stub forward for appeasing the nn.Module interface, but we don't use it
@@ -109,9 +108,10 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
         self.firing_tracker = FiringTracker(
-            activation_size=self.crosscoders.single_cc.hidden_dim
-            + self.crosscoders.double_cc.hidden_dim
-            + self.crosscoders.single_cc.hidden_dim
+            activation_size=self.crosscoders.single_cc.n_latents
+            + self.crosscoders.double_cc.n_latents
+            + self.crosscoders.single_cc.n_latents,
+            device=self.device,
         )
 
         self.step = 0
@@ -146,8 +146,8 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                 batch_BTPD = batch_BTPD.to(self.device)
 
                 res = self.crosscoders.forward_train(batch_BTPD)
-                hidden_B3h = t.cat([res.hidden_single1_BH, res.hidden_double_BH, res.hidden_single2_BH], dim=-1)
-                self.firing_tracker.add_batch(hidden_B3h)
+                hidden_B3l = t.cat([res.hidden_single1_BL, res.hidden_double_BL, res.hidden_single2_BL], dim=-1)
+                self.firing_tracker.add_batch(hidden_B3l)
 
                 loss, log_dict = self._calculate_loss_and_log(batch_BTPD, res, log=log)
 
@@ -205,8 +205,10 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
             self.cfg.log_every_n_steps is not None
             and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
         ):
-            tokens_since_fired_hist = wandb_histogram(self.firing_tracker.examples_since_fired_A)
+            tokens_since_fired_hist = wandb_histogram(self.firing_tracker.tokens_since_fired_L)
             log_dict.update({"media/tokens_since_fired": tokens_since_fired_hist})
+
+            # log bias histograms?
 
         return log_dict
 

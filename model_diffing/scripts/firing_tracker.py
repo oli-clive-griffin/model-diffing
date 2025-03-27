@@ -1,14 +1,13 @@
-import numpy as np
 import torch
 
 
 class FiringTracker:
-    def __init__(self, activation_size: int):
+    def __init__(self, activation_size: int, device: torch.device):
         self._activation_size = activation_size
-        self.examples_since_fired_A = np.zeros(activation_size, dtype=np.int64)
+        self.tokens_since_fired_L = torch.zeros(activation_size, dtype=torch.int64, device=device)
 
-    def add_batch(self, hidden_BH: torch.Tensor) -> None:
-        batch_size = hidden_BH.shape[0]
-        firing_A = hidden_BH.any(dim=0).detach().cpu().numpy()
-        self.examples_since_fired_A[firing_A] = 0
-        self.examples_since_fired_A[~firing_A] += batch_size
+    def add_batch(self, latents_BL: torch.Tensor) -> None:
+        batch_size = latents_BL.shape[0]
+        firing_L = latents_BL.any(dim=0).detach()
+        self.tokens_since_fired_L[firing_L] = 0
+        self.tokens_since_fired_L[~firing_L] += batch_size

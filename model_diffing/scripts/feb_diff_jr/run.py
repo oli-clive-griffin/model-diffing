@@ -2,7 +2,7 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models import AcausalCrosscoder, AnthropicJumpReLUActivation, DataDependentJumpReLUInitStrategy
+from model_diffing.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_diffing_trainer import IdenticalLatentsInit
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
@@ -37,7 +37,7 @@ def build_feb_update_crosscoder_trainer(
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(2,),
         d_model=llms[0].cfg.d_model,
-        hidden_dim=cfg.crosscoder.hidden_dim,
+        n_latents=cfg.crosscoder.n_latents,
         init_strategy=IdenticalLatentsInit(
             first_init=DataDependentJumpReLUInitStrategy(
                 activations_iterator_BXD=dataloader.get_activations_iterator_BMPD(),
@@ -47,11 +47,13 @@ def build_feb_update_crosscoder_trainer(
             ),
             n_shared_latents=cfg.crosscoder.n_shared_latents,
         ),
-        hidden_activation=AnthropicJumpReLUActivation(
-            size=cfg.crosscoder.hidden_dim,
+        activation_fn=AnthropicSTEJumpReLUActivation(
+            size=cfg.crosscoder.n_latents,
             bandwidth=cfg.crosscoder.jumprelu.bandwidth,
             log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
         ),
+        use_encoder_bias=cfg.crosscoder.use_encoder_bias,
+        use_decoder_bias=cfg.crosscoder.use_decoder_bias,
     )
 
     return ModelDiffingFebUpdateJumpReLUTrainer(

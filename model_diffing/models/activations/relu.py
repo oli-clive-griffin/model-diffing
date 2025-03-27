@@ -6,8 +6,8 @@ from model_diffing.models.activations.activation_function import ActivationFunct
 
 
 class ReLUActivation(ActivationFunction):
-    def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
-        return t.relu(hidden_preact_BH)
+    def forward(self, latent_preact_BL: t.Tensor) -> t.Tensor:
+        return t.relu(latent_preact_BL)
 
     def _dump_cfg(self) -> dict[str, int | str]:
         return {}

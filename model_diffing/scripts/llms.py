@@ -9,8 +9,11 @@ from model_diffing.scripts.config_common import LLMConfig
 
 
 def build_llms(
-    llms: list[LLMConfig], cache_dir: str, device: torch.device, inferenced_type: str
-# ) -> list[tuple[HookedTransformer, PreTrainedTokenizerBase]]:
+    llms: list[LLMConfig],
+    cache_dir: str,
+    device: torch.device,
+    inferenced_type: str,
+    # ) -> list[tuple[HookedTransformer, PreTrainedTokenizerBase]]:
 ) -> list[HookedTransformer]:
     return [build_llm(llm, cache_dir, device, inferenced_type)[0] for llm in llms]
 

@@ -10,10 +10,10 @@ class JumpReLUModelDiffingFebUpdateCrosscoderConfig(JanUpdateCrosscoderConfig):
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
-        if self.n_shared_latents > self.hidden_dim:
+        if self.n_shared_latents > self.n_latents:
             raise ValueError(
-                "n_shared_latents must be less than or equal to hidden_dim, "
-                f"got {self.n_shared_latents} and {self.hidden_dim}"
+                "n_shared_latents must be less than or equal to n_latents, "
+                f"got {self.n_shared_latents} and {self.n_latents}"
             )
 
 

@@ -72,8 +72,7 @@ class HuggingfaceTextDatasetTokenSequenceLoader(TokenSequenceLoader):
             for tokens_HS in batch_shuffle_tensor_iterator_BX(
                 tensor_iterator_X=self._get_sequence_iterator_S(),
                 shuffle_buffer_size=self._shuffle_buffer_size,
-                yield_batch_size=self._batch_size,
-                name="token sequence loader",
+                yield_batch_size_B=self._batch_size,
             ):
                 special_tokens_mask_HS = torch.isin(tokens_HS, special_ids)
                 yield TokensSequenceBatch(
@@ -82,22 +81,16 @@ class HuggingfaceTextDatasetTokenSequenceLoader(TokenSequenceLoader):
                 )
         else:
             iterator_S = self._get_sequence_iterator_S()
-            sample_S = next(iterator_S)
-            tokens_HS = torch.empty((self._batch_size, *sample_S.shape), dtype=torch.long, device=sample_S.device)
-            tokens_HS[0] = sample_S
-            ptr = 1
-
+            out_tokens_S: list[torch.Tensor] = []
             for sample_S in iterator_S:
-                if ptr == self._batch_size:
-                    special_tokens_mask_HS = torch.isin(tokens_HS, special_ids)
+                if len(out_tokens_S) == self._batch_size:
+                    tokens_HS = torch.stack(out_tokens_S)
                     yield TokensSequenceBatch(
                         tokens_HS=tokens_HS,
-                        special_tokens_mask_HS=special_tokens_mask_HS,
+                        special_tokens_mask_HS=torch.isin(tokens_HS, special_ids),
                     )
-                    ptr = 0
-
-                tokens_HS[ptr] = sample_S
-                ptr += 1
+                    out_tokens_S.clear()
+                out_tokens_S.append(sample_S)
 
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:
         return self._get_sequences_batch_iterator
