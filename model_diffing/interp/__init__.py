@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -13,35 +14,21 @@ from tqdm import tqdm  # type: ignore
 from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
-from model_diffing.data.activation_harvester import ActivationsHarvester
-from model_diffing.data.token_loader import TokenSequenceLoader
+from model_diffing.analysis import metrics
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 
 
 @dataclass
 class ActivationsWithText:
-    activations_BSMPD: torch.Tensor
+    activations_HSXD: torch.Tensor
     tokens_HS: torch.Tensor
-
-
-@torch.no_grad()
-def iterate_activations_with_text(
-    token_sequence_loader: TokenSequenceLoader,
-    activations_harvester: ActivationsHarvester,
-) -> Iterator[ActivationsWithText]:
-    for seq in token_sequence_loader.get_sequences_batch_iterator():
-        activations_BSMPD = activations_harvester.get_activations_HSMPD(seq.tokens_HS)
-        yield ActivationsWithText(
-            activations_BSMPD=activations_BSMPD,
-            tokens_HS=seq.tokens_HS,
-        )
 
 
 @dataclass
 class LatentExample:
     tokens_S: torch.Tensor
-    last_tok_hidden_act: float
+    last_tok_latent_act: float
 
 
 @dataclass
@@ -52,113 +39,138 @@ class LatentSummary:
     density: float
 
 
-@torch.no_grad()
-def gather_max_activating_examples(
-    activations_with_text_iter: Iterator[ActivationsWithText],
-    cc: AcausalCrosscoder[Any],
-    total_batches: int = 200,  # todo remove me
-    context_size: int = 20,
-    separation_threshold_tokens: int = 5,
-    topk_per_latent_per_batch: int = 50,
-    latents_to_inspect: list[int] | None = None,
-) -> dict[int, LatentSummary]:
+def get_relative_decoder_norms_L(cc: AcausalCrosscoder[Any]) -> torch.Tensor:
     """
-    iterate over the dataloader, gathering context for all non-zero latents, in terms of tokens and latent activations
-
-    returns:
-        list of lists of LatentExample, where the outer list is over latents, and the inner list is over activating examples
+    returns a dict mapping latent indices to the relative decoder norm of the corresponding latent
     """
-    cc.with_decoder_unit_norm()
-    if latents_to_inspect is None:
-        logger.warning("No latents to inspect specified, using all latents, This may take a very long time!")
-        latents_to_inspect = list(range(cc.hidden_dim))
+    cc_unit_normed = cc.with_decoder_unit_norm()
 
-    examples_by_latent_idx = defaultdict[int, list[LatentExample]](list)
-    num_firings_by_latent_idx = defaultdict[int, int](int)
+    match cc_unit_normed.W_dec_LXD.shape:
+        case (_, 2, 1, _):
+            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LXD[:, :, 0].unbind(dim=1)
+        case (_, 2, _):
+            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LXD.unbind(dim=1)
+        case _:
+            raise ValueError(f"Unexpected crosscoding dimensions: {cc_unit_normed.crosscoding_dims}")
 
-    skipped_firings = 0
-    not_skipped_firings = 0
+    return metrics.compute_relative_norms_N(m1_W_dec_LD, m2_W_dec_LD)
 
-    sample = next(activations_with_text_iter)
-    batch_size, seq_len = sample.activations_BSMPD.shape[:2]
-    batches_seen = 0
 
-    for activations_with_text in tqdm(
-        islice(activations_with_text_iter, total_batches),
-        total=total_batches,
-        desc="Gathering latent examples",
+class LatentExaminer:
+    def __init__(
+        self,
+        cc: AcausalCrosscoder[Any],
+        activations_with_text_iter: Iterator[ActivationsWithText],
     ):
-        activations_BsMPD = rearrange(activations_with_text.activations_BSMPD, "b s m p d -> (b s) m p d")
-        res = cc.forward_train(activations_BsMPD)
-        hidden_BSH = rearrange(res.hidden_BH, "(b s) h -> b s h", b=batch_size, s=seq_len)
+        self.cc_unit_normed = cc.with_decoder_unit_norm()
+        self.activations_with_text_iter = activations_with_text_iter
 
-        # zero out the activations that are not in the topk
-        vals, indices = hidden_BSH.topk(topk_per_latent_per_batch, dim=-1)
-        hidden_BSH = torch.zeros_like(hidden_BSH).scatter_(-1, indices, vals)
+    # TODO add method to run forward pass on only the relevant latents
 
-        for latent_idx in latents_to_inspect:
-            for batch_idx in range(batch_size):
-                hidden_S = hidden_BSH[batch_idx, :, latent_idx]
-                (seq_pos_indices,) = hidden_S.nonzero(as_tuple=True)
-                if (hidden_S[seq_pos_indices] < 0.001).any():
-                    raise ValueError("fucked up somewhere!")
+    @torch.no_grad()
+    def gather_latent_summaries(
+        self,
+        latents_to_inspect_L: torch.Tensor | list[int],
+        total_batches: int = 200,
+        separation_threshold_tokens: int = 5,
+        topk_per_latent_per_batch: int | None = None,
+    ) -> list[LatentSummary]:
+        if isinstance(latents_to_inspect_L, list):
+            latents_to_inspect_L = torch.tensor(latents_to_inspect_L)
 
-                start_indices = (seq_pos_indices - context_size).clamp(min=0)
+        examples_by_latent_idx = defaultdict[int, list[LatentExample]](list)
+        num_firings_by_latent_idx = defaultdict[int, int](int)
 
-                last_pos = -separation_threshold_tokens
-                for ctx_start, pos in zip(start_indices, seq_pos_indices, strict=False):
-                    if pos < last_pos + separation_threshold_tokens:
-                        skipped_firings += 1
-                    else:
-                        not_skipped_firings += 1
+        total_firings = 0
+        skipped_firings = 0
+        not_skipped_firings = 0
 
-                        example = LatentExample(
-                            tokens_S=activations_with_text.tokens_HS[batch_idx, ctx_start : pos + 1],
-                            last_tok_hidden_act=hidden_BSH[batch_idx, pos, latent_idx].item(),
-                        )
-                        examples_by_latent_idx[latent_idx].append(example)
-                        last_pos = pos
+        tokens_seen = 0
 
-                assert seq_pos_indices.numel() == (hidden_S > 0).sum().item(), "fucked up somewhere!"
-                num_firings_by_latent_idx[latent_idx] += seq_pos_indices.numel()
-        batches_seen += 1
-
-    total_tokens_seen = batches_seen * batch_size * seq_len  # gross, reusing a loop variable, but it works
-    logger.info(f"Skipped {skipped_firings} examples, {not_skipped_firings} examples not skipped")
-
-    return {
-        latent_idx: LatentSummary(
-            index=latent_idx,
-            selected_examples=sorted(
-                examples_by_latent_idx[latent_idx],
-                key=lambda x: x.last_tok_hidden_act,
-                reverse=True,
-            ),
-            density=num_firings_by_latent_idx[latent_idx] / total_tokens_seen,
+        pbar = tqdm(
+            islice(self.activations_with_text_iter, total_batches),
+            total=total_batches,
+            desc="Gathering latent examples",
         )
-        for latent_idx in latents_to_inspect
-    }
+
+        for activations_with_text in pbar:
+            # TODO refactor this out
+            latents_HSL = self.get_latents(activations_with_text)
+            H, S, _L = latents_HSL.shape
+
+            if topk_per_latent_per_batch is not None:
+                # zero out the activations that are not in the topk
+                vals, indices = latents_HSL.topk(topk_per_latent_per_batch, dim=-1)
+                latents_HSL = torch.zeros_like(latents_HSL).scatter_(-1, indices, vals)
+
+            for h_idx in range(H):
+                latents_SL = latents_HSL[h_idx]
+                tokens_S = activations_with_text.tokens_HS[h_idx]
+
+                # remove sequences where our latents are not activated at all
+                active_latents_mask_L = latents_SL[:, latents_to_inspect_L].sum(dim=0)
+                active_latents_La = latents_to_inspect_L[active_latents_mask_L.nonzero(as_tuple=True)[0]]
+                pct_latents_active = active_latents_La.numel() / latents_to_inspect_L.numel()
+                pbar.set_postfix(
+                    pct_latents_active=f"{pct_latents_active:.3%}",
+                    num_firings=total_firings,
+                    n_latents_fired=len(examples_by_latent_idx),
+                )
+
+                for latent_idx in active_latents_La.tolist():
+                    latents_S = latents_SL[:, latent_idx]
+                    (seq_pos_indices,) = latents_S.nonzero(as_tuple=True)
+                    total_firings += seq_pos_indices.numel()
+                    last_pos = -separation_threshold_tokens
+                    for pos in seq_pos_indices:
+                        # TODO <= vs <, not sure
+                        if pos <= last_pos + separation_threshold_tokens:
+                            skipped_firings += 1
+                        else:
+                            not_skipped_firings += 1
+                            example = LatentExample(
+                                tokens_S=tokens_S[: pos + 1],
+                                last_tok_latent_act=latents_S[pos].item(),
+                            )
+                            examples_by_latent_idx[latent_idx].append(example)
+                            last_pos = pos
+
+                    num_firings_by_latent_idx[latent_idx] += seq_pos_indices.numel()
+
+            tokens_seen += H * S
+
+        logger.info(f"Skipped {skipped_firings} examples, {not_skipped_firings} examples not skipped")
+        logger.info(f"Seen {tokens_seen} tokens")
+
+        return [
+            LatentSummary(
+                index=latent_idx,
+                selected_examples=sorted(examples, key=lambda x: x.last_tok_latent_act, reverse=True),
+                density=num_firings_by_latent_idx[latent_idx] / (tokens_seen + 1e-6),
+            )
+            for latent_idx, examples in examples_by_latent_idx.items()
+        ]
+
+    def get_latents(self, activations_with_text: ActivationsWithText):
+        H, S, *_ = activations_with_text.activations_HSXD.shape
+        activations_HsXD = rearrange(activations_with_text.activations_HSXD, "h s ... -> (h s) ...")
+        latents_HsL = self.cc_unit_normed.forward_train(activations_HsXD).latents_BL
+        latents_HSL = rearrange(latents_HsL, "(h s) l -> h s l", h=H, s=S)
+        return latents_HSL
 
 
-def display_latent_examples(latent_examples: list[LatentExample], tokenizer: PreTrainedTokenizerBase):
-    for i, example in enumerate(latent_examples):
-        print(f"Example {i}")
-        print(tokenizer.decode(example.tokens_S))
-        # print(example.activation)
-        print()
-
-
+# TODO this function isn't good enough to ship with incorrect logit lens impl
 def top_and_bottom_logits(
     llm: HookedTransformer,
-    sae_W_dec_HD: torch.Tensor,
+    sae_W_dec_LD: torch.Tensor,
     latent_indices: list[int] | None = None,
     k: int = 10,
 ):
-    latent_indices_iter = latent_indices if latent_indices is not None else list(range(sae_W_dec_HD.shape[0]))
+    latent_indices_iter = latent_indices if latent_indices is not None else list(range(sae_W_dec_LD.shape[0]))
 
     for latent_idx in latent_indices_iter:
-        # TODO use act cache and ln stuff here
-        logits = sae_W_dec_HD[latent_idx] @ llm.W_U
+        # TODO use act cache and layernorm stuff here
+        logits = sae_W_dec_LD[latent_idx] @ llm.W_U
         pos_logits, pos_token_ids = logits.topk(k)
         pos_tokens = llm.to_str_tokens(pos_token_ids)
         neg_logits, neg_token_ids = logits.topk(k, largest=False)
@@ -190,25 +202,18 @@ def display_top_seqs(data: list[tuple[float, list[str]]], latent_index: int, den
         show_lines=True,
     )
     for act, str_toks in data:
-        formatted_seq = (
-            "".join(
-                [
-                    f"[b u green]{str_tok}[/]" if i == len(str_toks) - 1 else str_tok
-                    for i, str_tok in enumerate(str_toks)
-                ]
-            )
-            .replace("�", "")
-            .replace("\n", "↵")
-        )
+        str_toks[-1] = f"[b u green]{str_toks[-1]}[/]"
+        formatted_seq = "".join(str_toks).replace("�", "").replace("\n", "↵")
         table.add_row(f"{act:.3f}", repr(formatted_seq))
     rprint(table)
 
 
-def display_topk_seqs_cross_model(
+def topk_seqs_table(
     summary: LatentSummary,
     tokenizer: PreTrainedTokenizerBase,
-    relative_decoder_norm: float,
+    extra_detail: str,
     topk: int = 10,
+    context_size: int = 20,
 ):
     """
     Given a list of (activation: float, str_toks: list[str]), displays a table of these sequences, with
@@ -219,21 +224,23 @@ def display_topk_seqs_cross_model(
     table = Table(
         "Act",
         "Sequence",
-        title=(
-            f"Max Activating Examples (latent {summary.index}, "
-            f"density={(summary.density * 100):.4f}%, "
-            f"relative decoder norms: {relative_decoder_norm:.3f})"
-        ),
+        title=f"Max Activating Examples (latent {summary.index}, density={(summary.density * 100):.4f}%, {extra_detail})",
         show_lines=True,
     )
 
     for example in summary.selected_examples[:topk]:
-        str_toks = [tokenizer.decode(tok) for tok in example.tokens_S]
+        str_toks = [tokenizer.decode(tok) for tok in example.tokens_S[-context_size:]]
         str_toks[-1] = f"[b u green]{str_toks[-1]}[/]"
-        formatted_seq = "".join(str_toks).replace("�", "").replace("\n", "↵")
+        formatted_seq = (
+            "".join(str_toks)
+            .replace("�", "")
+            .replace("\n", "↵")
+            .replace("<think>", "[b u orange_red1]<think>[/]")
+            .replace("</think>", "[b u orange_red1]</think>[/]")
+        )
 
         table.add_row(
-            f"{example.last_tok_hidden_act:.3f}",
+            f"{example.last_tok_latent_act:.3f}",
             repr(formatted_seq),
         )
 

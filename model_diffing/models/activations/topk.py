@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal, Protocol
 
 import torch as t
 from einops import rearrange
@@ -7,17 +7,58 @@ from model_diffing.log import logger
 from model_diffing.models.activations.activation_function import ActivationFunction
 
 
-class TopkActivation(ActivationFunction):
+class TopkStyleActivation(Protocol):
+    def __call__(self, x_BL: t.Tensor, k: int) -> t.Tensor: ...
+
+
+def topk_activation(x_BL: t.Tensor, k: int) -> t.Tensor:
+    values, indices = x_BL.topk(k, dim=-1, sorted=False)
+    out_BL = t.zeros_like(x_BL)
+    out_BL.scatter_(-1, indices, values)
+    return out_BL
+
+
+def groupmax_activation(x_BL: t.Tensor, k: int) -> t.Tensor:
+    latents_size = x_BL.shape[1]
+
+    x_BKLg = rearrange(
+        x_BL,
+        "b (k_groups latents_per_group) -> b k_groups latents_per_group",
+        k_groups=k,
+        latents_per_group=latents_size // k,
+    )
+
+    values_BK, indices_BK = x_BKLg.max(dim=-1)
+
+    # torch.max gives us indices into each group, but we want indices into the
+    # flattened tensor. Add the offsets to get the correct indices.
+    offsets_K = t.arange(0, latents_size, latents_size // k)
+
+    indices_BK = indices_BK + offsets_K
+
+    out_BL = t.zeros_like(x_BL)
+    out_BL.scatter_(-1, indices_BK, values_BK)
+    return out_BL
+
+
+def batch_topk_activation(x_BL: t.Tensor, k: int) -> t.Tensor:
+    batch_size = x_BL.shape[0]
+    batch_k = k * batch_size
+    latent_preact_Bl = rearrange(x_BL, "batch latent -> (batch latent)")
+    values_Bh, indices_Bh = latent_preact_Bl.topk(k=batch_k, sorted=False)
+    out_Bh = t.zeros_like(latent_preact_Bl)
+    out_Bh.scatter_(-1, indices_Bh, values_Bh)
+    out_BL = rearrange(out_Bh, "(batch latent) -> batch latent", batch=batch_size)
+    return out_BL
+
+
+class TopkActivation(ActivationFunction, TopkStyleActivation):
     def __init__(self, k: int):
         super().__init__()
         self.k = k
 
-    def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
-        _topk_values_BH, topk_indices_BH = hidden_preact_BH.topk(self.k, dim=-1, sorted=False)
-        hidden_BH = t.zeros_like(hidden_preact_BH)
-        hidden_BH.scatter_(-1, topk_indices_BH, _topk_values_BH)
-        # TODO: use faster implementation as in https://github.com/EleutherAI/sparsify
-        return hidden_BH
+    def forward(self, latent_preact_BL: t.Tensor) -> t.Tensor:
+        return topk_activation(latent_preact_BL, self.k)
 
     def _dump_cfg(self) -> dict[str, int | str]:
         return {"k": self.k}
@@ -32,15 +73,8 @@ class BatchTopkActivation(ActivationFunction):
         super().__init__()
         self.k_per_example = k_per_example
 
-    def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
-        batch_size = hidden_preact_BH.shape[0]
-        batch_k = self.k_per_example * batch_size
-        hidden_preact_Bh = rearrange(hidden_preact_BH, "batch hidden -> (batch hidden)")
-        topk_values_Bh, topk_indices_Bh = hidden_preact_Bh.topk(k=batch_k, sorted=False)
-        hidden_Bh = t.zeros_like(hidden_preact_Bh)
-        hidden_Bh.scatter_(-1, topk_indices_Bh, topk_values_Bh)
-        hidden_BH = rearrange(hidden_Bh, "(batch hidden) -> batch hidden", batch=batch_size)
-        return hidden_BH
+    def forward(self, latent_preact_BL: t.Tensor) -> t.Tensor:
+        return batch_topk_activation(latent_preact_BL, self.k_per_example)
 
     def _dump_cfg(self) -> dict[str, int | str]:
         return {"k_per_example": self.k_per_example}
@@ -51,35 +85,21 @@ class BatchTopkActivation(ActivationFunction):
 
 
 class GroupMaxActivation(ActivationFunction):
-    def __init__(self, k_groups: int, hidden_size: int):
+    def __init__(self, k_groups: int, latents_size: int):
         super().__init__()
         self.k_groups = k_groups
-        self.hidden_size = hidden_size
-        self.offsets_K = t.arange(0, self.hidden_size, self.hidden_size // self.k_groups)
+        self.latents_size = latents_size
         logger.warn("using topk activation, BatchTopk is available and generally ≈better")
 
-    def forward(self, hidden_preact_BH: t.Tensor) -> t.Tensor:
-        # values, indices = hidden_preact_BH.unflatten(-1, (self.cfg.k, -1)).max(dim=-1)
-        hidden_preact_BKHg = rearrange(
-            hidden_preact_BH,
-            "b (k_groups h_per_group) -> b k_groups h_per_group",
-            k_groups=self.k_groups,
-            h_per_group=self.hidden_size // self.k_groups,
-        )
-
-        group_max_values_BK, group_indices_BK = hidden_preact_BKHg.max(dim=-1)
-
-        # torch.max gives us indices into each group, but we want indices into the
-        # flattened tensor. Add the offsets to get the correct indices.
-        indices_BK = group_indices_BK + self.offsets_K
-
-        hidden_BH = t.zeros_like(hidden_preact_BH)
-        hidden_BH.scatter_(-1, indices_BK, group_max_values_BK)
-        return hidden_BH
+    def forward(self, latent_preact_BL: t.Tensor) -> t.Tensor:
+        return groupmax_activation(latent_preact_BL, self.k_groups)
 
     def _dump_cfg(self) -> dict[str, int | str]:
-        return {"k_groups": self.k_groups, "hidden_size": self.hidden_size}
+        return {"k_groups": self.k_groups, "latents_size": self.latents_size}
 
     @classmethod
     def _from_cfg(cls, cfg: dict[str, Any]) -> "GroupMaxActivation":
-        return cls(cfg["k_groups"], cfg["hidden_size"])
+        return cls(cfg["k_groups"], cfg["latents_size"])
+
+
+TopKStyle = Literal["topk", "batch_topk", "groupmax"]

@@ -2,10 +2,13 @@ from typing import Any
 
 import torch as t
 
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
-from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.models.activations.topk import BatchTopkActivation
-from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
+from model_diffing.models import (
+    AcausalCrosscoder,
+    AnthropicTransposeInit,
+    BatchTopkActivation,
+    InitStrategy,
+    ReLUActivation,
+)
 from model_diffing.utils import l2_norm
 
 
@@ -14,15 +17,17 @@ def test_return_shapes():
     batch_size = 4
     n_hookpoints = 6
     d_model = 16
-    cc_hidden_dim = 256
+    n_latents = 256
     dec_init_norm = 1
 
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
-        hidden_dim=cc_hidden_dim,
-        hidden_activation=ReLUActivation(),
+        n_latents=n_latents,
+        activation_fn=ReLUActivation(),
         init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
+        use_encoder_bias=True,
+        use_decoder_bias=True,
     )
 
     activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
@@ -30,15 +35,15 @@ def test_return_shapes():
     assert y_BPD.shape == activations_BMPD.shape
     train_res = crosscoder.forward_train(activations_BMPD)
     assert train_res.recon_acts_BXD.shape == activations_BMPD.shape
-    assert train_res.hidden_BH.shape == (batch_size, cc_hidden_dim)
+    assert train_res.latents_BL.shape == (batch_size, n_latents)
 
 
 def test_batch_topk_activation():
     batch_topk_activation = BatchTopkActivation(k_per_example=2)
-    hidden_preact_BH = t.tensor([[1, 2, 3, 4, 10], [1, 2, 11, 12, 13]])
-    hidden_BH = batch_topk_activation.forward(hidden_preact_BH)
-    assert hidden_BH.shape == hidden_preact_BH.shape
-    assert t.all(hidden_BH == t.tensor([[0, 0, 0, 0, 10], [0, 0, 11, 12, 13]]))
+    hidden_preact_BL = t.tensor([[1, 2, 3, 4, 10], [1, 2, 11, 12, 13]])
+    hidden_BL = batch_topk_activation.forward(hidden_preact_BL)
+    assert hidden_BL.shape == hidden_preact_BL.shape
+    assert t.all(hidden_BL == t.tensor([[0, 0, 0, 0, 10], [0, 0, 11, 12, 13]]))
 
 
 def test_weights_folding_keeps_hidden_representations_consistent():
@@ -46,15 +51,17 @@ def test_weights_folding_keeps_hidden_representations_consistent():
     n_models = 3
     n_hookpoints = 4
     d_model = 5
-    cc_hidden_dim = 16
+    n_latents = 16
     dec_init_norm = 1
 
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
-        hidden_dim=cc_hidden_dim,
-        hidden_activation=ReLUActivation(),
+        n_latents=n_latents,
+        activation_fn=ReLUActivation(),
         init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
+        use_encoder_bias=True,
+        use_decoder_bias=True,
     )
 
     scaling_factors_MP = t.randn(n_models, n_hookpoints)
@@ -67,14 +74,14 @@ def test_weights_folding_keeps_hidden_representations_consistent():
     output_with_folding = crosscoder.with_folded_scaling_factors(scaling_factors_MP).forward_train(unscaled_input_BMPD)
 
     # all hidden representations should be the same
-    assert t.allclose(output_without_folding.hidden_BH, output_with_folding.hidden_BH), (
-        f"max diff: {t.max(t.abs(output_without_folding.hidden_BH - output_with_folding.hidden_BH))}"
+    assert t.allclose(output_without_folding.latents_BL, output_with_folding.latents_BL), (
+        f"max diff: {t.max(t.abs(output_without_folding.latents_BL - output_with_folding.latents_BL))}"
     )
 
     output_after_unfolding = crosscoder.forward_train(scaled_input_BMPD)
 
-    assert t.allclose(output_without_folding.hidden_BH, output_after_unfolding.hidden_BH), (
-        f"max diff: {t.max(t.abs(output_without_folding.hidden_BH - output_after_unfolding.hidden_BH))}"
+    assert t.allclose(output_without_folding.latents_BL, output_after_unfolding.latents_BL), (
+        f"max diff: {t.max(t.abs(output_without_folding.latents_BL - output_after_unfolding.latents_BL))}"
     )
 
 
@@ -92,15 +99,17 @@ def test_weights_folding_scales_output_correctly():
     n_hookpoints = 1
 
     d_model = 6
-    cc_hidden_dim = 6
+    n_latents = 6
     dec_init_norm = 0.1
 
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
-        hidden_dim=cc_hidden_dim,
-        hidden_activation=ReLUActivation(),
+        n_latents=n_latents,
+        activation_fn=ReLUActivation(),
         init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
+        use_encoder_bias=True,
+        use_decoder_bias=True,
     )
 
     # scaling_factors_MP = t.randn(n_models, n_hookpoints)
@@ -122,11 +131,13 @@ def test_weights_folding_scales_output_correctly():
 class RandomInit(InitStrategy[AcausalCrosscoder[Any]]):
     @t.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
-        cc.W_enc_XDH.normal_()
-        cc.b_enc_H.zero_()
+        cc.W_enc_XDL.normal_()
+        if cc.b_enc_L is not None:
+            cc.b_enc_L.zero_()
 
-        cc.W_dec_HXD.normal_()
-        cc.b_dec_XD.zero_()
+        cc.W_dec_LXD.normal_()
+        if cc.b_dec_XD is not None:
+            cc.b_dec_XD.zero_()
 
 
 def test_weights_rescaling_retains_output():
@@ -134,14 +145,16 @@ def test_weights_rescaling_retains_output():
     n_models = 2
     n_hookpoints = 3
     d_model = 4
-    cc_hidden_dim = 8
+    n_latents = 8
 
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
-        hidden_dim=cc_hidden_dim,
-        hidden_activation=ReLUActivation(),
+        n_latents=n_latents,
+        activation_fn=ReLUActivation(),
         init_strategy=RandomInit(),
+        use_encoder_bias=True,
+        use_decoder_bias=True,
     )
 
     activations_BMPD = t.randn(batch_size, n_models, n_hookpoints, d_model)
@@ -154,28 +167,27 @@ def test_weights_rescaling_retains_output():
     )
 
 
-test_weights_rescaling_retains_output()
-
-
 def test_weights_rescaling_max_norm():
     n_models = 2
     n_hookpoints = 3
     d_model = 4
-    cc_hidden_dim = 8
+    n_latents = 8
 
     cc = AcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
-        hidden_dim=cc_hidden_dim,
-        hidden_activation=ReLUActivation(),
+        n_latents=n_latents,
+        activation_fn=ReLUActivation(),
         init_strategy=RandomInit(),
+        use_encoder_bias=True,
+        use_decoder_bias=True,
     ).with_decoder_unit_norm()
 
-    cc_dec_norms_HMP = l2_norm(cc.W_dec_HXD, dim=-1)  # dec norms for each output vector space
+    cc_dec_norms_LMP = l2_norm(cc.W_dec_LXD, dim=-1)  # dec norms for each output vector space
 
     assert t.allclose(
-        t.isclose(cc_dec_norms_HMP, t.tensor(1.0))  # for each cc hidden dim,
+        t.isclose(cc_dec_norms_LMP, t.tensor(1.0))  # for each cc hidden dim,
         .sum(dim=(1, 2))  # only 1 output vector space should have norm 1
         .long(),
-        t.ones(cc_hidden_dim).long(),
+        t.ones(n_latents).long(),
     )

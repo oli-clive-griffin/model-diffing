@@ -1,17 +1,14 @@
 import os
-from abc import ABC, abstractmethod
+from collections import deque
 from collections.abc import Iterator
 from functools import partial
 from itertools import product
-from pathlib import Path
-from typing import Any, Self, TypeVar
+from typing import TypeVar
 
 import einops
 import torch
-import yaml  # type: ignore
 from einops.einops import Reduction
 from pydantic import BaseModel as _BaseModel
-from torch import nn
 
 from model_diffing.log import logger
 
@@ -19,40 +16,6 @@ from model_diffing.log import logger
 class BaseModel(_BaseModel):
     class Config:
         extra = "forbid"
-
-
-class SaveableModule(nn.Module, ABC):
-    @abstractmethod
-    def _dump_cfg(self) -> dict[str, Any]: ...
-
-    @classmethod
-    @abstractmethod
-    def _from_cfg(cls: type[Self], cfg: dict[str, Any]) -> Self: ...
-
-    def save(self, basepath: Path):
-        basepath.mkdir(parents=True, exist_ok=True)
-        torch.save(self.state_dict(), basepath / "model.pt")
-        with open(basepath / "model_cfg.yaml", "w") as f:
-            yaml.dump(self._dump_cfg(), f)
-
-    @classmethod
-    def load(cls: type[Self], basepath: Path | str, device: torch.device | str = "cpu") -> Self:
-        basepath = Path(basepath)
-        with open(basepath / "model_cfg.yaml") as f:
-            cfg = yaml.safe_load(f)
-        model = cls._from_cfg(cfg)
-        model.load_state_dict(torch.load(basepath / "model.pt", weights_only=True, map_location=device))
-        return model
-
-
-# Add a custom constructor for the !!python/tuple tag,
-# converting the loaded sequence to a Python tuple.
-def _tuple_constructor(loader: yaml.SafeLoader, node: yaml.nodes.SequenceNode) -> tuple[Any, ...]:
-    return tuple(loader.construct_sequence(node))
-
-
-yaml.SafeLoader.add_constructor("tag:yaml.org,2002:python/tuple", _tuple_constructor)
-
 
 # might seem strange to redefine these but:
 # 1: these signatures allow us to use these norm functions in einops.reduce
@@ -90,32 +53,27 @@ def l2_norm(
 
 
 def weighted_l1_sparsity_loss(
-    W_dec_HTMPD: torch.Tensor,
-    hidden_BH: torch.Tensor,
+    W_dec_LTMPD: torch.Tensor,
+    latents_BL: torch.Tensor,
     hookpoint_reduction: Reduction,  # type: ignore
     model_reduction: Reduction,  # type: ignore
     token_reduction: Reduction,  # type: ignore
 ) -> torch.Tensor:
-    assert (hidden_BH >= 0).all()
-    # think about it like: each latent (called "hidden" here) has a separate projection onto each (model, hookpoint)
-    # so we have a separate l2 norm for each (hidden, model, hookpoint)
-    W_dec_l2_norms_HTMP = einops.reduce(
-        W_dec_HTMPD, "hidden token model hookpoint dim -> hidden token model hookpoint", l2_norm
+    assert (latents_BL >= 0).all()
+    # think about it like: each latent has a separate projection onto each (model, hookpoint)
+    # so we have a separate l2 norm for each (latent, model, hookpoint)
+    W_dec_l2_norms_LTMP = einops.reduce(
+        W_dec_LTMPD, "latent token model hookpoint d_model -> latent token model hookpoint", l2_norm
     )
 
-    # to get the weighting factor for each latent, we reduce it's decoder norms for each (model, hookpoint)
-    reduced_norms_H = multi_reduce(
-        W_dec_l2_norms_HTMP,
-        "hidden token model hookpoint",
-        ("token", token_reduction),
-        ("hookpoint", hookpoint_reduction),
-        ("model", model_reduction),
-    )
+    reduced_norms_LTM = einops.reduce(W_dec_l2_norms_LTMP, "l t m p -> l t m", hookpoint_reduction)
+    reduced_norms_LT = einops.reduce(reduced_norms_LTM, "l t m -> l t", model_reduction)
+    reduced_norms_L = einops.reduce(reduced_norms_LT, "l t -> l", token_reduction)
 
     # now we weight the latents by the sum of their norms
-    weighted_hiddens_BH = hidden_BH * reduced_norms_H
-    weighted_l1_of_hiddens_BH = einops.reduce(weighted_hiddens_BH, "batch hidden -> batch", l1_norm)
-    return weighted_l1_of_hiddens_BH.mean()
+    weighted_Liddens_BL = latents_BL * reduced_norms_L
+    weighted_l1_of_Liddens_BL = einops.reduce(weighted_Liddens_BL, "batch latent -> batch", l1_norm)
+    return weighted_l1_of_Liddens_BL.mean()
 
 
 sparsity_loss_l2_of_norms = partial(
@@ -133,7 +91,10 @@ sparsity_loss_l1_of_norms = partial(
 )
 
 
-def calculate_reconstruction_loss_summed_MSEs(activation_BXD: torch.Tensor, target_BXD: torch.Tensor) -> torch.Tensor:
+def calculate_reconstruction_loss_summed_norm_MSEs(
+    activation_BXD: torch.Tensor,
+    target_BXD: torch.Tensor,
+) -> torch.Tensor:
     """This is a little weird because we have both model and hookpoint (aka layer) dimensions, so it's worth explaining deeply:
 
     The reconstruction loss is a sum of squared L2 norms of the error for each activation space being reconstructed.
@@ -209,15 +170,20 @@ def calculate_vector_norm_fvu_X(
         logger.warn("Batch size is 1, fvu is not meaningful. returning 0")
         return torch.zeros(y_BXD.shape[1:-1])
 
-    y_mean_BXD = y_BXD.mean(dim=0, keepdim=True)
+    variance_of_error_X = _norm_variance(y_BXD, y_pred_BXD)
 
-    var_err_BX = (y_BXD - y_pred_BXD).norm(p=2, dim=-1).square()  # variance
-    var_err_X = var_err_BX.mean(0)  # mean over batch
+    # think of this as "the average example"
+    y_mean_1XD = y_BXD.mean(dim=0, keepdim=True)
+    variance_of_data_X = _norm_variance(y_BXD, y_mean_1XD)
 
-    var_total_BX = (y_BXD - y_mean_BXD).norm(p=2, dim=-1).square()
-    var_total_X = var_total_BX.mean(0)  # mean over batch
+    return variance_of_error_X / (variance_of_data_X + eps)
 
-    return var_err_X / (var_total_X + eps)
+
+def _norm_variance(y: torch.Tensor, y_hat: torch.Tensor) -> torch.Tensor:
+    # The mean squared l2 norm of the error
+    variance_of_error_BX = (y - y_hat).norm(p=2, dim=-1).square()  # variance
+    variance_of_error_X = variance_of_error_BX.mean(0)
+    return variance_of_error_X
 
 
 def get_fvu_dict(
@@ -252,13 +218,18 @@ def get_fvu_dict(
     return fvu_dict
 
 
-def get_summed_decoder_norms_H(W_dec_HXD: torch.Tensor) -> torch.Tensor:
-    W_dec_l2_norms_HX = einops.reduce(W_dec_HXD, "hidden ... dim -> hidden ...", l2_norm)
-    norms_H = einops.reduce(W_dec_l2_norms_HX, "hidden ... -> hidden", torch.sum)
-    return norms_H
+def get_summed_decoder_norms_L(W_dec_LXD: torch.Tensor) -> torch.Tensor:
+    W_dec_l2_norms_LX = einops.reduce(W_dec_LXD, "latent ... dim -> latent ...", l2_norm)
+    norms_L = einops.reduce(W_dec_l2_norms_LX, "latent ... -> latent", torch.sum)
+    return norms_L
 
 
-def size_human_readable(tensor: torch.Tensor) -> str:
+# useful for debugging
+def inspect(tensor: torch.Tensor) -> str:
+    return f"{tensor.shape}, dtype={tensor.dtype}, device={tensor.device}, size={_size_human_readable(tensor)}"
+
+
+def _size_human_readable(tensor: torch.Tensor) -> str:
     # Calculate the number of bytes in the tensor
     if tensor.nbytes >= 1024**3:
         return f"{tensor.nbytes / (1024**3):.2f} GB"
@@ -268,11 +239,6 @@ def size_human_readable(tensor: torch.Tensor) -> str:
         return f"{tensor.nbytes / 1024:.2f} KB"
     else:
         return f"{tensor.nbytes} B"
-
-
-# useful for debugging
-def inspect(tensor: torch.Tensor) -> str:
-    return f"{tensor.shape}, dtype={tensor.dtype}, device={tensor.device}, size={size_human_readable(tensor)}"
 
 
 def round_up(x: int, to_multiple_of: int) -> int:
@@ -311,53 +277,29 @@ def change_batch_size_BX(
     new_batch_size_B: int,
     yield_final_batch: bool = False,
 ) -> Iterator[torch.Tensor]:
-    # Get a sample tensor to determine shape/dtype/device
-    # But we need to handle this first sample as well
-    try:
-        sample_HX = next(iterator_HX)
-    except StopIteration:
-        return  # Empty iterator, nothing to yield
+    queue = deque[torch.Tensor]()
+    cum_batch_size = 0
 
-    # Pre-allocate output tensor of batch size B
-    X = sample_HX.shape[1:]
+    for tensor_HX in iterator_HX:
+        # consume as much as possible from the current tensor, potentially yielding multiple batches
+        if cum_batch_size + tensor_HX.shape[0] >= new_batch_size_B:
+            needed = new_batch_size_B - cum_batch_size
+            taken_HX = tensor_HX[:needed]
+            yield torch.cat([*queue, taken_HX])
+            queue.clear()
+            cum_batch_size = 0
 
-    out_BX = torch.empty(
-        [new_batch_size_B, *X],
-        device=sample_HX.device,
-        dtype=sample_HX.dtype,
-    )
-    out_ptr = 0  # Position in output tensor to fill next
+            tensor_HX = tensor_HX[needed:]
+            while tensor_HX.shape[0] > new_batch_size_B:
+                yield tensor_HX[:new_batch_size_B]
+                tensor_HX = tensor_HX[new_batch_size_B:]
 
-    # Helper function to process a tensor and yield complete batches
-    def process_tensor(tensor_HX: torch.Tensor):
-        nonlocal out_ptr
+        if tensor_HX.shape[0] > 0:
+            cum_batch_size += tensor_HX.shape[0]
+            queue.append(tensor_HX)
 
-        input_batch_size = tensor_HX.shape[0]  # Current batch size (which can vary)
-        input_batch_ptr = 0  # Position in input tensor
-
-        while input_batch_ptr < input_batch_size:
-            output_space_left = new_batch_size_B - out_ptr
-            n_elements_left_in_input = input_batch_size - input_batch_ptr
-            n_elements_to_copy = min(output_space_left, n_elements_left_in_input)
-
-            # Copy elements to output tensor
-            copied_chunk_HX = tensor_HX[input_batch_ptr : input_batch_ptr + n_elements_to_copy]
-            out_BX[out_ptr : out_ptr + n_elements_to_copy] = copied_chunk_HX
-            out_ptr += n_elements_to_copy
-            input_batch_ptr += n_elements_to_copy
-
-            # If output batch is full, yield it
-            if out_ptr == new_batch_size_B:
-                yield out_BX.clone()  # Clone to avoid reference issues
-                out_ptr = 0  # Reset pointer for next batch
-
-    yield from process_tensor(sample_HX)
-    for activations_HX in iterator_HX:
-        yield from process_tensor(activations_HX)
-
-    if out_ptr > 0 and yield_final_batch:
-        final_batch = out_BX[:out_ptr].clone()
-        yield final_batch
+    if queue and yield_final_batch:
+        yield torch.cat(list(queue))
 
 
 @torch.no_grad()
@@ -386,11 +328,17 @@ def not_none(x: T | None) -> T:
     return x
 
 
-def pre_act_loss(log_threshold_H: torch.Tensor, hidden_BH: torch.Tensor, decoder_norms_H: torch.Tensor) -> torch.Tensor:
-    loss_BH = torch.relu(log_threshold_H.exp() - hidden_BH) * decoder_norms_H
-    return loss_BH.sum(-1).mean()
+def pre_act_loss(
+    log_threshold_L: torch.Tensor, latents_BL: torch.Tensor, decoder_norms_L: torch.Tensor
+) -> torch.Tensor:
+    loss_BL = torch.relu(log_threshold_L.exp() - latents_BL) * decoder_norms_L
+    return loss_BL.sum(-1).mean()
 
 
-def tanh_sparsity_loss(c: float, hidden_BH: torch.Tensor, decoder_norms_H: torch.Tensor) -> torch.Tensor:
-    loss_BH = torch.tanh(c * hidden_BH * decoder_norms_H)
-    return loss_BH.sum(-1).mean()
+def tanh_sparsity_loss(c: float, latents_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
+    loss_BL = torch.tanh(c * latents_BL * decoder_norms_L)
+    return loss_BL.sum(-1).mean()
+
+
+def ceil_div(a: int, b: int) -> int:
+    return -(-a // b)

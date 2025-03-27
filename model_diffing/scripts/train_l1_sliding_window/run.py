@@ -2,12 +2,10 @@ import fire  # type: ignore
 
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.activations.relu import ReLUActivation
+from model_diffing.models import AcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
 from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
-from model_diffing.scripts.train_l1_crosscoder.trainer import AnthropicTransposeInit
 from model_diffing.scripts.train_l1_sliding_window.config import L1SlidingWindowExperimentConfig
 from model_diffing.scripts.train_l1_sliding_window.trainer import L1SlidingWindowCrosscoderTrainer
 from model_diffing.scripts.utils import build_wandb_run
@@ -40,9 +38,9 @@ def _build_sliding_window_crosscoder_trainer(cfg: L1SlidingWindowExperimentConfi
         AcausalCrosscoder(
             crosscoding_dims=(window_size, len(cfg.hookpoints)),
             d_model=d_model,
-            hidden_dim=cfg.crosscoder.hidden_dim,
+            n_latents=cfg.crosscoder.n_latents,
             init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
-            hidden_activation=ReLUActivation(),
+            activation_fn=ReLUActivation(),
         )
         for window_size in [1, 2]
     ]

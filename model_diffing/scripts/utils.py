@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterator
 from itertools import islice
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import torch
@@ -13,17 +13,18 @@ from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.analysis import metrics
+from model_diffing.log import logger
 from model_diffing.scripts.config_common import AdamConfig, BaseExperimentConfig, OptimizerCfg, ScheduleFreeSigNumConfig
 from model_diffing.utils import l0_norm, l2_norm
 
 
-def get_l0_stats(hidden_BH: torch.Tensor, name: str = "l0") -> dict[str, float]:
-    l0_BH = l0_norm(hidden_BH, dim=-1)
-    mean_l0 = l0_BH.mean().item()
-    l0_np = l0_BH.detach().cpu().numpy()
+def get_l0_stats(hidden_BL: torch.Tensor, name: str = "l0") -> dict[str, float]:
+    l0_BL = l0_norm(hidden_BL, dim=-1)
+    mean_l0 = l0_BL.mean().item()
+    l0_np = l0_BL.detach().cpu().numpy()
     l0_5, l0_95 = np.percentile(l0_np, [5, 95])
     return {
-        f"train/{name}/mean_firing_pct": mean_l0 / hidden_BH.shape[1],
+        f"train/{name}/mean_firing_pct": mean_l0 / hidden_BL.shape[1],
         f"train/{name}/5th": l0_5,
         f"train/{name}/mean": mean_l0,
         f"train/{name}/95th": l0_95,
@@ -31,52 +32,61 @@ def get_l0_stats(hidden_BH: torch.Tensor, name: str = "l0") -> dict[str, float]:
 
 
 def create_cosine_sim_and_relative_norm_histograms(
-    W_dec_HMPD: torch.Tensor,
+    W_dec_LMPD: torch.Tensor,
     hookpoints: list[str],
 ) -> dict[str, wandb.Histogram]:
-    _, n_models, num_hookpoints, _ = W_dec_HMPD.shape
+    _, n_models, num_hookpoints, _ = W_dec_LMPD.shape
     assert n_models == 2, "only works for 2 models"
 
     plots: dict[str, wandb.Histogram] = {}
     for hookpoint_idx in range(num_hookpoints):
         hookpoint_name = hookpoints[hookpoint_idx]
-        W_dec_a_HD = W_dec_HMPD[:, 0, hookpoint_idx]
-        W_dec_b_HD = W_dec_HMPD[:, 1, hookpoint_idx]
+        W_dec_a_LD = W_dec_LMPD[:, 0, hookpoint_idx]
+        W_dec_b_LD = W_dec_LMPD[:, 1, hookpoint_idx]
 
-        relative_norms = metrics.compute_relative_norms_N(W_dec_a_HD, W_dec_b_HD)
-        plots[f"media/relative_decoder_norms_{hookpoint_name}"] = wandb_histogram(relative_norms)
+        relative_norms = metrics.compute_relative_norms_N(W_dec_a_LD, W_dec_b_LD)
+        try:
+            plots[f"media/relative_decoder_norms_{hookpoint_name}"] = wandb_histogram(relative_norms)
+        except ValueError as e:
+            if "Too many bins for data range" in str(e):
+                logger.warning(f"Too many bins for {hookpoint_name}, skipping histogram")
+            else:
+                raise e
 
         shared_latent_mask = metrics.get_shared_latent_mask(relative_norms)
-        cosine_sims = metrics.compute_cosine_similarities_N(W_dec_a_HD, W_dec_b_HD)
+        cosine_sims = metrics.compute_cosine_similarities_N(W_dec_a_LD, W_dec_b_LD)
         shared_features_cosine_sims = cosine_sims[shared_latent_mask]
         plots[f"media/cosine_sim_{hookpoint_name}"] = wandb_histogram(shared_features_cosine_sims)
 
     return plots
 
 
-def create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_HMD: torch.Tensor) -> dict[str, wandb.Histogram]:
-    _, n_models, _ = W_dec_HMD.shape
+def create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_LMD: torch.Tensor) -> dict[str, wandb.Histogram]:
+    _, n_models, _ = W_dec_LMD.shape
     assert n_models == 2, "only works for 2 models"
 
     plots: dict[str, wandb.Histogram] = {}
-    W_dec_a_HD = W_dec_HMD[:, 0]
-    W_dec_b_HD = W_dec_HMD[:, 1]
+    W_dec_a_LD = W_dec_LMD[:, 0]
+    W_dec_b_LD = W_dec_LMD[:, 1]
 
-    relative_norms = metrics.compute_relative_norms_N(W_dec_a_HD, W_dec_b_HD)
+    relative_norms = metrics.compute_relative_norms_N(W_dec_a_LD, W_dec_b_LD)
     plots["media/relative_decoder_norms"] = wandb_histogram(relative_norms)
 
     shared_latent_mask = metrics.get_shared_latent_mask(relative_norms)
-    cosine_sims = metrics.compute_cosine_similarities_N(W_dec_a_HD, W_dec_b_HD)
+    cosine_sims = metrics.compute_cosine_similarities_N(W_dec_a_LD, W_dec_b_LD)
     shared_features_cosine_sims = cosine_sims[shared_latent_mask]
     plots["media/cosine_sim"] = wandb_histogram(shared_features_cosine_sims)
 
     return plots
 
 
-def wandb_histogram(data_X: torch.Tensor | np.ndarray[Any, Any], bins: int = 100) -> wandb.Histogram:
-    if isinstance(data_X, torch.Tensor):
-        data_X = data_X.detach().cpu().numpy()
-    return wandb.Histogram(np_histogram=np.histogram(data_X, bins=bins))
+def wandb_histogram(data_X: torch.Tensor, bins: int = 100) -> wandb.Histogram:
+    return wandb.Histogram(
+        np_histogram=np.histogram(
+            data_X.detach().cpu().numpy(),
+            bins=bins,
+        )
+    )
 
 
 def build_wandb_run(config: BaseExperimentConfig) -> Run:
@@ -89,7 +99,7 @@ def build_wandb_run(config: BaseExperimentConfig) -> Run:
     )
 
 
-def build_optimizer(
+def build_optimizer(  # type: ignore
     cfg: OptimizerCfg, params: Iterator[torch.nn.Parameter]
 ) -> torch.optim.Optimizer | ScheduleFreeWrapper:
     match cfg:
@@ -182,7 +192,7 @@ class SignSGD(Optimizer):
             raise ValueError(f"Invalid learning rate: {lr}")
 
         defaults = {"lr": lr}
-        super(SignSGD, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
     @torch.no_grad()
     def step(self, closure: Any = None) -> None:  # type: ignore
@@ -193,3 +203,10 @@ class SignSGD(Optimizer):
             for p in group["params"]:
                 if p.grad is not None:
                     p.add_(p.grad.sign(), alpha=-lr)
+
+
+T = TypeVar("T")
+
+
+def dict_join(dicts: list[dict[str, T]]) -> dict[str, list[T]]:
+    return {k: [d[k] for d in dicts] for k in dicts[0]}

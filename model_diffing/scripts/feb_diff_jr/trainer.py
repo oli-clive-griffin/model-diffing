@@ -3,16 +3,16 @@ from typing import Any
 import torch as t
 
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.activations.jumprelu import AnthropicJumpReLUActivation
+from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
 from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
-from model_diffing.utils import calculate_reconstruction_loss_summed_MSEs, get_fvu_dict, get_summed_decoder_norms_H
+from model_diffing.utils import calculate_reconstruction_loss_summed_norm_MSEs, get_summed_decoder_norms_L
 
 
 class ModelDiffingFebUpdateJumpReLUTrainer(
-    BaseDiffingTrainer[JumpReLUModelDiffingFebUpdateTrainConfig, AnthropicJumpReLUActivation]
+    BaseDiffingTrainer[JumpReLUModelDiffingFebUpdateTrainConfig, AnthropicSTEJumpReLUActivation]
 ):
     """
     Implementation of https://transformer-circuits.pub/2025/crosscoder-diffing-update/index.html but with jumprelu
@@ -20,26 +20,31 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
     a JumpReLU crosscoder.
     """
 
-    def _calculate_loss_and_log(self, batch_BMD: t.Tensor, train_res: AcausalCrosscoder.ForwardResult) -> t.Tensor:
-        reconstruction_loss = calculate_reconstruction_loss_summed_MSEs(batch_BMD, train_res.recon_acts_BXD)
+    def _loss_and_log_dict(
+        self,
+        batch_BMD: t.Tensor,
+        train_res: AcausalCrosscoder.ForwardResult,
+        log: bool,
+    ) -> tuple[t.Tensor, dict[str, float] | None]:
+        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMD, train_res.recon_acts_BXD)
 
-        decoder_norms_H = get_summed_decoder_norms_H(self.crosscoder.W_dec_HXD)
-        decoder_norms_shared_Hs = decoder_norms_H[: self.n_shared_latents]
-        decoder_norms_indep_Hi = decoder_norms_H[self.n_shared_latents :]
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LXD)
+        decoder_norms_shared_Ls = decoder_norms_L[: self.n_shared_latents]
+        decoder_norms_indep_Li = decoder_norms_L[self.n_shared_latents :]
 
-        hidden_shared_BHs = train_res.hidden_BH[:, : self.n_shared_latents]
-        hidden_indep_BHi = train_res.hidden_BH[:, self.n_shared_latents :]
+        hidden_shared_BLs = train_res.latents_BL[:, : self.n_shared_latents]
+        hidden_indep_BLi = train_res.latents_BL[:, self.n_shared_latents :]
 
         # shared features sparsity loss
-        tanh_sparsity_loss_shared = self._tanh_sparsity_loss(hidden_shared_BHs, decoder_norms_shared_Hs)
+        tanh_sparsity_loss_shared = self._tanh_sparsity_loss(hidden_shared_BLs, decoder_norms_shared_Ls)
         lambda_s = self._lambda_s_scheduler()
 
         # independent features sparsity loss
-        tanh_sparsity_loss_indep = self._tanh_sparsity_loss(hidden_indep_BHi, decoder_norms_indep_Hi)
+        tanh_sparsity_loss_indep = self._tanh_sparsity_loss(hidden_indep_BLi, decoder_norms_indep_Li)
         lambda_f = self._lambda_f_scheduler()
 
         # pre-activation loss on all features
-        pre_act_loss = self._pre_act_loss(train_res.hidden_BH, decoder_norms_H)
+        pre_act_loss = self._pre_act_loss(train_res.latents_BL, decoder_norms_L)
 
         # total loss
         loss = (
@@ -49,42 +54,41 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
             + self.cfg.lambda_p * pre_act_loss
         )
 
-        if self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0:
-            fvu_dict = get_fvu_dict(
-                batch_BMD,
-                train_res.recon_acts_BXD,
-                ("model", [0, 1]),
-            )
+        if log:
+            hidden_shared_BLs = train_res.latents_BL[:, : self.n_shared_latents]
+            hidden_indep_BLi = train_res.latents_BL[:, self.n_shared_latents :]
 
-            hidden_shared_BHs = train_res.hidden_BH[:, : self.n_shared_latents]
-            hidden_indep_BHi = train_res.hidden_BH[:, self.n_shared_latents :]
-
-            log_dict: dict[str, Any] = {
+            log_dict: dict[str, float] = {
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/tanh_sparsity_loss_shared": tanh_sparsity_loss_shared.item(),
-                "train/lambda_s": lambda_s,
                 "train/tanh_sparsity_loss_indep": tanh_sparsity_loss_indep.item(),
-                "train/lambda_f": lambda_f,
                 "train/pre_act_loss": pre_act_loss.item(),
-                "train/lambda_p": self.cfg.lambda_p,
                 "train/loss": loss.item(),
-                **fvu_dict,
-                **self._common_logs(),
-                **get_l0_stats(hidden_shared_BHs, name="shared_l0"),
-                **get_l0_stats(hidden_indep_BHi, name="indep_l0"),
+                **self._get_fvu_dict(batch_BMD, train_res.recon_acts_BXD),
+                **get_l0_stats(hidden_shared_BLs, name="shared_l0"),
+                **get_l0_stats(hidden_indep_BLi, name="indep_l0"),
+                **get_l0_stats(train_res.latents_BL, name="both_l0"),
             }
+            return loss, log_dict
 
-            if self.step % (self.cfg.log_every_n_steps * 10) == 0:
-                log_dict.update(
-                    {
-                        "media/jumprelu_threshold_distribution": wandb_histogram(
-                            self.crosscoder.hidden_activation.log_threshold_H.exp()
-                        ),
-                    }
-                )
+        return loss, None
 
-            self.wandb_run.log(log_dict, step=self.step)
-        return loss
+    def _step_logs(self) -> dict[str, Any]:
+        log_dict: dict[str, Any] = {
+            **super()._step_logs(),
+            "train/lambda_s": self._lambda_s_scheduler(),
+            "train/lambda_f": self._lambda_f_scheduler(),
+            "train/lambda_p": self.cfg.lambda_p,
+        }
+
+        if (
+            self.cfg.log_every_n_steps is not None
+            and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
+        ):
+            jr_threshold_hist = wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp())
+            log_dict.update({"media/jr_threshold": jr_threshold_hist})
+
+        return log_dict
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""
@@ -94,8 +98,8 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
         """linear ramp from 0 to lambda_s over the course of training"""
         return (self.step / self.total_steps) * self.cfg.final_lambda_f
 
-    def _tanh_sparsity_loss(self, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
-        return tanh_sparsity_loss(self.cfg.c, hidden_BH, decoder_norms_H)
+    def _tanh_sparsity_loss(self, hidden_BL: t.Tensor, decoder_norms_L: t.Tensor) -> t.Tensor:
+        return tanh_sparsity_loss(self.cfg.c, hidden_BL, decoder_norms_L)
 
-    def _pre_act_loss(self, hidden_BH: t.Tensor, decoder_norms_H: t.Tensor) -> t.Tensor:
-        return pre_act_loss(self.crosscoder.hidden_activation.log_threshold_H, hidden_BH, decoder_norms_H)
+    def _pre_act_loss(self, hidden_BL: t.Tensor, decoder_norms_L: t.Tensor) -> t.Tensor:
+        return pre_act_loss(self.crosscoder.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)

@@ -5,9 +5,9 @@ import fire  # type: ignore
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
 from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
-from model_diffing.models.activations import AnthropicJumpReLUActivation
+from model_diffing.models.activations import AnthropicSTEJumpReLUActivation
 from model_diffing.models.activations.activation_function import ActivationFunction
-from model_diffing.models.utils.jan_update_init import DataDependentJumpReLUInitStrategy
+from model_diffing.models.initialization.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
@@ -41,18 +41,16 @@ def _build_sliding_window_crosscoder_trainer(
         cache_dir=cfg.cache_dir,
         window_size=2,
     )
-    # assert next(dataloader.get_activations_iterator_BTPD()).shape[0] == cfg.train.minibatch_size(), "should be the same"
 
     crosscoder1, crosscoder2 = [
         AcausalCrosscoder(
             crosscoding_dims=(window_size, len(cfg.hookpoints)),
             d_model=llms[0].cfg.d_model,
-            hidden_dim=cfg.crosscoder.hidden_dim,
-            hidden_activation=AnthropicJumpReLUActivation(
-                size=cfg.crosscoder.hidden_dim,
+            n_latents=cfg.crosscoder.n_latents,
+            activation_fn=AnthropicSTEJumpReLUActivation(
+                size=cfg.crosscoder.n_latents,
                 bandwidth=cfg.crosscoder.jumprelu.bandwidth,
                 log_threshold_init=cfg.crosscoder.jumprelu.log_threshold_init,
-                backprop_through_input=cfg.crosscoder.jumprelu.backprop_through_jumprelu_input,
             ),
             init_strategy=DataDependentJumpReLUInitStrategy(
                 activations_iterator_BXD=dataloader.get_activations_iterator_BTPD(),

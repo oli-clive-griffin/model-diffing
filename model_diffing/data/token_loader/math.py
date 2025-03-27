@@ -39,16 +39,25 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
                 cache_dir=cache_dir,
             ),
         )
+        raise ValueError("TOKENIZATION IS NOT WORKING WITH <think> TAGS")
+
+    def _format_question(self, question: str, answer: str | None = None) -> str:
+        out = f"User: {question}\n"
+        if answer is not None:
+            out += f"Assistant: {answer}\n"
+        return out
 
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:
         special_ids = torch.tensor(self._tokenizer.all_special_ids)
 
         def tensorize_batch(batch: dict[str, Any]) -> dict[str, Any]:
-            batch_conversations = batch["reannotated_messages"]  # list(batch) of list(user, assistant) of message dicts
             batch_base_convs = batch["messages"]
+            batch_thinking_convs = batch[
+                "reannotated_messages"
+            ]  # list(batch) of list(user, assistant) of message dicts
 
             sequences: list[str] = []
-            for base_conversation, thinking_conversation in zip(batch_base_convs, batch_conversations, strict=True):
+            for base_conversation, thinking_conversation in zip(batch_base_convs, batch_thinking_convs, strict=True):
                 user_question = thinking_conversation[0]
                 assert user_question["role"] == "user"
                 question = user_question["content"]
@@ -63,37 +72,36 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
                 match self._include_base_answers, self._include_reasoning_answers:
                     case (True, True):
-                        sequences.append(question + base_answer)
-                        sequences.append(question + reasoning)
+                        sequences.append(self._format_question(question, base_answer))
+                        sequences.append(self._format_question(question, reasoning))
                     case (True, False):
-                        sequences.append(question + base_answer)
+                        sequences.append(self._format_question(question, base_answer))
                     case (False, True):
-                        sequences.append(question + reasoning)
+                        sequences.append(self._format_question(question, reasoning))
                     case (False, False):
-                        sequences.append(question)
+                        sequences.append(self._format_question(question))
                     case _:
                         raise ValueError(
-                            f"Invalid combination of base_answers and reasoning_answers: {self._include_base_answers}, {self._include_reasoning_answers}"
+                            f"Invalid combination of base_answers and reasoning_answers: {self._include_base_answers=}, {self._include_reasoning_answers=}"
                         )
 
-            tok_res = self._tokenizer.__call__(
+            tok_res = self._tokenizer(
                 sequences,
                 return_tensors="pt",
                 padding="longest",
                 padding_side="right",  # type: ignore # this type is just plain wrong for some reason
                 max_length=self._max_sequence_length,
+                truncation=True,
             )
+            seq = cast(torch.Tensor, tok_res["input_ids"])
+            return {"tokens_HS": seq, "special_tokens_mask_HS": torch.isin(seq, special_ids)}
 
-            return {
-                "tokens_HS": cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length],
-                "special_tokens_mask_HS": torch.isin(
-                    cast(torch.Tensor, tok_res["input_ids"])[:, : self._max_sequence_length], special_ids
-                ),
-            }
+        tensorize_batch_size = self._batch_size
 
-        assert self._batch_size % 2 == 0
         will_double_example_count = self._include_base_answers and self._include_reasoning_answers
-        tensorize_batch_size = self._batch_size // 2 if will_double_example_count else self._batch_size
+        if will_double_example_count:
+            assert tensorize_batch_size % 2 == 0
+            tensorize_batch_size //= 2
 
         tokens_dataset = (
             self._base_ds.map(
@@ -108,12 +116,7 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
         for batch in tokens_dataset:
             batch = cast(dict[str, torch.Tensor], batch)
-
-            try:
-                assert batch["tokens_HS"].shape == batch["special_tokens_mask_HS"].shape
-            except AssertionError:
-                breakpoint()
-
+            assert batch["tokens_HS"].shape == batch["special_tokens_mask_HS"].shape
             yield TokensSequenceBatch(
                 tokens_HS=batch["tokens_HS"],
                 special_tokens_mask_HS=batch["special_tokens_mask_HS"],
@@ -124,10 +127,19 @@ class MathDatasetTokenSequenceLoader(TokenSequenceLoader):
 
 
 if __name__ == "__main__":
+    from tqdm import tqdm  # type: ignore
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B")
-    loader = MathDatasetTokenSequenceLoader(tokenizer, 16, 2048, ".cache")
+    loader = MathDatasetTokenSequenceLoader(
+        tokenizer,
+        4,
+        2048,
+        ".cache",
+        include_base_answers=True,
+        include_reasoning_answers=True,
+    )
+    pbar = tqdm(desc="tokens processed", unit="tokens", total=None)
     for batch in loader.get_sequences_batch_iterator():
-        print(batch)
-        break
+        pbar.update((~batch.special_tokens_mask_HS).sum().item())
+        print(batch.tokens_HS.shape)

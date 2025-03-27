@@ -51,13 +51,16 @@ def build_trainer(cfg: TopkSkipTransCrosscoderExperimentConfig) -> TopkSkipTrans
     crosscoder = AcausalCrosscoder(
         crosscoding_dims=crosscoding_dims,
         d_model=llms[0].cfg.d_mlp,
-        hidden_dim=cfg.crosscoder.hidden_dim,
+        n_latents=cfg.crosscoder.n_latents,
         init_strategy=ZeroDecSkipTranscoderInit(
             activation_iterator_BMPD=dataloader.get_activations_iterator_BMPD(),
             n_samples_for_dec_mean=100_000,
+            enc_init_norm=0.1,  # cfg.crosscoder.enc_init_norm,
         ),
-        hidden_activation=TopkActivation(k=cfg.crosscoder.k),
+        activation_fn=TopkActivation(k=cfg.crosscoder.k),
         skip_linear=True,
+        use_encoder_bias=cfg.crosscoder.use_encoder_bias,
+        use_decoder_bias=cfg.crosscoder.use_decoder_bias,
     )
 
     crosscoder = crosscoder.to(device)

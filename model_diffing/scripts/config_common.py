@@ -87,6 +87,11 @@ class BaseTrainConfig(BaseModel):
         if self.batch_size % self.gradient_accumulation_steps_per_batch != 0:
             raise ValueError("batch_size must be divisible by gradient_accumulation_steps_per_batch")
 
+class CrosscoderConfig(BaseModel):
+    n_latents: int
+    use_encoder_bias: bool = True
+    use_decoder_bias: bool | Literal["pre_bias"] = True
+
 
 class WandbConfig(BaseModel):
     entity: str = "mars-model-diffing"

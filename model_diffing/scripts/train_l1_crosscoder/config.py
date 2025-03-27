@@ -1,9 +1,7 @@
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, DataConfig
-from model_diffing.utils import BaseModel
+from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig, DataConfig
 
 
-class L1CrosscoderConfig(BaseModel):
-    hidden_dim: int
+class L1CrosscoderConfig(CrosscoderConfig):
     dec_init_norm: float = 0.1
 
 

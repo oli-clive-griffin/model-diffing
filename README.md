@@ -1,6 +1,6 @@
 # Model Diffing
 
-A library for training and analyzing Cross-Coders (and by extension, Sparse Autoencoders) on transformer model activations.
+A library for training and analyzing SAEs, crosscoders, and transcoders.
 
 # Quickstart
 
