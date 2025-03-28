@@ -4,8 +4,8 @@ from model_diffing.data.model_hookpoint_dataloader import (
 )
 from model_diffing.data.token_hookpoint_dataloader import SlidingWindowScaledActivationsDataloader
 from model_diffing.data.token_loader import ToyOverfittingTokenSequenceLoader
-from model_diffing.scripts.config_common import LLMConfig
-from model_diffing.scripts.llms import build_llms
+from model_diffing.trainers.config_common import LLMConfig
+from model_diffing.trainers.llms import build_llms
 from model_diffing.utils import get_device
 
 # TODO(oli): fixme, this test is slow because it estimates the norm scaling factor.
