@@ -1,7 +1,7 @@
 import torch
 
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.models.initialization.jan_update_init import compute_b_enc_L
 
 
@@ -56,7 +56,7 @@ def test_compute_b_enc_L():
     assert torch.allclose(b_enc_L, expected_b_enc_L), f"b_enc_L: {b_enc_L}, expected_b_enc_L: {expected_b_enc_L}"
 
     # Test that `initial_approx_firing_pct` of features fire when processing the batch
-    pre_acts_BL = (batch_BD @ cc.W_enc_XDL) + cc.b_enc_L # type: ignore
+    pre_acts_BL = (batch_BD @ cc.W_enc_XDL) + cc.b_enc_L  # type: ignore
     acts_BL = (pre_acts_BL > initial_jumprelu_threshold) * pre_acts_BL
     assert (acts_BL != 0.0).float().mean() == initial_approx_firing_pct
 

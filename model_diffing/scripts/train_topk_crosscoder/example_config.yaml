@@ -11,7 +11,7 @@ data:
         revision: step143000 # last checkpoint
     harvesting_batch_size: 1
 crosscoder:
-  hidden_dim: 4096
+  n_latents: 4096
   k: 19
   use_encoder_bias: True
   use_decoder_bias: True

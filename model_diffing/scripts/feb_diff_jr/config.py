@@ -1,7 +1,7 @@
 from typing import Any
 
 from model_diffing.log import logger
-from model_diffing.scripts.config_common import BaseExperimentConfig, DataConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateCrosscoderConfig, TanHSparsityTrainConfig
 
 
@@ -30,7 +30,6 @@ class JumpReLUModelDiffingFebUpdateTrainConfig(TanHSparsityTrainConfig):
 
 
 class JumpReLUModelDiffingFebUpdateExperimentConfig(BaseExperimentConfig):
-    data: DataConfig
     crosscoder: JumpReLUModelDiffingFebUpdateCrosscoderConfig
     train: JumpReLUModelDiffingFebUpdateTrainConfig
     hookpoint: str

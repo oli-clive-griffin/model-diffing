@@ -12,7 +12,7 @@ data:
     cache_mode: "cache"
   n_tokens_for_norm_estimate: 10_000
 crosscoder:
-  hidden_dim: 6144
+  n_latents: 6144
   jumprelu:
     backprop_through_jumprelu_input: true
   initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!

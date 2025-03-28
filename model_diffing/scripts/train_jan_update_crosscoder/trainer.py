@@ -2,9 +2,9 @@ from typing import Any
 
 import torch as t
 
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
+from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.base_acausal_trainer import BaseModelHookpointAcausalTrainer
 from model_diffing.scripts.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.scripts.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
@@ -16,7 +16,9 @@ from model_diffing.utils import (
 )
 
 
-class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConfig, AnthropicSTEJumpReLUActivation]):
+class JanUpdateCrosscoderTrainer(
+    BaseModelHookpointAcausalTrainer[TanHSparsityTrainConfig, AnthropicSTEJumpReLUActivation]
+):
     def _calculate_loss_and_log(
         self,
         batch_BMPD: t.Tensor,
@@ -24,7 +26,7 @@ class JanUpdateCrosscoderTrainer(BaseModelHookpointTrainer[TanHSparsityTrainConf
         log: bool,
     ) -> tuple[t.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BXD)
-        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LXD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder._W_dec_LXoDo)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.latents_BL, decoder_norms_L)
         pre_act_loss = self._pre_act_loss(train_res.latents_BL, decoder_norms_L)
 

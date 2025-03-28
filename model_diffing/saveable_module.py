@@ -34,7 +34,7 @@ class SaveableModule(nn.Module, ABC):
 
     @classmethod
     @abstractmethod
-    def _from_cfg(cls: type[Self], cfg: dict[str, Any]) -> Self: ...
+    def _scaffold_from_cfg(cls: type[Self], cfg: dict[str, Any]) -> Self: ...
 
     def save(self, basepath: Path):
         basepath.mkdir(parents=True, exist_ok=True)
@@ -47,7 +47,7 @@ class SaveableModule(nn.Module, ABC):
         basepath = Path(basepath)
         with open(basepath / cls.MODEL_CFG_FNAME) as f:
             cfg = yaml.safe_load(f)
-        model = cls._from_cfg(cfg)
+        model = cls._scaffold_from_cfg(cfg)
         model.load_state_dict(torch.load(basepath / cls.STATE_DICT_FNAME, weights_only=True, map_location=device))
         return model
 

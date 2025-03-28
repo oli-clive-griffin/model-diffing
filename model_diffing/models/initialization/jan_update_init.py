@@ -2,12 +2,12 @@ from collections.abc import Iterator
 from math import prod
 
 import torch
-from einops import einsum, rearrange
+from einops import rearrange
 from tqdm import tqdm  # type: ignore
 
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations import AnthropicSTEJumpReLUActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.utils import ceil_div, inspect, round_up
 
 
@@ -46,7 +46,7 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
 
         cc.W_dec_LXD.uniform_(-1.0 / n, 1.0 / n)
         cc.W_enc_XDL.copy_(
-            rearrange(cc.W_dec_LXD, "hidden ... -> ... hidden")  #
+            rearrange(cc.W_dec_LXD, "l ... -> ... l")  #
             * (n / m)
         )
 

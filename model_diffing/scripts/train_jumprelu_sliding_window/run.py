@@ -4,9 +4,9 @@ import fire  # type: ignore
 
 from model_diffing.data.token_hookpoint_dataloader import build_sliding_window_dataloader
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations import AnthropicSTEJumpReLUActivation
 from model_diffing.models.activations.activation_function import ActivationFunction
+from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.models.initialization.jan_update_init import DataDependentJumpReLUInitStrategy
 from model_diffing.scripts.base_sliding_window_trainer import BiTokenCCWrapper
 from model_diffing.scripts.base_trainer import run_exp

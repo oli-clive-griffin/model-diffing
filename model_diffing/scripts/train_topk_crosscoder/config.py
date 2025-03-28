@@ -1,5 +1,5 @@
 from model_diffing.models.activations.topk import TopKStyle
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig, DataConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig
 
 
 class TopKCrosscoderConfig(CrosscoderConfig):
@@ -16,7 +16,6 @@ class TopKTrainConfig(BaseTrainConfig):
 
 
 class TopKExperimentConfig(BaseExperimentConfig):
-    data: DataConfig
     crosscoder: TopKCrosscoderConfig
     train: TopKTrainConfig
     hookpoints: list[str]

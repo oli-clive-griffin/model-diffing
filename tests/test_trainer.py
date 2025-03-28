@@ -8,13 +8,13 @@ from torch import Tensor
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.models import AcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
-from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer, validate_num_steps_per_epoch
+from model_diffing.scripts.base_acausal_trainer import BaseModelHookpointAcausalTrainer, validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import AdamConfig, BaseTrainConfig
 from model_diffing.scripts.train_topk_crosscoder.trainer import aux_loss, topk_dead_latents
 from model_diffing.utils import get_device, l2_norm, not_none
 
 
-class TestTrainer(BaseModelHookpointTrainer[BaseTrainConfig, Any]):
+class TestTrainer(BaseModelHookpointAcausalTrainer[BaseTrainConfig, Any]):
     __test__ = False
 
     def _calculate_loss_and_log(

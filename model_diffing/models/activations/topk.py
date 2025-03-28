@@ -64,7 +64,7 @@ class TopkActivation(ActivationFunction, TopkStyleActivation):
         return {"k": self.k}
 
     @classmethod
-    def _from_cfg(cls, cfg: dict[str, Any]) -> "TopkActivation":
+    def _scaffold_from_cfg(cls, cfg: dict[str, Any]) -> "TopkActivation":
         return cls(cfg["k"])
 
 
@@ -80,7 +80,7 @@ class BatchTopkActivation(ActivationFunction):
         return {"k_per_example": self.k_per_example}
 
     @classmethod
-    def _from_cfg(cls, cfg: dict[str, Any]) -> "BatchTopkActivation":
+    def _scaffold_from_cfg(cls, cfg: dict[str, Any]) -> "BatchTopkActivation":
         return cls(cfg["k_per_example"])
 
 
@@ -98,7 +98,7 @@ class GroupMaxActivation(ActivationFunction):
         return {"k_groups": self.k_groups, "latents_size": self.latents_size}
 
     @classmethod
-    def _from_cfg(cls, cfg: dict[str, Any]) -> "GroupMaxActivation":
+    def _scaffold_from_cfg(cls, cfg: dict[str, Any]) -> "GroupMaxActivation":
         return cls(cfg["k_groups"], cfg["latents_size"])
 
 

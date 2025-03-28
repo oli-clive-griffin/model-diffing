@@ -6,41 +6,39 @@ from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import torch
-import yaml  # type: ignore
+import yaml
 from torch.nn.utils import clip_grad_norm_
-from tqdm import tqdm  # type: ignore
+from tqdm import tqdm  # type: ignore  # type: ignore
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import (
     BaseModelHookpointActivationsDataloader,
 )
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.activation_function import ActivationFunction
+from model_diffing.models.crosscoder import _BaseCrosscoder
 from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import (
     build_lr_scheduler,
     build_optimizer,
-    create_cosine_sim_and_relative_norm_histograms,
     dict_join,
     wandb_histogram,
 )
-from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
-from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
+TCC = TypeVar("TCC", bound=_BaseCrosscoder[Any])
 TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
-class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
+class BaseTrainer(Generic[TConfig, TCC]):
     LOG_HISTOGRAMS_EVERY_N_LOGS = 10
 
     def __init__(
         self,
         cfg: TConfig,
         activations_dataloader: BaseModelHookpointActivationsDataloader,
-        crosscoder: AcausalCrosscoder[TAct],
+        crosscoder: TCC,
         wandb_run: Run,
         device: torch.device,
         hookpoints: list[str],
@@ -48,11 +46,6 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
     ):
         self.cfg = cfg
         self.activations_dataloader = activations_dataloader
-
-        assert len(crosscoder.crosscoding_dims) == 2, (
-            "crosscoder must have 2 crosscoding dimensions (model, hookpoint). (They can be singleton dimensions)"
-        )
-        self.n_models, self.n_hookpoints = crosscoder.crosscoding_dims
 
         self.crosscoder = crosscoder
         self.wandb_run = wandb_run
@@ -112,10 +105,7 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
 
             for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
                 batch_BMPD = next(epoch_dataloader_BMPD).to(self.device)
-                train_res = self.crosscoder.forward_train(batch_BMPD)
-                self.firing_tracker.add_batch(train_res.latents_BL)
-
-                loss, log_dict = self._calculate_loss_and_log(batch_BMPD, train_res, log=log)
+                loss, log_dict = self.run_batch(batch_BMPD, log)
 
                 loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
                 if log_dict is not None:
@@ -136,23 +126,11 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
                 self.unique_tokens_trained += batch_BMPD.shape[0]
             self.step += 1
 
-    def _maybe_save_model(self, scaling_factors_MP: torch.Tensor) -> None:
-        if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
-            checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
-
-            self.crosscoder.with_folded_scaling_factors(scaling_factors_MP).save(checkpoint_path)
-
-            if self.cfg.upload_saves_to_wandb:
-                artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
-                self.wandb_run.log_artifact(artifact)
+    @abstractmethod
+    def run_batch(self, batch_BMPD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]: ...
 
     @abstractmethod
-    def _calculate_loss_and_log(
-        self,
-        batch_BMPD: torch.Tensor,
-        train_res: AcausalCrosscoder.ForwardResult,
-        log: bool,
-    ) -> tuple[torch.Tensor, dict[str, float] | None]: ...
+    def _maybe_save_model(self, scaling_factors_MP: torch.Tensor) -> None: ...
 
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"
@@ -172,29 +150,10 @@ class BaseModelHookpointTrainer(Generic[TConfig, TAct]):
         ):
             tokens_since_fired_hist = wandb_histogram(self.firing_tracker.tokens_since_fired_L)
             log_dict.update({"media/tokens_since_fired": tokens_since_fired_hist})
-
-            if self.n_models == 2:
-                W_dec_LXD = self.crosscoder.W_dec_LXD.detach().cpu()
-                assert W_dec_LXD.shape[1:-1] == (self.n_models, self.n_hookpoints)
-                log_dict.update(create_cosine_sim_and_relative_norm_histograms(W_dec_LXD, self.hookpoints))
-
             if self.crosscoder.b_enc_L is not None:
-                log_dict["b_enc_values"] = wandb_histogram(self.crosscoder.b_enc_L)
-
-            if self.crosscoder.b_dec_XD is not None:
-                for i in range(self.n_models):
-                    for j in range(self.n_hookpoints):
-                        log_dict[f"b_dec_values_m{i}_hp{j}"] = wandb_histogram(self.crosscoder.b_dec_XD[i, j])
+                log_dict["b_enc"] = wandb_histogram(self.crosscoder.b_enc_L)
 
         return log_dict
-
-    def _get_fvu_dict(self, batch_BMPD: torch.Tensor, recon_acts_BMPD: torch.Tensor) -> dict[str, float]:
-        return get_fvu_dict(
-            batch_BMPD,
-            recon_acts_BMPD,
-            ("model", list(range(self.n_models))),
-            ("hookpoint", self.hookpoints),
-        )
 
 
 def validate_num_steps_per_epoch(

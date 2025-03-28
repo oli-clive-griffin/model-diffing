@@ -6,7 +6,7 @@ import fire  # type: ignore
 import yaml  # type: ignore
 
 from model_diffing.log import logger
-from model_diffing.scripts.base_trainer import save_config
+from model_diffing.scripts.base_acausal_trainer import save_config
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
 from model_diffing.scripts.train_jan_update_crosscoder.run import build_jan_update_crosscoder_trainer
 

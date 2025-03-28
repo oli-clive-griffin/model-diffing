@@ -9,9 +9,9 @@ from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations.activation_function import ActivationFunction
-from model_diffing.scripts.base_trainer import validate_num_steps_per_epoch
+from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
+from model_diffing.scripts.base_acausal_trainer import validate_num_steps_per_epoch
 from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import (
@@ -160,7 +160,7 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
     def _maybe_save_model(self, scaling_factors_M: t.Tensor) -> None:
         if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
             checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
-            self.crosscoder.with_folded_scaling_factors(scaling_factors_M).save(checkpoint_path)
+            self.crosscoder.with_folded_scaling_factors(scaling_factors_M, scaling_factors_M).save(checkpoint_path)
 
             if self.cfg.upload_saves_to_wandb and not self.wandb_run.disabled:
                 artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)

@@ -10,7 +10,7 @@ data:
     harvesting_batch_size: 2
   n_tokens_for_norm_estimate: 100_000
 crosscoder:
-  hidden_dim: 8192
+  n_latents: 8192
   jumprelu:
     backprop_through_jumprelu_input: true
   initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!

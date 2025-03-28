@@ -12,7 +12,7 @@ data:
     harvesting_batch_size: 64
   n_tokens_for_norm_estimate: 100_000
 crosscoder:
-  hidden_dim: 65_536
+  n_latents: 65_536
   jumprelu:
     backprop_through_jumprelu_input: true
     log_threshold_init: -10

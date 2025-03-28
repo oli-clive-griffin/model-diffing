@@ -24,8 +24,8 @@ class JumpReLUSlidingWindowCrosscoderTrainer(
         # losses
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BTPD, reconstructed_acts_BTPD)
 
-        decoder_norms_single_L = get_summed_decoder_norms_L(self.crosscoders.single_cc.W_dec_LXD)
-        decoder_norms_both_L = get_summed_decoder_norms_L(self.crosscoders.double_cc.W_dec_LXD)
+        decoder_norms_single_L = get_summed_decoder_norms_L(self.crosscoders.single_cc._W_dec_LXoDo)
+        decoder_norms_both_L = get_summed_decoder_norms_L(self.crosscoders.double_cc._W_dec_LXoDo)
 
         decoder_norms_3l = t.cat([decoder_norms_single_L, decoder_norms_both_L, decoder_norms_single_L], dim=-1)
         hidden_B3l = t.cat([res.hidden_single1_BL, res.hidden_double_BL, res.hidden_single2_BL], dim=-1)

@@ -1,4 +1,4 @@
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig, DataConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig
 
 
 class L1CrosscoderConfig(CrosscoderConfig):
@@ -11,7 +11,6 @@ class L1TrainConfig(BaseTrainConfig):
 
 
 class L1ExperimentConfig(BaseExperimentConfig):
-    data: DataConfig
     crosscoder: L1CrosscoderConfig
     train: L1TrainConfig
     hookpoints: list[str]

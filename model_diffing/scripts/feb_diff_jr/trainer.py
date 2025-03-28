@@ -2,8 +2,8 @@ from typing import Any
 
 import torch as t
 
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.scripts.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from model_diffing.scripts.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
@@ -28,7 +28,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
     ) -> tuple[t.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMD, train_res.recon_acts_BXD)
 
-        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LXD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder._W_dec_LXoDo)
         decoder_norms_shared_Ls = decoder_norms_L[: self.n_shared_latents]
         decoder_norms_indep_Li = decoder_norms_L[self.n_shared_latents :]
 

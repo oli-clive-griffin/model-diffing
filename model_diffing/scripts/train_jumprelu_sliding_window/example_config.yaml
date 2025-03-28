@@ -9,7 +9,7 @@ data:
         revision: step143000 # last checkpoint
     harvesting_batch_size: 1
 crosscoder:
-  hidden_dim: 4096
+  n_latents: 4096
   jumprelu:
     backprop_through_jumprelu_input: true
   initial_approx_firing_pct: 0.5 # WARNING(oli): very uncertain this is a good default!

@@ -4,8 +4,8 @@ import torch
 from einops import rearrange
 
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.activations import AnthropicSTEJumpReLUActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
 from model_diffing.models.initialization.jan_update_init import get_quantile_L, harvest_pre_bias_NL
 from model_diffing.utils import random_direction_init_
 
@@ -40,7 +40,7 @@ class NoEncoderBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
     def init_weights(self, cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation]) -> None:
         # W
         random_direction_init_(cc.W_dec_LXD, self.dec_init_norm)
-        cc.W_enc_XDL.copy_(rearrange(cc.W_dec_LXD.clone(), "h ... -> ... h"))
+        cc.W_enc_XDL.copy_(rearrange(cc.W_dec_LXD.clone(), "l ... -> ... l"))
 
         # Bias
         assert cc.b_enc_L is None, "this strategy requires no encoder bias"

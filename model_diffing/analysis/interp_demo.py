@@ -17,8 +17,8 @@ from model_diffing.analysis import metrics, visualization
 from model_diffing.data.activation_harvester import ActivationsHarvester
 from model_diffing.data.token_loader import MathDatasetTokenSequenceLoader
 from model_diffing.interp import (
-    topk_seqs_table,
     gather_latent_summaries,
+    topk_seqs_table,
 )
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_jan_update_crosscoder.config import JanUpdateExperimentConfig

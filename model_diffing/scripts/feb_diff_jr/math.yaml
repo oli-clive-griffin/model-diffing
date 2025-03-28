@@ -14,7 +14,7 @@ data:
     inference_dtype: bfloat16
   n_tokens_for_norm_estimate: 400_000
 crosscoder:
-  hidden_dim: 32_768
+  n_latents: 32_768
   n_shared_latents: 2048 # 1/16 explicitly shared latents
   jumprelu:
     backprop_through_jumprelu_input: true

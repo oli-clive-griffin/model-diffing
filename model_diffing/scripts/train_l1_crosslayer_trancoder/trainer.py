@@ -3,22 +3,21 @@ from typing import Any
 import einops
 import torch
 
-from model_diffing.models.activations.relu import ReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.scripts.base_acausal_trainer import BaseModelHookpointAcausalTrainer
-from model_diffing.scripts.train_l1_crosscoder.config import L1TrainConfig
+from model_diffing.models.crosscoder import CrossLayerTranscoder
+from model_diffing.scripts.train_l1_crosslayer_trancoder.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
+from model_diffing.scripts.train_l1_crosslayer_trancoder.config import L1TrainConfig
 from model_diffing.scripts.utils import get_l0_stats
 from model_diffing.utils import calculate_reconstruction_loss_summed_norm_MSEs, l1_norm, l2_norm
 
 
-class L1CrosscoderTrainer(BaseModelHookpointAcausalTrainer[L1TrainConfig, ReLUActivation]):
+class L1CrossLayerTranscoderTrainer(BaseCrossLayerTranscoderTrainer[L1TrainConfig]):
     def _calculate_loss_and_log(
         self,
-        batch_BMPD: torch.Tensor,
-        train_res: AcausalCrosscoder.ForwardResult,
+        train_res: CrossLayerTranscoder.ForwardResult,
+        out_BPD: torch.Tensor,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
-        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BXD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(train_res.output_BPD, out_BPD)
 
         sparsity_loss = sparsity_loss_l1_of_l2s(self.crosscoder._W_dec_LXoDo, train_res.latents_BL)
 
@@ -29,7 +28,7 @@ class L1CrosscoderTrainer(BaseModelHookpointAcausalTrainer[L1TrainConfig, ReLUAc
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/sparsity_loss": sparsity_loss.item(),
                 "train/loss": loss.item(),
-                **self._get_fvu_dict(batch_BMPD, train_res.recon_acts_BXD),
+                **self._get_fvu_dict(out_BPD, train_res.output_BPD),
                 **get_l0_stats(train_res.latents_BL),
             }
 

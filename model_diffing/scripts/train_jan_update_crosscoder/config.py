@@ -1,6 +1,6 @@
 from typing import Any
 
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig, DataConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig
 from model_diffing.utils import BaseModel
 
 
@@ -40,7 +40,6 @@ class TanHSparsityTrainConfig(BaseTrainConfig):
 
 
 class JanUpdateExperimentConfig(BaseExperimentConfig):
-    data: DataConfig
     crosscoder: JanUpdateCrosscoderConfig
     train: TanHSparsityTrainConfig
     hookpoints: list[str]

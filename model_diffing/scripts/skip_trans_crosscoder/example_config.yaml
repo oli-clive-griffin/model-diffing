@@ -11,7 +11,7 @@ data:
         revision: step143000 # last checkpoint
     harvesting_batch_size: 1
 crosscoder:
-  hidden_dim: 4096
+  n_latents: 4096
   k: 64
 train:
   num_steps: 10_000

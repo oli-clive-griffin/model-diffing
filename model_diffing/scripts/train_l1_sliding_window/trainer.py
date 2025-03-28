@@ -36,15 +36,15 @@ class L1SlidingWindowCrosscoderTrainer(BaseSlidingWindowCrosscoderTrainer[ReLUAc
         )
 
         sparsity_loss_single1 = sparsity_loss_fn(
-            W_dec_LTMPD=self.crosscoders.single_cc.W_dec_LXD[:, :, None],
+            W_dec_LTMPD=self.crosscoders.single_cc._W_dec_LXoDo[:, :, None],
             latents_BL=res.hidden_single1_BL,
         )
         sparsity_loss_single2 = sparsity_loss_fn(
-            W_dec_LTMPD=self.crosscoders.single_cc.W_dec_LXD[:, :, None],
+            W_dec_LTMPD=self.crosscoders.single_cc._W_dec_LXoDo[:, :, None],
             latents_BL=res.hidden_single2_BL,
         )
         sparsity_loss_double = sparsity_loss_fn(
-            W_dec_LTMPD=self.crosscoders.double_cc.W_dec_LXD[:, :, None],
+            W_dec_LTMPD=self.crosscoders.double_cc._W_dec_LXoDo[:, :, None],
             latents_BL=res.hidden_double_BL,
         )
         sparsity_loss = sparsity_loss_single1 + sparsity_loss_single2 + sparsity_loss_double

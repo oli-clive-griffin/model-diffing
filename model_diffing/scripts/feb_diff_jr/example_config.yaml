@@ -8,7 +8,7 @@ data:
     harvesting_batch_size: 2
   n_tokens_for_norm_estimate: 10_000
 crosscoder:
-  hidden_dim: 16_384
+  n_latents: 16_384
   n_shared_latents: 1024
   jumprelu:
     backprop_through_jumprelu_input: true

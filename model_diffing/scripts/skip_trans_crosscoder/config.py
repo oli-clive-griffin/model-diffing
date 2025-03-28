@@ -1,4 +1,4 @@
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig, DataConfig
+from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig
 
 
 class TopkSkipTransCrosscoderConfig(CrosscoderConfig):
@@ -7,7 +7,6 @@ class TopkSkipTransCrosscoderConfig(CrosscoderConfig):
 
 
 class TopkSkipTransCrosscoderExperimentConfig(BaseExperimentConfig):
-    data: DataConfig
     crosscoder: TopkSkipTransCrosscoderConfig
     train: BaseTrainConfig
     mlp_indices: list[int]

@@ -7,8 +7,6 @@ data:
     llms:
       - name: EleutherAI/pythia-160M
         revision: step142000
-      - name: EleutherAI/pythia-160M
-        revision: step143000 # last checkpoint
     harvesting_batch_size: 1
 crosscoder:
   n_latents: 6144
@@ -20,4 +18,8 @@ train:
   save_every_n_steps: 1000
   log_every_n_steps: 50
 experiment_name: l1_crosscoder_example
-hookpoints: ["blocks.8.hook_resid_post"]
+hookpoints: [
+  "blocks.6.hook_resid_post",
+  "blocks.7.hook_resid_post",
+  "blocks.8.hook_resid_post",
+]

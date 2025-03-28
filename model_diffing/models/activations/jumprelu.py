@@ -42,7 +42,7 @@ class AnthropicSTEJumpReLUActivation(ActivationFunction):
         }
 
     @classmethod
-    def _from_cfg(cls, cfg: dict[str, Any]) -> "AnthropicSTEJumpReLUActivation":
+    def _scaffold_from_cfg(cls, cfg: dict[str, Any]) -> "AnthropicSTEJumpReLUActivation":
         return cls(
             size=cfg["size"],
             bandwidth=cfg["bandwidth"],

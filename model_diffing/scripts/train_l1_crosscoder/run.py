@@ -2,7 +2,8 @@ import fire  # type: ignore
 
 from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 from model_diffing.log import logger
-from model_diffing.models import AcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
+from model_diffing.models import AnthropicTransposeInit, ReLUActivation
+from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_trainer import run_exp
 from model_diffing.scripts.llms import build_llms
 from model_diffing.scripts.train_l1_crosscoder.config import L1ExperimentConfig
@@ -32,14 +33,17 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
     n_models = len(llms)
     n_hookpoints = len(cfg.hookpoints)
 
+    cc_dims = (n_models, n_hookpoints)
+    d_model = llms[0].cfg.d_model
+
     crosscoder = AcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
-        d_model=llms[0].cfg.d_model,
+        crosscoding_dims=cc_dims,
+        d_model=d_model,
         n_latents=cfg.crosscoder.n_latents,
-        init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
         activation_fn=ReLUActivation(),
         use_encoder_bias=cfg.crosscoder.use_encoder_bias,
         use_decoder_bias=cfg.crosscoder.use_decoder_bias,
+        init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
     )
 
     crosscoder = crosscoder.to(device)

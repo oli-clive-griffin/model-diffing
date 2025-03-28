@@ -11,9 +11,9 @@ from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.token_hookpoint_dataloader import BaseTokenHookpointActivationsDataloader
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.activation_function import ActivationFunction
-from model_diffing.scripts.base_trainer import TConfig, validate_num_steps_per_epoch
+from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.base_acausal_trainer import TConfig, validate_num_steps_per_epoch
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, dict_join, wandb_histogram
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
@@ -176,8 +176,12 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
             step_dir_single = self.save_dir / f"epoch_{self.epoch}_step_{self.step}_single"
             step_dir_double = self.save_dir / f"epoch_{self.epoch}_step_{self.step}_double"
 
-            self.crosscoders.single_cc.with_folded_scaling_factors(scaling_factor_1P).save(step_dir_single)
-            self.crosscoders.double_cc.with_folded_scaling_factors(scaling_factors_TP).save(step_dir_double)
+            self.crosscoders.single_cc.with_folded_scaling_factors(scaling_factor_1P, scaling_factor_1P).save(
+                step_dir_single
+            )
+            self.crosscoders.double_cc.with_folded_scaling_factors(scaling_factors_TP, scaling_factors_TP).save(
+                step_dir_double
+            )
 
             if self.cfg.upload_saves_to_wandb:
                 artifact = create_checkpoint_artifact(step_dir_single, self.wandb_run.id, self.step, self.epoch)

@@ -13,5 +13,5 @@ class ReLUActivation(ActivationFunction):
         return {}
 
     @classmethod
-    def _from_cfg(cls, cfg: dict[str, Any]) -> "ReLUActivation":
+    def _scaffold_from_cfg(cls, cfg: dict[str, Any]) -> "ReLUActivation":
         return cls()

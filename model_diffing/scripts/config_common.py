@@ -87,10 +87,11 @@ class BaseTrainConfig(BaseModel):
         if self.batch_size % self.gradient_accumulation_steps_per_batch != 0:
             raise ValueError("batch_size must be divisible by gradient_accumulation_steps_per_batch")
 
+
 class CrosscoderConfig(BaseModel):
     n_latents: int
     use_encoder_bias: bool = True
-    use_decoder_bias: bool | Literal["pre_bias"] = True
+    use_decoder_bias: bool = True
 
 
 class WandbConfig(BaseModel):
@@ -105,6 +106,7 @@ class BaseExperimentConfig(BaseModel):
     base_save_dir: str = ".checkpoints"
     wandb: WandbConfig = WandbConfig()
     experiment_name: str
+    data: DataConfig
 
     @property
     def save_dir(self) -> Path:

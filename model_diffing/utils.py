@@ -1,7 +1,6 @@
 import os
 from collections import deque
 from collections.abc import Iterator
-from functools import partial
 from itertools import product
 from typing import TypeVar
 
@@ -16,6 +15,7 @@ from model_diffing.log import logger
 class BaseModel(_BaseModel):
     class Config:
         extra = "forbid"
+
 
 # might seem strange to redefine these but:
 # 1: these signatures allow us to use these norm functions in einops.reduce
@@ -50,45 +50,6 @@ def l2_norm(
     dtype: torch.dtype | None = None,
 ) -> torch.Tensor:
     return torch.norm(input, p=2, dim=dim, keepdim=keepdim, out=out, dtype=dtype)
-
-
-def weighted_l1_sparsity_loss(
-    W_dec_LTMPD: torch.Tensor,
-    latents_BL: torch.Tensor,
-    hookpoint_reduction: Reduction,  # type: ignore
-    model_reduction: Reduction,  # type: ignore
-    token_reduction: Reduction,  # type: ignore
-) -> torch.Tensor:
-    assert (latents_BL >= 0).all()
-    # think about it like: each latent has a separate projection onto each (model, hookpoint)
-    # so we have a separate l2 norm for each (latent, model, hookpoint)
-    W_dec_l2_norms_LTMP = einops.reduce(
-        W_dec_LTMPD, "latent token model hookpoint d_model -> latent token model hookpoint", l2_norm
-    )
-
-    reduced_norms_LTM = einops.reduce(W_dec_l2_norms_LTMP, "l t m p -> l t m", hookpoint_reduction)
-    reduced_norms_LT = einops.reduce(reduced_norms_LTM, "l t m -> l t", model_reduction)
-    reduced_norms_L = einops.reduce(reduced_norms_LT, "l t -> l", token_reduction)
-
-    # now we weight the latents by the sum of their norms
-    weighted_Liddens_BL = latents_BL * reduced_norms_L
-    weighted_l1_of_Liddens_BL = einops.reduce(weighted_Liddens_BL, "batch latent -> batch", l1_norm)
-    return weighted_l1_of_Liddens_BL.mean()
-
-
-sparsity_loss_l2_of_norms = partial(
-    weighted_l1_sparsity_loss,
-    token_reduction=l2_norm,
-    hookpoint_reduction=l2_norm,
-    model_reduction=l2_norm,
-)
-
-sparsity_loss_l1_of_norms = partial(
-    weighted_l1_sparsity_loss,
-    token_reduction=l1_norm,
-    hookpoint_reduction=l1_norm,
-    model_reduction=l1_norm,
-)
 
 
 def calculate_reconstruction_loss_summed_norm_MSEs(
@@ -218,9 +179,9 @@ def get_fvu_dict(
     return fvu_dict
 
 
-def get_summed_decoder_norms_L(W_dec_LXD: torch.Tensor) -> torch.Tensor:
-    W_dec_l2_norms_LX = einops.reduce(W_dec_LXD, "latent ... dim -> latent ...", l2_norm)
-    norms_L = einops.reduce(W_dec_l2_norms_LX, "latent ... -> latent", torch.sum)
+def get_summed_decoder_norms_L(W_dec_LXoDo: torch.Tensor) -> torch.Tensor:
+    W_dec_l2_norms_LXo = einops.reduce(W_dec_LXoDo, "latent ... dim -> latent ...", l2_norm)
+    norms_L = einops.reduce(W_dec_l2_norms_LXo, "latent ... -> latent", torch.sum)
     return norms_L
 
 

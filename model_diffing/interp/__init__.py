@@ -16,7 +16,7 @@ from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.analysis import metrics
 from model_diffing.log import logger
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
+from model_diffing.models.crosscoder import AcausalCrosscoder
 
 
 @dataclass

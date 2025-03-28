@@ -6,20 +6,20 @@ import torch
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
-from model_diffing.models.acausal_crosscoder import AcausalCrosscoder
 from model_diffing.models.activations.topk import (
     BatchTopkActivation,
     GroupMaxActivation,
     TopkActivation,
     topk_activation,
 )
-from model_diffing.scripts.base_trainer import BaseModelHookpointTrainer
+from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.scripts.base_acausal_trainer import BaseModelHookpointAcausalTrainer
 from model_diffing.scripts.train_topk_crosscoder.config import TopKTrainConfig
 from model_diffing.utils import calculate_reconstruction_loss_summed_norm_MSEs, get_fvu_dict
 
 
 class TopKStyleTrainer(
-    BaseModelHookpointTrainer[TopKTrainConfig, BatchTopkActivation | GroupMaxActivation | TopkActivation]
+    BaseModelHookpointAcausalTrainer[TopKTrainConfig, BatchTopkActivation | GroupMaxActivation | TopkActivation]
 ):
     def __init__(
         self,

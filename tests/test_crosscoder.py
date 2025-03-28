@@ -71,7 +71,9 @@ def test_weights_folding_keeps_hidden_representations_consistent():
 
     output_without_folding = crosscoder.forward_train(scaled_input_BMPD)
 
-    output_with_folding = crosscoder.with_folded_scaling_factors(scaling_factors_MP).forward_train(unscaled_input_BMPD)
+    output_with_folding = crosscoder.with_folded_scaling_factors(scaling_factors_MP, scaling_factors_MP).forward_train(
+        unscaled_input_BMPD
+    )
 
     # all hidden representations should be the same
     assert t.allclose(output_without_folding.latents_BL, output_with_folding.latents_BL), (
@@ -121,7 +123,7 @@ def test_weights_folding_scales_output_correctly():
 
     scaled_output_BMPD = crosscoder.forward_train(scaled_input_BMPD).recon_acts_BXD
 
-    crosscoder.fold_activation_scaling_into_weights_(scaling_factors_MP)
+    crosscoder.fold_activation_scaling_into_weights_(scaling_factors_MP, scaling_factors_MP)
     unscaled_output_folded_BMPD = crosscoder.forward_train(unscaled_input_BMPD).recon_acts_BXD
 
     # with folded weights, the output should be scaled by the scaling factors
