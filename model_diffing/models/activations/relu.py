@@ -1,13 +1,13 @@
 from typing import Any
 
-import torch as t
+import torch
 
 from model_diffing.models.activations.activation_function import ActivationFunction
 
 
 class ReLUActivation(ActivationFunction):
-    def forward(self, latent_preact_BL: t.Tensor) -> t.Tensor:
-        return t.relu(latent_preact_BL)
+    def forward(self, latent_preact_BL: torch.Tensor) -> torch.Tensor:
+        return torch.relu(latent_preact_BL)
 
     def _dump_cfg(self) -> dict[str, int | str]:
         return {}

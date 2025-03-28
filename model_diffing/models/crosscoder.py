@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Generic, Self, TypeVar, cast
 
 import einx
-import torch as t
+import torch
 from einops import einsum, reduce
 from torch import nn
 
@@ -34,9 +34,9 @@ TActivation = TypeVar("TActivation", bound=ActivationFunction)
 
 
 class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
-    is_folded: t.Tensor
-    folded_scaling_factors_in_Xi: t.Tensor | None
-    folded_scaling_factors_out_Xo: t.Tensor | None
+    is_folded: torch.Tensor
+    folded_scaling_factors_in_Xi: torch.Tensor | None
+    folded_scaling_factors_out_Xo: torch.Tensor | None
 
     def __init__(
         self,
@@ -49,7 +49,7 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
         use_encoder_bias: bool,
         use_decoder_bias: bool,
         init_strategy: InitStrategy["_BaseCrosscoder[TActivation]"] | None = None,
-        dtype: t.dtype = t.float32,
+        dtype: torch.dtype = torch.float32,
     ):
         super().__init__()
         self._in_crosscoding_dims = in_crosscoding_dims
@@ -59,35 +59,35 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
         self.activation_fn = activation_fn
         self.dtype = dtype
 
-        self._W_enc_XiDiL = nn.Parameter(t.empty((*in_crosscoding_dims, d_in, n_latents), dtype=dtype))
-        self._W_dec_LXoDo = nn.Parameter(t.empty((n_latents, *out_crosscoding_dims, d_out), dtype=dtype))
+        self._W_enc_XiDiL = nn.Parameter(torch.empty((*in_crosscoding_dims, d_in, n_latents), dtype=dtype))
+        self._W_dec_LXoDo = nn.Parameter(torch.empty((n_latents, *out_crosscoding_dims, d_out), dtype=dtype))
 
         # public because no implementations rename it
-        self.b_enc_L = nn.Parameter(t.empty((n_latents,), dtype=dtype)) if use_encoder_bias else None
+        self.b_enc_L = nn.Parameter(torch.empty((n_latents,), dtype=dtype)) if use_encoder_bias else None
         self._b_dec_XoDo = (
-            nn.Parameter(t.empty((*out_crosscoding_dims, d_out), dtype=dtype)) if use_decoder_bias else None
+            nn.Parameter(torch.empty((*out_crosscoding_dims, d_out), dtype=dtype)) if use_decoder_bias else None
         )
 
         if init_strategy is not None:
             init_strategy.init_weights(self)
 
         # Initialize buffers with a tensors of the correct shapes, this means it's always serialized
-        self.register_buffer("folded_scaling_factors_in_Xi", t.zeros(self._in_crosscoding_dims, dtype=dtype))
-        self.register_buffer("folded_scaling_factors_out_Xo", t.zeros(self._out_crosscoding_dims, dtype=dtype))
+        self.register_buffer("folded_scaling_factors_in_Xi", torch.zeros(self._in_crosscoding_dims, dtype=dtype))
+        self.register_buffer("folded_scaling_factors_out_Xo", torch.zeros(self._out_crosscoding_dims, dtype=dtype))
         # We also track whether it's actually holding a meaningful value by using this boolean flag.
         # Represented as a tensor so that it's serialized by torch.save
-        self.register_buffer("is_folded", t.tensor(False, dtype=t.bool))
+        self.register_buffer("is_folded", torch.tensor(False, dtype=torch.bool))
 
     @dataclass
     class _ForwardResult:
-        pre_activations_BL: t.Tensor
-        latents_BL: t.Tensor
-        output_BXoDo: t.Tensor
+        pre_activations_BL: torch.Tensor
+        latents_BL: torch.Tensor
+        output_BXoDo: torch.Tensor
 
-    def get_pre_bias_BL(self, activation_BXiDi: t.Tensor) -> t.Tensor:
+    def get_pre_bias_BL(self, activation_BXiDi: torch.Tensor) -> torch.Tensor:
         return einsum(activation_BXiDi, self._W_enc_XiDiL, "b ..., ... l -> b l")
 
-    def decode_BXoDo(self, latents_BL: t.Tensor) -> t.Tensor:
+    def decode_BXoDo(self, latents_BL: torch.Tensor) -> torch.Tensor:
         pre_bias_BXoDo = einsum(latents_BL, self._W_dec_LXoDo, "b l, l ... -> b ...")
         if self._b_dec_XoDo is not None:
             pre_bias_BXoDo += self._b_dec_XoDo
@@ -95,7 +95,7 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
 
     def _forward_train(
         self,
-        activation_BXiDi: t.Tensor,
+        activation_BXiDi: torch.Tensor,
     ) -> _ForwardResult:
         """returns the activations, the latents, and the reconstructed activations"""
         pre_activations_BL = self.get_pre_bias_BL(activation_BXiDi)
@@ -113,10 +113,10 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
             output_BXoDo=output_BXoDo,
         )
 
-    # def forward(self, activation_BXiDi: t.Tensor) -> t.Tensor:
+    # def forward(self, activation_BXiDi: torch.Tensor) -> torch.Tensor:
     #     return self.forward_train(activation_BXiDi).output_BXoDo
 
-    @t.no_grad()
+    @torch.no_grad()
     def make_decoder_max_unit_norm_(self) -> None:
         """
         scales the decoder weights such that the model makes the same predictions, but for
@@ -131,11 +131,11 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
         # output_space_norms_LX = reduce(self.W_dec_LXoDo, "l ... do -> l ...", l2_norm)
         output_space_norms_LX = reduce(self._W_dec_LXoDo, "l ... do -> l ...", l2_norm)
         output_space_norms_LX_ = einx.reduce("... [do]", self._W_dec_LXoDo, l2_norm)
-        assert t.allclose(output_space_norms_LX, output_space_norms_LX_)
+        assert torch.allclose(output_space_norms_LX, output_space_norms_LX_)
 
-        max_norms_per_latent_L = reduce(output_space_norms_LX, "l ... -> l", t.amax)
-        max_norms_per_latent_L_ = einx.reduce("l [...]", output_space_norms_LX, t.amax)
-        assert t.allclose(max_norms_per_latent_L, max_norms_per_latent_L_)
+        max_norms_per_latent_L = reduce(output_space_norms_LX, "l ... -> l", torch.amax)
+        max_norms_per_latent_L_ = einx.reduce("l [...]", output_space_norms_LX, torch.amax)
+        assert torch.allclose(max_norms_per_latent_L, max_norms_per_latent_L_)
 
         # this means that the maximum norm of the decoder vectors into a given output space is 1
         # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
@@ -147,7 +147,7 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
         # no alteration needed for self.b_dec_XoDo
 
     @property
-    def device(self) -> t.device:
+    def device(self) -> torch.device:
         return self._W_dec_LXoDo.device
 
     def clone(self) -> Self:
@@ -168,7 +168,7 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
         return cc
 
     def fold_activation_scaling_into_weights_(
-        self, scaling_factors_in_Xi: t.Tensor, scaling_factors_out_Xo: t.Tensor
+        self, scaling_factors_in_Xi: torch.Tensor, scaling_factors_out_Xo: torch.Tensor
     ) -> None:
         """scales the crosscoder weights by the activation scaling factors, so that the m can be run on raw llm activations."""
         if self.is_folded.item():
@@ -183,9 +183,9 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
         # set buffer to prevent double-folding
         self.folded_scaling_factors_in_Xi = scaling_factors_in_Xi
         self.folded_scaling_factors_out_Xo = scaling_factors_out_Xo
-        self.is_folded = t.tensor(True, dtype=t.bool)
+        self.is_folded = torch.tensor(True, dtype=torch.bool)
 
-    def with_folded_scaling_factors(self, scaling_factors_in_Xi: t.Tensor, scaling_factors_out_Xo: t.Tensor) -> Self:
+    def with_folded_scaling_factors(self, scaling_factors_in_Xi: torch.Tensor, scaling_factors_out_Xo: torch.Tensor) -> Self:
         cc = self.clone().to(self.device)
         cc.load_state_dict(self.state_dict())
         cc.fold_activation_scaling_into_weights_(scaling_factors_in_Xi, scaling_factors_out_Xo)
@@ -202,7 +202,7 @@ class AcausalCrosscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
         use_encoder_bias: bool,
         use_decoder_bias: bool,
         init_strategy: InitStrategy["AcausalCrosscoder[TActivation]"] | None = None,
-        dtype: t.dtype = t.float32,
+        dtype: torch.dtype = torch.float32,
     ):
         super().__init__(
             crosscoding_dims,
@@ -223,11 +223,11 @@ class AcausalCrosscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
 
     @dataclass
     class ForwardResult:
-        pre_activations_BL: t.Tensor
-        latents_BL: t.Tensor
-        recon_acts_BXD: t.Tensor
+        pre_activations_BL: torch.Tensor
+        latents_BL: torch.Tensor
+        recon_acts_BXD: torch.Tensor
 
-    def forward_train(self, activation_BXD: t.Tensor) -> ForwardResult:
+    def forward_train(self, activation_BXD: torch.Tensor) -> ForwardResult:
         res = self._forward_train(activation_BXD)
         return self.ForwardResult(
             pre_activations_BL=res.pre_activations_BL,
@@ -235,22 +235,22 @@ class AcausalCrosscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
             recon_acts_BXD=res.output_BXoDo,
         )
 
-    def forward(self, activation_BXD: t.Tensor) -> t.Tensor:
+    def forward(self, activation_BXD: torch.Tensor) -> torch.Tensor:
         return self.forward_train(activation_BXD).recon_acts_BXD
 
-    def decode_BXD(self, latents_BL: t.Tensor) -> t.Tensor:
+    def decode_BXD(self, latents_BL: torch.Tensor) -> torch.Tensor:
         return self.decode_BXoDo(latents_BL)
 
     @property
-    def W_dec_LXD(self) -> t.Tensor:
+    def W_dec_LXD(self) -> torch.Tensor:
         return self._W_dec_LXoDo
 
     @property
-    def W_enc_XDL(self) -> t.Tensor:
+    def W_enc_XDL(self) -> torch.Tensor:
         return self._W_enc_XiDiL
 
     @property
-    def b_dec_XD(self) -> t.Tensor | None:
+    def b_dec_XD(self) -> torch.Tensor | None:
         return self._b_dec_XoDo
 
     def _dump_cfg(self) -> dict[str, Any]:
@@ -283,41 +283,6 @@ class AcausalCrosscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
             dtype=cfg["dtype"],
         )
 
-    # def _dump_cfg(self) -> dict[str, Any]:
-    #     return {
-    #         "in_crosscoding_dims": self._in_crosscoding_dims,
-    #         "d_in": self._d_in,
-    #         "out_crosscoding_dims": self._out_crosscoding_dims,
-    #         "d_out": self._d_out,
-    #         "n_latents": self.n_latents,
-    #         "activation_classname": self.activation_fn.__class__.__name__,
-    #         "activation_cfg": self.activation_fn._dump_cfg(),
-    #         "use_encoder_bias": self.b_enc_L is not None,
-    #         "use_decoder_bias": self._b_dec_XoDo is not None,
-    #         # don't need to serialize init_strategy as loading from state_dict will re-initialize the params
-    #     }
-
-    # @classmethod
-    # def _from_cfg(cls, cfg: dict[str, Any]) -> "BaseCrosscoder[TActivation]":
-    #     activation_cfg = cfg["activation_cfg"]
-    #     activation_classname = cfg["activation_classname"]
-
-    #     activation_fn_cls = ACTIVATIONS_MAP[activation_classname]
-    #     activation_fn = cast(TActivation, activation_fn_cls._from_cfg(activation_cfg))
-
-    #     return BaseCrosscoder(
-    #         in_crosscoding_dims=cfg["in_crosscoding_dims"],
-    #         d_in=cfg["d_in"],
-    #         out_crosscoding_dims=cfg["out_crosscoding_dims"],
-    #         d_out=cfg["d_out"],
-    #         n_latents=cfg["n_latents"],
-    #         activation_fn=activation_fn,
-    #         use_encoder_bias=cfg["use_encoder_bias"],
-    #         use_decoder_bias=cfg["use_decoder_bias"],
-    #         # intentionally don't serialize init_strategy as loading from state_dict will re-initialize the params
-    #     )
-
-
 class CrossLayerTranscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
     # Xo = (P,)
     # Xi = (),
@@ -333,7 +298,7 @@ class CrossLayerTranscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
         use_encoder_bias: bool,
         use_decoder_bias: bool,
         init_strategy: InitStrategy["CrossLayerTranscoder[TActivation]"] | None = None,
-        dtype: t.dtype = t.float32,
+        dtype: torch.dtype = torch.float32,
     ):
         super().__init__(
             in_crosscoding_dims=(),
@@ -356,11 +321,11 @@ class CrossLayerTranscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
 
     @dataclass
     class ForwardResult:
-        pre_activations_BL: t.Tensor
-        latents_BL: t.Tensor
-        output_BPD: t.Tensor
+        pre_activations_BL: torch.Tensor
+        latents_BL: torch.Tensor
+        output_BPD: torch.Tensor
 
-    def forward_train(self, activation_BD: t.Tensor) -> ForwardResult:
+    def forward_train(self, activation_BD: torch.Tensor) -> ForwardResult:
         # valid becuase Xi = `()`, so BXiDi == (B, D)
         res = self._forward_train(activation_BD)
         assert res.output_BXoDo.shape[1:] == (self.n_layers_out, self.d_model)
@@ -370,19 +335,19 @@ class CrossLayerTranscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
             output_BPD=res.output_BXoDo,
         )
 
-    def forward(self, activation_BD: t.Tensor) -> t.Tensor:
+    def forward(self, activation_BD: torch.Tensor) -> torch.Tensor:
         return self.forward_train(activation_BD).output_BPD
 
     @property
-    def W_dec_LPD(self) -> t.Tensor:
+    def W_dec_LPD(self) -> torch.Tensor:
         return self._W_dec_LXoDo
 
     @property
-    def W_enc_DL(self) -> t.Tensor:
+    def W_enc_DL(self) -> torch.Tensor:
         return self._W_enc_XiDiL
 
     @property
-    def b_dec_PD(self) -> t.Tensor | None:
+    def b_dec_PD(self) -> torch.Tensor | None:
         return self._b_dec_XoDo
 
     def _dump_cfg(self) -> dict[str, Any]:

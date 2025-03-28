@@ -1,6 +1,6 @@
 from typing import Any
 
-import torch as t
+import torch
 
 from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
@@ -21,10 +21,10 @@ class JanUpdateCrosscoderTrainer(
 ):
     def _calculate_loss_and_log(
         self,
-        batch_BMPD: t.Tensor,
+        batch_BMPD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
         log: bool,
-    ) -> tuple[t.Tensor, dict[str, float] | None]:
+    ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BXD)
         decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder._W_dec_LXoDo)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.latents_BL, decoder_norms_L)
@@ -48,12 +48,12 @@ class JanUpdateCrosscoderTrainer(
 
     def _lambda_s_scheduler(self) -> float:
         """linear ramp from 0 to lambda_s over the course of training"""
-        return (self.step / self.total_steps) * self.cfg.final_lambda_s
+        return (self.step / self.cfg.num_steps) * self.cfg.final_lambda_s
 
-    def _tanh_sparsity_loss(self, hidden_BL: t.Tensor, decoder_norms_L: t.Tensor) -> t.Tensor:
+    def _tanh_sparsity_loss(self, hidden_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
         return tanh_sparsity_loss(self.cfg.c, hidden_BL, decoder_norms_L)
 
-    def _pre_act_loss(self, hidden_BL: t.Tensor, decoder_norms_L: t.Tensor) -> t.Tensor:
+    def _pre_act_loss(self, hidden_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
         return pre_act_loss(self.crosscoder.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
 
     def _step_logs(self) -> dict[str, Any]:

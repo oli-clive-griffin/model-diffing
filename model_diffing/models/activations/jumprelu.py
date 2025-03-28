@@ -1,12 +1,12 @@
 from typing import Any
 
-import torch as t
+import torch
 from torch import nn
 
 from model_diffing.models.activations.activation_function import ActivationFunction
 
 
-def rectangle(x: t.Tensor) -> t.Tensor:
+def rectangle(x: torch.Tensor) -> torch.Tensor:
     """
     when:
         x < -0.5 -> 0
@@ -27,12 +27,12 @@ class AnthropicSTEJumpReLUActivation(ActivationFunction):
 
         self.size = size
         self.bandwidth = bandwidth
-        self.log_threshold_L = nn.Parameter(t.ones(size))
+        self.log_threshold_L = nn.Parameter(torch.ones(size))
         if log_threshold_init is not None:
-            with t.no_grad():
+            with torch.no_grad():
                 self.log_threshold_L.mul_(log_threshold_init)
 
-    def forward(self, latent_preact_BL: t.Tensor) -> t.Tensor:
+    def forward(self, latent_preact_BL: torch.Tensor) -> torch.Tensor:
         return AnthropicJumpReLU.apply(latent_preact_BL, self.log_threshold_L, self.bandwidth)  # type: ignore
 
     def _dump_cfg(self) -> dict[str, int | float | str | list[float]]:
@@ -50,32 +50,32 @@ class AnthropicSTEJumpReLUActivation(ActivationFunction):
         )
 
 
-class AnthropicJumpReLU(t.autograd.Function):
+class AnthropicJumpReLU(torch.autograd.Function):
     """
     NOTE: this implementation does not support directly optimizing L0 as in the original GDM "Jumping Ahead" paper.
     To do this, we'd need to return the step and the output, then take step.sum(dim=-1). Taking L0 of output will not
     work as L0 is not differentiable. If you want to optimize L0 directly, you need to define a seperate Autograd
-    function that returns `(input_BX > threshold_X)` and implements the STE backward pass for that.
+    function that returns `(input_BX > threshold_X)` and implements the STE backward pass for thatorch.
     """
 
     @staticmethod
     def forward(
         ctx: Any,
-        input_BX: t.Tensor,
-        log_threshold_X: t.Tensor,
+        input_BX: torch.Tensor,
+        log_threshold_X: torch.Tensor,
         bandwidth: float,
-    ) -> t.Tensor:
+    ) -> torch.Tensor:
         """
         threshold_X is $\\theta$ in the GDM paper, $t$ in the Anthropic paper.
 
         Where GDM don't backprop through the threshold in "jumping ahead", Anthropic do in the jan 2025 update.
         """
         threshold_X = log_threshold_X.exp()
-        ctx.save_for_backward(input_BX, threshold_X, t.tensor(bandwidth))
+        ctx.save_for_backward(input_BX, threshold_X, torch.tensor(bandwidth))
         return (input_BX > threshold_X) * input_BX
 
     @staticmethod
-    def backward(ctx: Any, output_grad_BX: t.Tensor) -> tuple[t.Tensor | None, t.Tensor, None]:  # type: ignore
+    def backward(ctx: Any, output_grad_BX: torch.Tensor) -> tuple[torch.Tensor | None, torch.Tensor, None]:  # type: ignore
         input_BX, threshold_X, bandwidth = ctx.saved_tensors
 
         threshold_local_grad_BX = -(threshold_X / bandwidth) * rectangle((input_BX - threshold_X) / bandwidth)

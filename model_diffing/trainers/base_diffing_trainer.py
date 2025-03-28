@@ -2,7 +2,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
-import torch as t
+import torch
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
@@ -35,7 +35,7 @@ class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
         self.first_init = first_init
         self.n_shared_latents = n_shared_latents
 
-    @t.no_grad()
+    @torch.no_grad()
     def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
         assert cc.W_dec_LXD.shape[1] == 2, "expected the model dimension to be 2"
 
@@ -55,7 +55,7 @@ class BaseDiffingTrainer(BaseTrainer[TConfig, AcausalCrosscoder[TAct]], Generic[
         activations_dataloader: BaseModelHookpointActivationsDataloader,
         crosscoder: Any,
         wandb_run: Run,
-        device: t.device,
+        device: torch.device,
         hookpoints: list[str],
         save_dir: Path | str,
         n_shared_latents: int,
@@ -63,7 +63,7 @@ class BaseDiffingTrainer(BaseTrainer[TConfig, AcausalCrosscoder[TAct]], Generic[
         super().__init__(cfg, activations_dataloader, crosscoder, wandb_run, device, hookpoints, save_dir)
         self.n_shared_latents = n_shared_latents
 
-    def run_batch(self, batch_BMPD: t.Tensor, log: bool) -> tuple[t.Tensor, dict[str, float] | None]:
+    def run_batch(self, batch_BMPD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]:
         assert batch_BMPD.shape[1] == 2, "we only support 2 models for now"
         assert batch_BMPD.shape[2] == 1, "we only support 1 hookpoint for now"
 
@@ -77,12 +77,12 @@ class BaseDiffingTrainer(BaseTrainer[TConfig, AcausalCrosscoder[TAct]], Generic[
     @abstractmethod
     def _loss_and_log_dict(
         self,
-        batch_BMD: t.Tensor,
+        batch_BMD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
         log: bool,
-    ) -> tuple[t.Tensor, dict[str, float] | None]: ...
+    ) -> tuple[torch.Tensor, dict[str, float] | None]: ...
 
-    def _maybe_save_model(self, scaling_factors_MP: t.Tensor) -> None:
+    def _maybe_save_model(self, scaling_factors_MP: torch.Tensor) -> None:
         if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
             checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
             self.crosscoder.with_folded_scaling_factors(scaling_factors_MP, scaling_factors_MP).save(checkpoint_path)
@@ -135,5 +135,5 @@ class BaseDiffingTrainer(BaseTrainer[TConfig, AcausalCrosscoder[TAct]], Generic[
 
         return log_dict
 
-    def _get_fvu_dict(self, batch_BMD: t.Tensor, recon_acts_BMD: t.Tensor) -> dict[str, float]:
+    def _get_fvu_dict(self, batch_BMD: torch.Tensor, recon_acts_BMD: torch.Tensor) -> dict[str, float]:
         return get_fvu_dict(batch_BMD, recon_acts_BMD, ("model", [0, 1]))
