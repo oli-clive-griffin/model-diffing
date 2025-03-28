@@ -13,7 +13,8 @@ from model_diffing.data.token_hookpoint_dataloader import BaseTokenHookpointActi
 from model_diffing.log import logger
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.scripts.base_acausal_trainer import TConfig, validate_num_steps_per_epoch
+from model_diffing.scripts.base_acausal_trainer import TConfig
+from model_diffing.scripts.base_trainer import validate_num_steps_per_epoch
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, dict_join, wandb_histogram
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
@@ -148,7 +149,6 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
                 res = self.crosscoders.forward_train(batch_BTPD)
                 hidden_B3l = t.cat([res.hidden_single1_BL, res.hidden_double_BL, res.hidden_single2_BL], dim=-1)
                 self.firing_tracker.add_batch(hidden_B3l)
-
                 loss, log_dict = self._calculate_loss_and_log(batch_BTPD, res, log=log)
 
                 loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()

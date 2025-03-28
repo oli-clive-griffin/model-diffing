@@ -80,17 +80,14 @@ class BaseTrainer(Generic[TConfig, TCC]):
         scaling_factors_MP = self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
         epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
         for _ in epoch_iter:
-            epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
-            self._do_epoch(scaling_factors_MP, epoch_dataloader_BMPD)
+            self._do_epoch(scaling_factors_MP)
             self.epoch += 1
 
         self.wandb_run.finish()
 
-    def _do_epoch(
-        self,
-        scaling_factors_MP: torch.Tensor,
-        epoch_dataloader_BMPD: Iterator[torch.Tensor],
-    ) -> None:
+    def _do_epoch(self, scaling_factors_MP: torch.Tensor) -> None:
+        epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
+
         for _ in tqdm(
             range(self.num_steps_per_epoch),
             desc="Epoch Train Steps",

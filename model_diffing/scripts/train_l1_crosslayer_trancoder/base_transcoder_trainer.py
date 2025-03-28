@@ -1,30 +1,12 @@
-import os
 from abc import abstractmethod
-from collections.abc import Callable, Iterator
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 import torch
-import yaml  # type: ignore
-from torch.nn.utils import clip_grad_norm_
-from tqdm import tqdm  # type: ignore
-from wandb.sdk.wandb_run import Run
 
-from model_diffing.data.model_hookpoint_dataloader import (
-    BaseModelHookpointActivationsDataloader,
-)
-from model_diffing.log import logger
-from model_diffing.models.activations.activation_function import ActivationFunction
-from model_diffing.models.crosscoder import _BaseCrosscoder, CrossLayerTranscoder
+from model_diffing.models.crosscoder import CrossLayerTranscoder, _BaseCrosscoder
 from model_diffing.scripts.base_acausal_trainer import BaseTrainer
-from model_diffing.scripts.config_common import BaseExperimentConfig, BaseTrainConfig
-from model_diffing.scripts.firing_tracker import FiringTracker
+from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import (
-    build_lr_scheduler,
-    build_optimizer,
-    create_cosine_sim_and_relative_norm_histograms,
-    dict_join,
     wandb_histogram,
 )
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
@@ -82,47 +64,3 @@ class BaseCrossLayerTranscoderTrainer(BaseTrainer[TConfig, CrossLayerTranscoder[
             if self.cfg.upload_saves_to_wandb:
                 artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
                 self.wandb_run.log_artifact(artifact)
-
-
-def validate_num_steps_per_epoch(
-    epochs: int | None,
-    num_steps_per_epoch: int | None,
-    num_steps: int | None,
-    dataloader_num_batches: int | None,
-) -> int:
-    if epochs is not None:
-        if num_steps is not None:
-            raise ValueError("num_steps must not be provided if using epochs")
-
-        if dataloader_num_batches is None:
-            raise ValueError(
-                "activations_dataloader must have a length if using epochs, "
-                "as we need to know how to schedule the learning rate"
-            )
-
-        if num_steps_per_epoch is None:
-            return dataloader_num_batches
-        else:
-            if dataloader_num_batches < num_steps_per_epoch:
-                logger.warning(
-                    f"num_steps_per_epoch ({num_steps_per_epoch}) is greater than the number "
-                    f"of batches in the dataloader ({dataloader_num_batches}), so we will only "
-                    "train for the number of batches in the dataloader"
-                )
-                return dataloader_num_batches
-            else:
-                return num_steps_per_epoch
-
-    # not using epochs
-    if num_steps is None:
-        raise ValueError("num_steps must be provided if not using epochs")
-    if num_steps_per_epoch is not None:
-        raise ValueError("num_steps_per_epoch must not be provided if not using epochs")
-    return num_steps
-
-
-def save_config(config: BaseExperimentConfig) -> None:
-    config.save_dir.mkdir(parents=True, exist_ok=True)
-    with open(config.save_dir / "experiment_config.yaml", "w") as f:
-        yaml.dump(config.model_dump(), f)
-    logger.info(f"Saved config to {config.save_dir / 'experiment_config.yaml'}")
