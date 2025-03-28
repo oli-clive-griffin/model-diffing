@@ -10,11 +10,9 @@ from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.token_hookpoint_dataloader import BaseTokenHookpointActivationsDataloader
-from model_diffing.log import logger
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.scripts.base_acausal_trainer import TConfig
-from model_diffing.scripts.base_trainer import validate_num_steps_per_epoch
 from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import build_lr_scheduler, build_optimizer, dict_join, wandb_histogram
 from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
@@ -92,17 +90,8 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
 
         self.optimizer = build_optimizer(cfg.optimizer, self.crosscoders.parameters())
 
-        self.num_steps_per_epoch = validate_num_steps_per_epoch(
-            cfg.epochs, cfg.num_steps_per_epoch, cfg.num_steps, activations_dataloader.num_batches()
-        )
-
-        self.total_steps = self.num_steps_per_epoch * (cfg.epochs or 1)
-        logger.info(
-            f"Total steps: {self.total_steps} (num_steps_per_epoch: {self.num_steps_per_epoch}, epochs: {cfg.epochs})"
-        )
-
         self.lr_scheduler = (
-            build_lr_scheduler(cfg.optimizer, self.total_steps) if cfg.optimizer.type == "adam" else None
+            build_lr_scheduler(cfg.optimizer, self.cfg.num_steps) if cfg.optimizer.type == "adam" else None
         )
 
         self.save_dir = Path(save_dir)
@@ -119,22 +108,15 @@ class BaseSlidingWindowCrosscoderTrainer(Generic[TAct, TConfig], ABC):
         self.epoch = 0
         self.unique_tokens_trained = 0
 
-    def train(self):
+    def train(self) -> None:
         scaling_factors_TP = self.activations_dataloader.get_norm_scaling_factors_TP().to(self.device)
         scaling_factor_1P = scaling_factors_TP.mean(dim=0, keepdim=True)
 
-        epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
-        for _ in epoch_iter:
-            self._do_epoch(scaling_factors_TP, scaling_factor_1P)
-            self.epoch += 1
-
-    def _do_epoch(self, scaling_factors_TP: t.Tensor, scaling_factor_1P: t.Tensor) -> None:
         epoch_dataloader_BTPD = self.activations_dataloader.get_activations_iterator_BTPD()
 
         for _ in tqdm(
-            range(self.num_steps_per_epoch),
-            desc="Epoch Train Steps",
-            total=self.num_steps_per_epoch,
+            range(self.cfg.num_steps),
+            desc="Train Steps",
             smoothing=0.15,  # this loop is bursty because of activation harvesting
         ):
             self.optimizer.zero_grad()

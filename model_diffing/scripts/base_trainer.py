@@ -54,18 +54,7 @@ class BaseTrainer(Generic[TConfig, TCC]):
 
         self.optimizer = build_optimizer(cfg.optimizer, crosscoder.parameters())
 
-        self.num_steps_per_epoch = validate_num_steps_per_epoch(
-            cfg.epochs, cfg.num_steps_per_epoch, cfg.num_steps, activations_dataloader.num_batches()
-        )
-
-        self.total_steps = self.num_steps_per_epoch * (cfg.epochs or 1)
-        logger.info(
-            f"Total steps: {self.total_steps} (num_steps_per_epoch: {self.num_steps_per_epoch}, epochs: {cfg.epochs})"
-        )
-
-        self.lr_scheduler = (
-            build_lr_scheduler(cfg.optimizer, self.total_steps) if cfg.optimizer.type == "adam" else None
-        )
+        self.lr_scheduler = build_lr_scheduler(cfg.optimizer, cfg.num_steps) if cfg.optimizer.type == "adam" else None
 
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
@@ -78,20 +67,11 @@ class BaseTrainer(Generic[TConfig, TCC]):
 
     def train(self) -> None:
         scaling_factors_MP = self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
-        epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
-        for _ in epoch_iter:
-            self._do_epoch(scaling_factors_MP)
-            self.epoch += 1
-
-        self.wandb_run.finish()
-
-    def _do_epoch(self, scaling_factors_MP: torch.Tensor) -> None:
         epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
 
         for _ in tqdm(
-            range(self.num_steps_per_epoch),
-            desc="Epoch Train Steps",
-            total=self.num_steps_per_epoch,
+            range(self.cfg.num_steps),
+            desc="Train Steps",
             smoothing=0.15,  # this loop is bursty because of activation harvesting
         ):
             self._lr_step()
@@ -125,6 +105,8 @@ class BaseTrainer(Generic[TConfig, TCC]):
                 self.unique_tokens_trained += batch_BMPD.shape[0]
             self.step += 1
 
+        self.wandb_run.finish()
+
     def _after_forward_passes(self): ...
 
     @abstractmethod
@@ -155,43 +137,6 @@ class BaseTrainer(Generic[TConfig, TCC]):
                 log_dict["b_enc"] = wandb_histogram(self.crosscoder.b_enc_L)
 
         return log_dict
-
-
-def validate_num_steps_per_epoch(
-    epochs: int | None,
-    num_steps_per_epoch: int | None,
-    num_steps: int | None,
-    dataloader_num_batches: int | None,
-) -> int:
-    if epochs is not None:
-        if num_steps is not None:
-            raise ValueError("num_steps must not be provided if using epochs")
-
-        if dataloader_num_batches is None:
-            raise ValueError(
-                "activations_dataloader must have a length if using epochs, "
-                "as we need to know how to schedule the learning rate"
-            )
-
-        if num_steps_per_epoch is None:
-            return dataloader_num_batches
-        else:
-            if dataloader_num_batches < num_steps_per_epoch:
-                logger.warning(
-                    f"num_steps_per_epoch ({num_steps_per_epoch}) is greater than the number "
-                    f"of batches in the dataloader ({dataloader_num_batches}), so we will only "
-                    "train for the number of batches in the dataloader"
-                )
-                return dataloader_num_batches
-            else:
-                return num_steps_per_epoch
-
-    # not using epochs
-    if num_steps is None:
-        raise ValueError("num_steps must be provided if not using epochs")
-    if num_steps_per_epoch is not None:
-        raise ValueError("num_steps_per_epoch must not be provided if not using epochs")
-    return num_steps
 
 
 def save_config(config: BaseExperimentConfig) -> None:
