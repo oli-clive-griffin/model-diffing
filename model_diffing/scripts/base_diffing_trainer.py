@@ -3,25 +3,17 @@ from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import torch as t
-from torch.nn.utils import clip_grad_norm_
-from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
-from model_diffing.log import logger
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.models.crosscoder import AcausalCrosscoder, InitStrategy
-from model_diffing.scripts.base_acausal_trainer import validate_num_steps_per_epoch
+from model_diffing.scripts.base_trainer import BaseTrainer
 from model_diffing.scripts.config_common import BaseTrainConfig
-from model_diffing.scripts.firing_tracker import FiringTracker
 from model_diffing.scripts.utils import (
-    build_lr_scheduler,
-    build_optimizer,
     create_cosine_sim_and_relative_norm_histograms_diffing,
-    dict_join,
     wandb_histogram,
 )
-from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
 from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
@@ -55,116 +47,31 @@ class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
         assert (cc.W_dec_LXD[: self.n_shared_latents, 0] == cc.W_dec_LXD[: self.n_shared_latents, 1]).all()
 
 
-class BaseDiffingTrainer(Generic[TConfig, TAct]):
-    LOG_HISTOGRAMS_EVERY_N_LOGS = 10
-
+class BaseDiffingTrainer(BaseTrainer[TConfig, AcausalCrosscoder[TAct]], Generic[TConfig, TAct]):
     def __init__(
         self,
         cfg: TConfig,
         activations_dataloader: BaseModelHookpointActivationsDataloader,
-        crosscoder: AcausalCrosscoder[TAct],
-        n_shared_latents: int,
+        crosscoder: Any,
         wandb_run: Run,
         device: t.device,
         hookpoints: list[str],
         save_dir: Path | str,
+        n_shared_latents: int,
     ):
-        self.cfg = cfg
+        super().__init__(cfg, activations_dataloader, crosscoder, wandb_run, device, hookpoints, save_dir)
         self.n_shared_latents = n_shared_latents
-        self.activations_dataloader = activations_dataloader
 
-        self.crosscoder = crosscoder
-        self.wandb_run = wandb_run
-        self.device = device
-        self.hookpoints = hookpoints
+    def run_batch(self, batch_BMPD: t.Tensor, log: bool) -> tuple[t.Tensor, dict[str, float] | None]:
+        assert batch_BMPD.shape[1] == 2, "we only support 2 models for now"
+        assert batch_BMPD.shape[2] == 1, "we only support 1 hookpoint for now"
 
-        self.optimizer = build_optimizer(cfg.optimizer, crosscoder.parameters())
+        batch_BMD = batch_BMPD.squeeze(2).to(self.device)
 
-        self.num_steps_per_epoch = validate_num_steps_per_epoch(
-            cfg.epochs, cfg.num_steps_per_epoch, cfg.num_steps, activations_dataloader.num_batches()
-        )
+        train_res = self.crosscoder.forward_train(batch_BMD)
+        self.firing_tracker.add_batch(train_res.latents_BL)
 
-        self.total_steps = self.num_steps_per_epoch * (cfg.epochs or 1)
-        logger.info(
-            f"Total steps: {self.total_steps} (num_steps_per_epoch: {self.num_steps_per_epoch}, epochs: {cfg.epochs})"
-        )
-
-        self.lr_scheduler = (
-            build_lr_scheduler(cfg.optimizer, self.total_steps) if cfg.optimizer.type == "adam" else None
-        )
-
-        self.save_dir = Path(save_dir)
-        self.save_dir.mkdir(parents=True, exist_ok=True)
-
-        self.firing_tracker = FiringTracker(activation_size=crosscoder.n_latents, device=self.device)
-
-        self.step = 0
-        self.epoch = 0
-        self.unique_tokens_trained = 0
-
-    def train(self) -> None:
-        scaling_factors_M = self.activations_dataloader.get_norm_scaling_factors_MP()[:, 0].to(self.device)
-        epoch_iter = tqdm(range(self.cfg.epochs), desc="Epochs") if self.cfg.epochs is not None else range(1)
-        for _ in epoch_iter:
-            self._do_epoch(scaling_factors_M)
-            self.epoch += 1
-        self.wandb_run.finish()
-
-    def _do_epoch(self, scaling_factors_M: t.Tensor) -> None:
-        epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
-
-        for _ in tqdm(
-            range(self.num_steps_per_epoch),
-            desc="Epoch Train Steps",
-            total=self.num_steps_per_epoch,
-            smoothing=0.15,  # this loop is bursty because of activation harvesting
-        ):
-            self.optimizer.zero_grad()
-
-            log_dicts: list[dict[str, float]] = []
-            log = self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0
-
-            for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
-                batch_BMPD = next(epoch_dataloader_BMPD)
-                assert batch_BMPD.shape[1] == 2, "we only support 2 models for now"
-                assert batch_BMPD.shape[2] == 1, "we only support 1 hookpoint for now"
-
-                batch_BMD = batch_BMPD.squeeze(2).to(self.device)
-
-                train_res = self.crosscoder.forward_train(batch_BMD)
-                self.firing_tracker.add_batch(train_res.latents_BL)
-
-                loss, log_dict = self._loss_and_log_dict(batch_BMD, train_res, log=log)
-
-                loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
-                if log_dict is not None:
-                    log_dicts.append(log_dict)
-
-            if log_dicts:
-                batch_log_dict_avgs = {
-                    **{k: sum(v) / len(v) for k, v in dict_join(log_dicts).items()},
-                    **self._step_logs(),
-                }
-                self.wandb_run.log(batch_log_dict_avgs, step=self.step)
-
-            self._maybe_save_model(scaling_factors_M)
-
-            self._synchronise_shared_weight_grads()
-            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
-            self._lr_step()
-            self.optimizer.step()
-            if self.epoch == 0:
-                self.unique_tokens_trained += batch_BMD.shape[0]
-            self.step += 1
-
-    def _maybe_save_model(self, scaling_factors_M: t.Tensor) -> None:
-        if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
-            checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
-            self.crosscoder.with_folded_scaling_factors(scaling_factors_M, scaling_factors_M).save(checkpoint_path)
-
-            if self.cfg.upload_saves_to_wandb and not self.wandb_run.disabled:
-                artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
-                self.wandb_run.log_artifact(artifact)
+        return self._loss_and_log_dict(batch_BMD, train_res, log=log)
 
     @abstractmethod
     def _loss_and_log_dict(
@@ -173,6 +80,19 @@ class BaseDiffingTrainer(Generic[TConfig, TAct]):
         train_res: AcausalCrosscoder.ForwardResult,
         log: bool,
     ) -> tuple[t.Tensor, dict[str, float] | None]: ...
+
+    def _maybe_save_model(self, scaling_factors_MP: t.Tensor) -> None:
+        raise NotImplementedError()
+        # if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
+        #     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+        #     self.crosscoder.with_folded_scaling_factors(scaling_factors_M, scaling_factors_M).save(checkpoint_path)
+
+        #     if self.cfg.upload_saves_to_wandb and not self.wandb_run.disabled:
+        #         artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
+        #         self.wandb_run.log_artifact(artifact)
+
+    def _after_forward_passes(self):
+        self._synchronise_shared_weight_grads()
 
     def _synchronise_shared_weight_grads(self) -> None:
         assert self.crosscoder.W_dec_LXD.grad is not None

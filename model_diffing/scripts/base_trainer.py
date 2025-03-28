@@ -111,6 +111,8 @@ class BaseTrainer(Generic[TConfig, TCC]):
                 if log_dict is not None:
                     log_dicts.append(log_dict)
 
+            self._after_forward_passes()
+
             if log_dicts:
                 batch_log_dict_avgs = {
                     **{k: sum(v) / len(v) for k, v in dict_join(log_dicts).items()},
@@ -125,6 +127,8 @@ class BaseTrainer(Generic[TConfig, TCC]):
             if self.epoch == 0:
                 self.unique_tokens_trained += batch_BMPD.shape[0]
             self.step += 1
+
+    def _after_forward_passes(self): ...
 
     @abstractmethod
     def run_batch(self, batch_BMPD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]: ...
