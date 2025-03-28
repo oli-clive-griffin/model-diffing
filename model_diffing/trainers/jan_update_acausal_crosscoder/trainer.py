@@ -5,7 +5,7 @@ import torch
 from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
-from model_diffing.trainers.train_jan_update_crosscoder.config import TanHSparsityTrainConfig
+from model_diffing.trainers.jan_update_acausal_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.trainers.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
     calculate_reconstruction_loss_summed_norm_MSEs,
@@ -16,7 +16,7 @@ from model_diffing.utils import (
 )
 
 
-class JanUpdateCrosscoderTrainer(
+class JanUpdateAcausalCrosscoderTrainer(
     BaseModelHookpointAcausalTrainer[TanHSparsityTrainConfig, AnthropicSTEJumpReLUActivation]
 ):
     def _calculate_loss_and_log(

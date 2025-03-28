@@ -5,13 +5,13 @@ from model_diffing.log import logger
 from model_diffing.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
 from model_diffing.trainers.base_trainer import run_exp
 from model_diffing.trainers.llms import build_llms
-from model_diffing.trainers.train_jan_update_crosscoder.config import JanUpdateExperimentConfig
-from model_diffing.trainers.train_jan_update_crosscoder.trainer import JanUpdateCrosscoderTrainer
+from model_diffing.trainers.jan_update_acausal_crosscoder.config import JanUpdateExperimentConfig
+from model_diffing.trainers.jan_update_acausal_crosscoder.trainer import JanUpdateAcausalCrosscoderTrainer
 from model_diffing.trainers.utils import build_wandb_run
 from model_diffing.utils import get_device
 
 
-def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUpdateCrosscoderTrainer:
+def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUpdateAcausalCrosscoderTrainer:
     device = get_device()
 
     llms = build_llms(
@@ -54,7 +54,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
 
     wandb_run = build_wandb_run(cfg)
 
-    return JanUpdateCrosscoderTrainer(
+    return JanUpdateAcausalCrosscoderTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
         crosscoder=crosscoder,

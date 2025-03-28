@@ -2,7 +2,7 @@ from typing import Any
 
 from model_diffing.log import logger
 from model_diffing.trainers.config_common import BaseExperimentConfig
-from model_diffing.trainers.train_jan_update_crosscoder.config import JanUpdateCrosscoderConfig, TanHSparsityTrainConfig
+from model_diffing.trainers.jan_update_acausal_crosscoder.config import JanUpdateCrosscoderConfig, TanHSparsityTrainConfig
 
 
 class JumpReLUModelDiffingFebUpdateCrosscoderConfig(JanUpdateCrosscoderConfig):

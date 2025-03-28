@@ -6,7 +6,7 @@ from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActiva
 from model_diffing.models.crosscoder import AcausalCrosscoder
 from model_diffing.trainers.base_diffing_trainer import BaseDiffingTrainer
 from model_diffing.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
-from model_diffing.trainers.train_jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
+from model_diffing.trainers.jan_update_acausal_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
 from model_diffing.trainers.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import calculate_reconstruction_loss_summed_norm_MSEs, get_summed_decoder_norms_L
 
