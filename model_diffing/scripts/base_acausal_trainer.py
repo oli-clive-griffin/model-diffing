@@ -16,7 +16,7 @@ from model_diffing.scripts.utils import (
     create_cosine_sim_and_relative_norm_histograms,
     wandb_histogram,
 )
-from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
+from model_diffing.scripts.wandb_utils.main import create_checkpoint_artifact
 from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)

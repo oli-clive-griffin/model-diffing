@@ -13,6 +13,9 @@ def upload_experiment_checkpoint(
     step: int,
     epoch: int,
 ) -> None:
+    """
+    Utility function to upload a local checkpoint to wandb.
+    """
     artifact = create_checkpoint_artifact(model_checkpoint_path, previous_run_id, step, epoch)
 
     previous_run = wandb.init(
@@ -76,3 +79,4 @@ if __name__ == "__main__":
     # )
 
     # download_experiment_checkpoint("48rqbqcm")
+

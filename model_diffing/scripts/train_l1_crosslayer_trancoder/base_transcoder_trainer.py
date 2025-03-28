@@ -9,7 +9,7 @@ from model_diffing.scripts.config_common import BaseTrainConfig
 from model_diffing.scripts.utils import (
     wandb_histogram,
 )
-from model_diffing.scripts.wandb_scripts.main import create_checkpoint_artifact
+from model_diffing.scripts.wandb_utils.main import create_checkpoint_artifact
 from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)

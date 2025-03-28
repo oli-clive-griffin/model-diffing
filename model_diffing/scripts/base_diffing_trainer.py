@@ -14,6 +14,7 @@ from model_diffing.scripts.utils import (
     create_cosine_sim_and_relative_norm_histograms_diffing,
     wandb_histogram,
 )
+from model_diffing.scripts.wandb_utils.main import create_checkpoint_artifact
 from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
@@ -82,14 +83,13 @@ class BaseDiffingTrainer(BaseTrainer[TConfig, AcausalCrosscoder[TAct]], Generic[
     ) -> tuple[t.Tensor, dict[str, float] | None]: ...
 
     def _maybe_save_model(self, scaling_factors_MP: t.Tensor) -> None:
-        raise NotImplementedError()
-        # if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
-        #     checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
-        #     self.crosscoder.with_folded_scaling_factors(scaling_factors_M, scaling_factors_M).save(checkpoint_path)
+        if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
+            checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
+            self.crosscoder.with_folded_scaling_factors(scaling_factors_MP, scaling_factors_MP).save(checkpoint_path)
 
-        #     if self.cfg.upload_saves_to_wandb and not self.wandb_run.disabled:
-        #         artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
-        #         self.wandb_run.log_artifact(artifact)
+            if self.cfg.upload_saves_to_wandb and not self.wandb_run.disabled:
+                artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
+                self.wandb_run.log_artifact(artifact)
 
     def _after_forward_passes(self):
         self._synchronise_shared_weight_grads()

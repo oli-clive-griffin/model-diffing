@@ -14,9 +14,9 @@ from tqdm import tqdm  # type: ignore
 from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
-from model_diffing.analysis import metrics
 from model_diffing.log import logger
 from model_diffing.models.crosscoder import AcausalCrosscoder
+from model_diffing.utils import compute_relative_norms_N
 
 
 @dataclass
@@ -53,7 +53,7 @@ def get_relative_decoder_norms_L(cc: AcausalCrosscoder[Any]) -> torch.Tensor:
         case _:
             raise ValueError(f"Unexpected crosscoding dimensions: {cc_unit_normed.crosscoding_dims}")
 
-    return metrics.compute_relative_norms_N(m1_W_dec_LD, m2_W_dec_LD)
+    return compute_relative_norms_N(m1_W_dec_LD, m2_W_dec_LD)
 
 
 class LatentExaminer:
