@@ -11,9 +11,8 @@ from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
-from crosscoding.data.activations_dataloader import ModelHookpointActivationsDataloader
+from crosscoding.data.activations_dataloader import ActivationsDataloader
 from crosscoding.log import logger
-from crosscoding.models.activations.activation_function import ActivationFunction
 from crosscoding.models.base_crosscoder import BaseCrosscoder
 from crosscoding.trainers.config_common import BaseExperimentConfig, BaseTrainConfig
 from crosscoding.trainers.firing_tracker import FiringTracker
@@ -26,15 +25,15 @@ from crosscoding.trainers.utils import (
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TCC = TypeVar("TCC", bound=BaseCrosscoder[Any])
+TBatch = TypeVar("TBatch")
 
-
-class BaseTrainer(Generic[TConfig, TCC], ABC):
+class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
     LOG_HISTOGRAMS_EVERY_N_LOGS = 10
 
     def __init__(
         self,
         cfg: TConfig,
-        activations_dataloader: ModelHookpointActivationsDataloader,
+        activations_dataloader: ActivationsDataloader[TBatch],
         crosscoder: TCC,
         wandb_run: Run,
         device: torch.device,
@@ -61,8 +60,8 @@ class BaseTrainer(Generic[TConfig, TCC], ABC):
         self.unique_tokens_trained = 0
 
     def train(self) -> None:
-        scaling_factors_X = self.activations_dataloader.get_norm_scaling_factors_X().to(self.device)
-        epoch_dataloader_BXD = self.activations_dataloader.get_activations_iterator_BXD()
+        # scaling_factors_MP = self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
+        epoch_dataloader = self.activations_dataloader.get_activations_iterator()
 
         for _ in tqdm(
             range(self.cfg.num_steps),
@@ -76,8 +75,7 @@ class BaseTrainer(Generic[TConfig, TCC], ABC):
             log = self.step % self.cfg.log_every_n_steps == 0
 
             for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
-                batch_BXD = next(epoch_dataloader_BXD).to(self.device)
-                loss, log_dict = self.run_batch(batch_BXD, log)
+                loss, log_dict = self.run_batch(next(epoch_dataloader), log)
 
                 loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
                 if log_dict is not None:
@@ -92,12 +90,12 @@ class BaseTrainer(Generic[TConfig, TCC], ABC):
                 }
                 self.wandb_run.log(batch_log_dict_avgs, step=self.step)
 
-            self._maybe_save_model(scaling_factors_X)
+            self._maybe_save_model()
 
             clip_grad_norm_(self.crosscoder.parameters(), 1.0)
             self.optimizer.step()
             if self.epoch == 0:
-                self.unique_tokens_trained += batch_BXD.shape[0]
+                self.unique_tokens_trained += self.activations_dataloader.batch_size()
             self.step += 1
 
         self.wandb_run.finish()
@@ -105,10 +103,11 @@ class BaseTrainer(Generic[TConfig, TCC], ABC):
     def _after_forward_passes(self): ...
 
     @abstractmethod
-    def run_batch(self, batch_BXD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]: ...
+    def run_batch(self, batch: TBatch, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]: ...
 
     @abstractmethod
-    def _maybe_save_model(self, scaling_factors_X: torch.Tensor) -> None: ...
+    def _maybe_save_model(self) -> None: ...
+
 
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"

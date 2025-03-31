@@ -11,20 +11,23 @@ from crosscoding.models.base_crosscoder import BaseCrosscoder, TActivation
 from crosscoding.models.initialization.init_strategy import InitStrategy
 
 
-class AcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
+class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
     def __init__(
         self,
-        *,
-        crosscoding_dims: CrosscodingDimsDict | None = None,
+        n_models: int,
+        hookpoints: list[str],
         d_model: int,
         n_latents: int,
         activation_fn: TActivation,
         use_encoder_bias: bool,
         use_decoder_bias: bool,
-        init_strategy: InitStrategy["AcausalCrosscoder[TActivation]"] | None = None,
+        init_strategy: InitStrategy["ModelHookpointAcausalCrosscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):
-        crosscoding_dims = crosscoding_dims or CrosscodingDimsDict()
+        crosscoding_dims = CrosscodingDimsDict.from_dims(
+            CrosscodingDim(name="model", index_labels=[f"model_{i}" for i in range(n_models)]),
+            CrosscodingDim(name="hookpoint", index_labels=hookpoints),
+        )
         super().__init__(
             crosscoding_dims,
             d_model,
@@ -46,37 +49,38 @@ class AcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
     class ForwardResult:
         pre_activations_BL: torch.Tensor
         latents_BL: torch.Tensor
-        recon_acts_BXD: torch.Tensor
+        recon_acts_BMPD: torch.Tensor
 
-    def forward_train(self, activation_BXD: torch.Tensor) -> ForwardResult:
-        res = self._forward_train(activation_BXD)
+    def forward_train(self, activation_BMPD: torch.Tensor) -> ForwardResult:
+        res = self._forward_train(activation_BMPD)
         return self.ForwardResult(
             pre_activations_BL=res.pre_activations_BL,
             latents_BL=res.latents_BL,
-            recon_acts_BXD=res.output_BXoDo,
+            recon_acts_BMPD=res.output_BXoDo,
         )
 
-    def forward(self, activation_BXD: torch.Tensor) -> torch.Tensor:
-        return self.forward_train(activation_BXD).recon_acts_BXD
+    def forward(self, activation_BMPD: torch.Tensor) -> torch.Tensor:
+        return self.forward_train(activation_BMPD).recon_acts_BMPD
 
-    def decode_BXD(self, latents_BL: torch.Tensor) -> torch.Tensor:
+    def decode_BMPD(self, latents_BL: torch.Tensor) -> torch.Tensor:
         return self.decode_BXoDo(latents_BL)
 
     @property
-    def W_dec_LXD(self) -> torch.Tensor:
+    def W_dec_LMPD(self) -> torch.Tensor:
         return self._W_dec_LXoDo
 
     @property
-    def W_enc_XDL(self) -> torch.Tensor:
+    def W_enc_MPDL(self) -> torch.Tensor:
         return self._W_enc_XiDiL
 
     @property
-    def b_dec_XD(self) -> torch.Tensor | None:
+    def b_dec_MPD(self) -> torch.Tensor | None:
         return self._b_dec_XoDo
 
     def _dump_cfg(self) -> dict[str, Any]:
         return {
-            "crosscoding_dims": self.crosscoding_dims,
+            "n_models": len(self.crosscoding_dims["model"].index_labels),
+            "hookpoints": self.crosscoding_dims["hookpoint"].index_labels,
             "d_model": self.d_model,
             "n_latents": self.n_latents,
             "activation_fn": {
@@ -94,8 +98,9 @@ class AcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
         activation_fn_cls = ACTIVATIONS_MAP[activation["classname"]]
         activation_fn = cast(TActivation, activation_fn_cls._scaffold_from_cfg(activation["cfg"]))
 
-        return AcausalCrosscoder(
-            crosscoding_dims=cfg["crosscoding_dims"],
+        return ModelHookpointAcausalCrosscoder(
+            n_models=cfg["n_models"],
+            hookpoints=cfg["hookpoints"],
             d_model=cfg["d_model"],
             n_latents=cfg["n_latents"],
             activation_fn=activation_fn,
@@ -104,25 +109,25 @@ class AcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             dtype=cfg["dtype"],
         )
 
-    @classmethod
-    def create_as_SAE(
-        cls: type[Self],
-        d_model: int,
-        n_latents: int,
-        activation_fn: TActivation,
-        use_encoder_bias: bool,
-        use_decoder_bias: bool,
-        dtype: torch.dtype = torch.float32,
-    ) -> "AcausalCrosscoder[TActivation]":
-        return AcausalCrosscoder(
-            crosscoding_dims=CrosscodingDimsDict(),
-            d_model=d_model,
-            n_latents=n_latents,
-            activation_fn=activation_fn,
-            use_encoder_bias=use_encoder_bias,
-            use_decoder_bias=use_decoder_bias,
-            dtype=dtype,
-        )
+    # @classmethod
+    # def create_as_SAE(
+    #     cls: type[Self],
+    #     d_model: int,
+    #     n_latents: int,
+    #     activation_fn: TActivation,
+    #     use_encoder_bias: bool,
+    #     use_decoder_bias: bool,
+    #     dtype: torch.dtype = torch.float32,
+    # ) -> "ModelHookpointAcausalCrosscoder[TActivation]":
+    #     return ModelHookpointAcausalCrosscoder(
+    #         crosscoding_dims=CrosscodingDimsDict(),
+    #         d_model=d_model,
+    #         n_latents=n_latents,
+    #         activation_fn=activation_fn,
+    #         use_encoder_bias=use_encoder_bias,
+    #         use_decoder_bias=use_decoder_bias,
+    #         dtype=dtype,
+    #     )
 
 
 class Transcoder(Generic[TActivation], BaseCrosscoder[TActivation]):

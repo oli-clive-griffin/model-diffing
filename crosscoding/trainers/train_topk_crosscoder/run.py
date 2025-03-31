@@ -4,7 +4,7 @@ from crosscoding.data.activations_dataloader import build_model_hookpoint_datalo
 from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.llms import build_llms
 from crosscoding.log import logger
-from crosscoding.models import AcausalCrosscoder, AnthropicTransposeInit, TopkActivation
+from crosscoding.models import ModelHookpointAcausalCrosscoder, AnthropicTransposeInit, TopkActivation
 from crosscoding.models.activations.topk import BatchTopkActivation, GroupMaxActivation
 from crosscoding.trainers.base_trainer import run_exp
 from crosscoding.trainers.train_topk_crosscoder.config import TopKExperimentConfig
@@ -39,7 +39,7 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
             ("hookpoint", CrosscodingDim(name="hookpoint", index_labels=cfg.hookpoints)),
         ]
     )
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=crosscoding_dims,
         d_model=d_model,
         n_latents=cfg.crosscoder.n_latents,

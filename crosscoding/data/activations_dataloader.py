@@ -1,5 +1,8 @@
 import os
+from abc import ABC, abstractmethod
 from collections.abc import Iterator
+from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 import torch
 from einops import rearrange
@@ -14,8 +17,29 @@ from crosscoding.trainers.config_common import DataConfig
 from crosscoding.trainers.utils import estimate_norm_scaling_factor_X
 from crosscoding.utils import change_batch_size_BX
 
+TBatch = TypeVar("TBatch")
 
-class ModelHookpointActivationsDataloader:
+
+class ActivationsDataloader(Generic[TBatch], ABC):
+    @abstractmethod
+    def get_activations_iterator(self) -> Iterator[TBatch]: ...
+
+    @abstractmethod
+    def get_scaling_factors(self) -> torch.Tensor: ...
+
+    @abstractmethod
+    def get_crosscoding_dims(self) -> CrosscodingDimsDict: ...
+
+    @abstractmethod
+    def batch_size(self) -> int: ...
+
+
+@dataclass
+class ModelHookpointActivationsBatch:
+    activations_BMPD: torch.Tensor
+
+
+class ModelHookpointActivationsDataloader(ActivationsDataloader[ModelHookpointActivationsBatch]):
     def __init__(
         self,
         token_sequence_loader: TokenSequenceLoader,
@@ -35,16 +59,16 @@ class ModelHookpointActivationsDataloader:
         self._norm_scaling_factors_MP = norm_scaling_factors_MP
         self._iterator = self._activations_iterator_BMPD(norm_scaling_factors_MP)
 
-    def get_activations_iterator_BXD(self) -> Iterator[torch.Tensor]:
-        return self._iterator
+    def get_activations_iterator(self) -> Iterator[ModelHookpointActivationsBatch]:
+        return (ModelHookpointActivationsBatch(batch) for batch in self._iterator)
 
-    def get_norm_scaling_factors_X(self) -> torch.Tensor:
+    def get_norm_scaling_factors(self) -> torch.Tensor:
         return self._norm_scaling_factors_MP
 
     def get_crosscoding_dims(self) -> CrosscodingDimsDict:
         return CrosscodingDimsDict.from_dims(
             CrosscodingDim(name="model", index_labels=list(map(str, range(self._activations_harvester.num_models)))),
-            CrosscodingDim(name="hookpoint", index_labels=list(map(str, range(self._activations_harvester.num_hookpoints)))),
+            CrosscodingDim(name="hookpoint", index_labels=self._activations_harvester._hookpoints),
         )
 
     def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:

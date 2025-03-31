@@ -4,7 +4,7 @@ from crosscoding.data.activations_dataloader import build_model_hookpoint_datalo
 from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.llms import build_llms
 from crosscoding.log import logger
-from crosscoding.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
+from crosscoding.models import ModelHookpointAcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
 from crosscoding.trainers.base_diffing_trainer import IdenticalLatentsInit
 from crosscoding.trainers.base_trainer import run_exp
 from crosscoding.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
@@ -42,7 +42,7 @@ def build_feb_update_crosscoder_trainer(
         ]
     )
 
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=crosscoding_dims,
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,

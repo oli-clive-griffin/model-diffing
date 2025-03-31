@@ -3,8 +3,8 @@ from typing import Any
 import torch
 
 from crosscoding.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscoding.models.sparse_coders import AcausalCrosscoder
-from crosscoding.trainers.base_acausal_trainer import BaseAcausalTrainer
+from crosscoding.models.sparse_coders import ModelHookpointAcausalCrosscoder
+from crosscoding.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
 from crosscoding.trainers.jan_update_acausal_crosscoder.config import TanHSparsityTrainConfig
 from crosscoding.trainers.utils import get_l0_stats, wandb_histogram
 from crosscoding.utils import (
@@ -16,15 +16,17 @@ from crosscoding.utils import (
 )
 
 
-class JanUpdateAcausalCrosscoderTrainer(BaseAcausalTrainer[TanHSparsityTrainConfig, AnthropicSTEJumpReLUActivation]):
+class JanUpdateModelHookpointAcausalCrosscoderTrainer(
+    BaseModelHookpointAcausalTrainer[TanHSparsityTrainConfig, AnthropicSTEJumpReLUActivation]
+):
     def _calculate_loss_and_log(
         self,
-        batch_BXD: torch.Tensor,
-        train_res: AcausalCrosscoder.ForwardResult,
+        batch_BMPD: torch.Tensor,
+        train_res: ModelHookpointAcausalCrosscoder.ForwardResult,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
-        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BXD, train_res.recon_acts_BXD)
-        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LXD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BMPD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LMPD)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.latents_BL, decoder_norms_L)
         pre_act_loss = self._pre_act_loss(train_res.latents_BL, decoder_norms_L)
 
@@ -40,7 +42,7 @@ class JanUpdateAcausalCrosscoderTrainer(BaseAcausalTrainer[TanHSparsityTrainConf
                 "train/tanh_sparsity_loss": tanh_sparsity_loss.item(),
                 "train/pre_act_loss": pre_act_loss.item(),
                 "train/loss": loss.item(),
-                **self._get_fvu_dict(batch_BXD, train_res.recon_acts_BXD),
+                **self._get_fvu_dict(batch_BMPD, train_res.recon_acts_BMPD),
                 **get_l0_stats(train_res.latents_BL),
             }
 

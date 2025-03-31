@@ -4,7 +4,7 @@
 #     TokenSequenceLoader,
 # )
 # from crosscoding.llms import build_llms
-# from crosscoding.models import AcausalCrosscoder, ReLUActivation
+# from crosscoding.models import ModelHookpointAcausalCrosscoder, ReLUActivation
 # from crosscoding.trainers.config_common import (
 #     ActivationsHarvesterConfig,
 #     DataConfig,
@@ -13,7 +13,7 @@
 # )
 # from crosscoding.trainers.train_l1_crosscoder.trainer import L1CrosscoderTrainer
 
-# sae = AcausalCrosscoder(
+# sae = ModelHookpointAcausalCrosscoder(
 #     d_model=1024,
 #     n_latents=16_384,
 #     activation_fn=ReLUActivation(),

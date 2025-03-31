@@ -5,7 +5,7 @@ from typing import Generic, TypeVar
 import torch
 from wandb.sdk.wandb_run import Run
 
-from crosscoding.data.activations_dataloader import ModelHookpointActivationsDataloader
+from crosscoding.data.activations_dataloader import ModelHookpointActivationsBatch, ModelHookpointActivationsDataloader
 from crosscoding.dims import CrosscodingDim
 from crosscoding.models.activations.activation_function import ActivationFunction
 from crosscoding.models.sparse_coders import CrossLayerTranscoder
@@ -18,7 +18,10 @@ TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
-class BaseCrossLayerTranscoderTrainer(Generic[TConfig, TAct], BaseTrainer[TConfig, CrossLayerTranscoder[TAct]]):
+class BaseCrossLayerTranscoderTrainer(
+    Generic[TConfig, TAct],
+    BaseTrainer[TConfig, CrossLayerTranscoder[TAct], ModelHookpointActivationsBatch],
+):
     def __init__(
         self,
         cfg: TConfig,
@@ -37,8 +40,10 @@ class BaseCrossLayerTranscoderTrainer(Generic[TConfig, TAct], BaseTrainer[TConfi
         assert len(dl_cc_dims["model"]) == 1
         assert len(dl_cc_dims["hookpoint"]) == len(self.out_layers_dim) + 1
 
-    def run_batch(self, batch_BXD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]:
-        batch_BMPD = batch_BXD
+    def run_batch(
+        self, batch: ModelHookpointActivationsBatch, log: bool
+    ) -> tuple[torch.Tensor, dict[str, float] | None]:
+        batch_BMPD = batch.activations_BMPD
         assert batch_BMPD.shape[1] == 1, "we must have one model"
         assert batch_BMPD.shape[2] == len(self.out_layers_dim) + 1, "we must have one more hookpoint than out layers"
         in_BD = batch_BMPD[:, 0, 0]
@@ -65,13 +70,19 @@ class BaseCrossLayerTranscoderTrainer(Generic[TConfig, TAct], BaseTrainer[TConfi
             ("hookpoint", self.out_layers_dim.index_labels),
         )
 
-    def _maybe_save_model(self, scaling_factors_X: torch.Tensor) -> None:
+    def _maybe_save_model(self) -> None:
         if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
             checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
 
-            self.crosscoder.with_folded_scaling_factors(scaling_factors_X[:, 0], scaling_factors_X[:, 1:]).save(
+            # We know this is (model, hookpoint) because it's a ModelHookpointActivationsDataloader
+            scaling_factors_MP = self.activations_dataloader.get_scaling_factors()
+            assert scaling_factors_MP.shape[1] == 2, "expected the scaling factors to have one model only"
+            scaling_factor_in_ = scaling_factors_MP[0, 0]  # shape ()
+            scaling_factors_out_P = scaling_factors_MP[0, 1:]  # shape (P,)
+            self.crosscoder.with_folded_scaling_factors(scaling_factor_in_, scaling_factors_out_P).save(
                 checkpoint_path
             )
+
             if self.cfg.upload_saves_to_wandb:
                 artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)
                 self.wandb_run.log_artifact(artifact)

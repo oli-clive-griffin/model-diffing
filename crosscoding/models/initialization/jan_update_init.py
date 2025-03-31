@@ -8,11 +8,11 @@ from tqdm import tqdm  # type: ignore
 from crosscoding.log import logger
 from crosscoding.models.activations import AnthropicSTEJumpReLUActivation
 from crosscoding.models.initialization.init_strategy import InitStrategy
-from crosscoding.models.sparse_coders import AcausalCrosscoder
+from crosscoding.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscoding.utils import ceil_div, inspect, round_up
 
 
-class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicSTEJumpReLUActivation]]):
+class DataDependentJumpReLUInitStrategy(InitStrategy[ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation]]):
     """
     Base class for the data-dependent JumpReLU initialization strategy described in:
         https://transformer-circuits.pub/2025/january-update/index.html.
@@ -41,7 +41,7 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
         self.initial_approx_firing_pct = initial_approx_firing_pct
 
     @torch.no_grad()
-    def init_weights(self, cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation]) -> None:
+    def init_weights(self, cc: ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation]) -> None:
         n = prod(cc.crosscoding_dims) * cc.d_model
         m = cc.n_latents
 
@@ -58,7 +58,7 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
             cc.b_dec_XD.zero_()
 
     def _get_calibrated_b_enc_L(
-        self, cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation], hidden_activation: AnthropicSTEJumpReLUActivation
+        self, cc: ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation], hidden_activation: AnthropicSTEJumpReLUActivation
     ) -> torch.Tensor:
         return compute_b_enc_L(
             cc,
@@ -70,7 +70,7 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
 
 
 def compute_b_enc_L(
-    cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation],
+    cc: ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation],
     activations_iterator_BXD: Iterator[torch.Tensor],
     initial_jumprelu_threshold_L: torch.Tensor,
     initial_approx_firing_pct: float,
@@ -95,7 +95,7 @@ def compute_b_enc_L(
 
 
 def harvest_pre_bias_NL(
-    cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation],
+    cc: ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation],
     activations_iterator_BXD: Iterator[torch.Tensor],
     n_tokens_for_threshold_setting: int,
 ) -> torch.Tensor:

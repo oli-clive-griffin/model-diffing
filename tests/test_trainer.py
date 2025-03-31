@@ -7,20 +7,20 @@ import wandb
 from torch import Tensor
 
 from crosscoding.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
-from crosscoding.models import AcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
-from crosscoding.trainers.base_acausal_trainer import BaseAcausalTrainer
+from crosscoding.models import ModelHookpointAcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
+from crosscoding.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
 from crosscoding.trainers.config_common import AdamConfig, BaseTrainConfig
 from crosscoding.trainers.train_topk_crosscoder.trainer import aux_loss, topk_dead_latents
 from crosscoding.utils import get_device, l2_norm, not_none
 
 
-class TestTrainer(BaseAcausalTrainer[BaseTrainConfig, Any]):
+class TestTrainer(BaseModelHookpointAcausalTrainer[BaseTrainConfig, Any]):
     __test__ = False
 
     def _calculate_loss_and_log(
         self,
         batch_BMPD: torch.Tensor,
-        train_res: AcausalCrosscoder.ForwardResult,
+        train_res: ModelHookpointAcausalCrosscoder.ForwardResult,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         return torch.tensor(0.0), None

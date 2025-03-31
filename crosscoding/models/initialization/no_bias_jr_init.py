@@ -7,11 +7,11 @@ from crosscoding.log import logger
 from crosscoding.models.activations import AnthropicSTEJumpReLUActivation
 from crosscoding.models.initialization.init_strategy import InitStrategy
 from crosscoding.models.initialization.jan_update_init import get_quantile_L, harvest_pre_bias_NL
-from crosscoding.models.sparse_coders import AcausalCrosscoder
+from crosscoding.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscoding.utils import random_direction_init_
 
 
-class NoEncoderBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[AnthropicSTEJumpReLUActivation]]):
+class NoEncoderBiasJumpReLUInitStrategy(InitStrategy[ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation]]):
     def __init__(
         self,
         dec_init_norm: float,
@@ -38,7 +38,7 @@ class NoEncoderBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
         self.dec_init_norm = dec_init_norm
 
     @torch.no_grad()
-    def init_weights(self, cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation]) -> None:
+    def init_weights(self, cc: ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation]) -> None:
         # W
         random_direction_init_(cc.W_dec_LXD, self.dec_init_norm)
         cc.W_enc_XDL.copy_(rearrange(cc.W_dec_LXD.clone(), "l ... -> ... l"))
@@ -64,7 +64,7 @@ class NoEncoderBiasJumpReLUInitStrategy(InitStrategy[AcausalCrosscoder[Anthropic
 
 
 def compute_jumprelu_threshold_L(
-    cc: AcausalCrosscoder[AnthropicSTEJumpReLUActivation],
+    cc: ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation],
     activations_iterator_BXD: Iterator[torch.Tensor],
     initial_approx_firing_pct: float,
     n_tokens_for_threshold_setting: int,

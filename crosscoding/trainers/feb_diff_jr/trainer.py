@@ -3,7 +3,7 @@ from typing import Any
 import torch
 
 from crosscoding.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscoding.models.sparse_coders import AcausalCrosscoder
+from crosscoding.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscoding.trainers.base_diffing_trainer import BaseDiffingTrainer
 from crosscoding.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from crosscoding.trainers.jan_update_acausal_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
@@ -24,7 +24,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
     def _calculate_loss_and_log(
         self,
         batch_BXD: torch.Tensor,
-        train_res: AcausalCrosscoder.ForwardResult,
+        train_res: ModelHookpointAcausalCrosscoder.ForwardResult,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BXD, train_res.recon_acts_BXD)

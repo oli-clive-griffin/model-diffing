@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscoding.log import logger
-from crosscoding.models.sparse_coders import AcausalCrosscoder
+from crosscoding.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscoding.utils import compute_relative_norms_N
 
 
@@ -39,17 +38,17 @@ class LatentSummary:
     density: float
 
 
-def get_relative_decoder_norms_L(cc: AcausalCrosscoder[Any]) -> torch.Tensor:
+def get_relative_decoder_norms_L(cc: ModelHookpointAcausalCrosscoder[Any]) -> torch.Tensor:
     """
     returns a dict mapping latent indices to the relative decoder norm of the corresponding latent
     """
     cc_unit_normed = cc.with_decoder_unit_norm()
 
-    match cc_unit_normed.W_dec_LXD.shape:
+    match cc_unit_normed.W_dec_LMPD.shape:
         case (_, 2, 1, _):
-            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LXD[:, :, 0].unbind(dim=1)
+            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LMPD[:, :, 0].unbind(dim=1)
         case (_, 2, _):
-            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LXD.unbind(dim=1)
+            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LMPD.unbind(dim=1)
         case _:
             raise ValueError(f"Unexpected crosscoding dimensions: {cc_unit_normed.crosscoding_dims}")
 
@@ -59,7 +58,7 @@ def get_relative_decoder_norms_L(cc: AcausalCrosscoder[Any]) -> torch.Tensor:
 class LatentExaminer:
     def __init__(
         self,
-        cc: AcausalCrosscoder[Any],
+        cc: ModelHookpointAcausalCrosscoder[Any],
         activations_with_text_iter: Iterator[ActivationsWithText],
     ):
         self.cc_unit_normed = cc.with_decoder_unit_norm()

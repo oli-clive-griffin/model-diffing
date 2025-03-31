@@ -3,7 +3,7 @@ from typing import Any
 import torch
 
 from crosscoding.models import (
-    AcausalCrosscoder,
+    ModelHookpointAcausalCrosscoder,
     AnthropicTransposeInit,
     BatchTopkActivation,
     InitStrategy,
@@ -20,7 +20,7 @@ def test_return_shapes():
     n_latents = 256
     dec_init_norm = 1
 
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         n_latents=n_latents,
@@ -54,7 +54,7 @@ def test_weights_folding_keeps_hidden_representations_consistent():
     n_latents = 16
     dec_init_norm = 1
 
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         n_latents=n_latents,
@@ -104,7 +104,7 @@ def test_weights_folding_scales_output_correctly():
     n_latents = 6
     dec_init_norm = 0.1
 
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         n_latents=n_latents,
@@ -130,9 +130,9 @@ def test_weights_folding_scales_output_correctly():
     assert_close(scaled_output_BMPD, unscaled_output_folded_BMPD * scaling_factors_MP1)
 
 
-class RandomInit(InitStrategy[AcausalCrosscoder[Any]]):
+class RandomInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]]):
     @torch.no_grad()
-    def init_weights(self, cc: AcausalCrosscoder[Any]) -> None:
+    def init_weights(self, cc: ModelHookpointAcausalCrosscoder[Any]) -> None:
         cc.W_enc_XDL.normal_()
         if cc.b_enc_L is not None:
             cc.b_enc_L.zero_()
@@ -149,7 +149,7 @@ def test_weights_rescaling_retains_output():
     d_model = 4
     n_latents = 8
 
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         n_latents=n_latents,
@@ -175,7 +175,7 @@ def test_weights_rescaling_max_norm():
     d_model = 4
     n_latents = 8
 
-    cc = AcausalCrosscoder(
+    cc = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=(n_models, n_hookpoints),
         d_model=d_model,
         n_latents=n_latents,

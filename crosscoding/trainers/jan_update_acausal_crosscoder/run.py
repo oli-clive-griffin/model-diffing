@@ -5,15 +5,15 @@ from crosscoding.data.activations_dataloader import build_model_hookpoint_datalo
 from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.llms import build_llms
 from crosscoding.log import logger
-from crosscoding.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
+from crosscoding.models import ModelHookpointAcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
 from crosscoding.trainers.base_trainer import run_exp
 from crosscoding.trainers.jan_update_acausal_crosscoder.config import JanUpdateExperimentConfig
-from crosscoding.trainers.jan_update_acausal_crosscoder.trainer import JanUpdateAcausalCrosscoderTrainer
+from crosscoding.trainers.jan_update_acausal_crosscoder.trainer import JanUpdateModelHookpointAcausalCrosscoderTrainer
 from crosscoding.trainers.utils import build_wandb_run
 from crosscoding.utils import get_device
 
 
-def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUpdateAcausalCrosscoderTrainer:
+def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUpdateModelHookpointAcausalCrosscoderTrainer:
     device = get_device()
 
     llms = build_llms(
@@ -38,7 +38,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         ]
     )
 
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=crosscoding_dims,
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
@@ -61,7 +61,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
 
     wandb_run = build_wandb_run(cfg)
 
-    return JanUpdateAcausalCrosscoderTrainer(
+    return JanUpdateModelHookpointAcausalCrosscoderTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
         crosscoder=crosscoder,

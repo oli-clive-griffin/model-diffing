@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Generic, Self, TypeVar
 
@@ -9,6 +8,7 @@ from torch import nn
 
 from crosscoding.dims import CrosscodingDimsDict
 from crosscoding.models.activations import ActivationFunction
+from crosscoding.models.initialization.init_strategy import InitStrategy
 from crosscoding.saveable_module import SaveableModule
 from crosscoding.utils import l2_norm
 

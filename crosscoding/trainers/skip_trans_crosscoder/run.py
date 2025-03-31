@@ -2,7 +2,7 @@
 
 # from model_diffing.data.model_hookpoint_dataloader import build_dataloader
 # from model_diffing.log import logger
-# from model_diffing.models.crosscoder import AcausalCrosscoder
+# from model_diffing.models.crosscoder import ModelHookpointAcausalCrosscoder
 # from model_diffing.models.activations.topk import TopkActivation
 # from model_diffing.scripts.base_trainer import run_exp
 # from model_diffing.scripts.llms import build_llms
@@ -48,7 +48,7 @@
 #     hookpoints_in_out = len(hookpoints) // 2
 #     crosscoding_dims = (len(llms), hookpoints_in_out)
 
-#     crosscoder = AcausalCrosscoder(
+#     crosscoder = ModelHookpointAcausalCrosscoder(
 #         crosscoding_dims=crosscoding_dims,
 #         d_model=llms[0].cfg.d_mlp,
 #         n_latents=cfg.crosscoder.n_latents,

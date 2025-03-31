@@ -5,7 +5,7 @@ from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.llms import build_llms
 from crosscoding.log import logger
 from crosscoding.models import AnthropicTransposeInit, ReLUActivation
-from crosscoding.models.sparse_coders import AcausalCrosscoder
+from crosscoding.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscoding.trainers.base_trainer import run_exp
 from crosscoding.trainers.train_l1_crosscoder.config import L1ExperimentConfig
 from crosscoding.trainers.train_l1_crosscoder.trainer import L1CrosscoderTrainer
@@ -36,7 +36,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         CrosscodingDim(name="hookpoint", index_labels=cfg.hookpoints),
     )
 
-    crosscoder = AcausalCrosscoder(
+    crosscoder = ModelHookpointAcausalCrosscoder(
         crosscoding_dims=crosscoding_dims,
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
