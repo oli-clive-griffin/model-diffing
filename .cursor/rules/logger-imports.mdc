@@ -1,6 +1,0 @@
----
-description: where to import "logger" from
-globs: *.py
-alwaysApply: false
----
-when importing `logger`, import it from [log.py](mdc:model_diffing/log.py) "from model_diffing.log import logger"
