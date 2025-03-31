@@ -23,27 +23,6 @@ Dimensions:
 """
 
 
-@dataclass
-class CrosscodingDim:
-    name: str
-    index_labels: list[str]
-
-    def __len__(self) -> int:
-        return len(self.index_labels)
-
-
-class CrosscodingDimsDict(OrderedDict[str, CrosscodingDim]):
-    def index(self, dim_name: str) -> int:
-        return list(self.keys()).index(dim_name)
-
-    def sizes(self) -> tuple[int, ...]:
-        return tuple(len(dim) for dim in self.values())
-
-    @classmethod
-    def from_dims(cls, *dims: CrosscodingDim) -> "CrosscodingDimsDict":
-        return cls(OrderedDict((dim.name, dim) for dim in dims))
-
-
 TActivation = TypeVar("TActivation", bound=ActivationFunction)
 
 
@@ -54,9 +33,9 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
 
     def __init__(
         self,
-        in_crosscoding_dims: CrosscodingDimsDict,
+        in_crosscoding_dims: tuple[int, ...],
         d_in: int,
-        out_crosscoding_dims: CrosscodingDimsDict,
+        out_crosscoding_dims: tuple[int, ...],
         d_out: int,
         n_latents: int,
         activation_fn: TActivation,
@@ -66,32 +45,27 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
         dtype: torch.dtype = torch.float32,
     ):
         super().__init__()
+        self._in_crosscoding_dims = in_crosscoding_dims
+        self._out_crosscoding_dims = out_crosscoding_dims
         self._n_latents = n_latents
         self._activation_fn = activation_fn
         self._dtype = dtype
 
-        self._in_crosscoding_dims = in_crosscoding_dims
-        self._out_crosscoding_dims = out_crosscoding_dims
-
-        self._W_enc_XiDiL = nn.Parameter(torch.empty((*in_crosscoding_dims.sizes(), d_in, n_latents), dtype=dtype))
-        self._W_dec_LXoDo = nn.Parameter(torch.empty((n_latents, *out_crosscoding_dims.sizes(), d_out), dtype=dtype))
+        self._W_enc_XiDiL = nn.Parameter(torch.empty((*in_crosscoding_dims, d_in, n_latents), dtype=dtype))
+        self._W_dec_LXoDo = nn.Parameter(torch.empty((n_latents, *out_crosscoding_dims, d_out), dtype=dtype))
 
         # public because no implementations rename it
         self.b_enc_L = nn.Parameter(torch.empty((n_latents,), dtype=dtype)) if use_encoder_bias else None
         self._b_dec_XoDo = (
-            nn.Parameter(torch.empty((*out_crosscoding_dims.sizes(), d_out), dtype=dtype)) if use_decoder_bias else None
+            nn.Parameter(torch.empty((*out_crosscoding_dims, d_out), dtype=dtype)) if use_decoder_bias else None
         )
 
         if init_strategy is not None:
             init_strategy.init_weights(self)
 
         # Initialize buffers with a tensors of the correct shapes, this means it's always serialized
-        self.register_buffer(
-            "folded_scaling_factors_in_Xi", torch.zeros(self._in_crosscoding_dims.sizes(), dtype=dtype)
-        )
-        self.register_buffer(
-            "folded_scaling_factors_out_Xo", torch.zeros(self._out_crosscoding_dims.sizes(), dtype=dtype)
-        )
+        self.register_buffer("folded_scaling_factors_in_Xi", torch.zeros(self._in_crosscoding_dims, dtype=dtype))
+        self.register_buffer("folded_scaling_factors_out_Xo", torch.zeros(self._out_crosscoding_dims, dtype=dtype))
         # We also track whether it's actually holding a meaningful value by using this boolean flag.
         # Represented as a tensor so that it's serialized by torch.save
         self.register_buffer("is_folded", torch.tensor(False, dtype=torch.bool))
@@ -103,10 +77,6 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
     @property
     def activation_fn(self) -> TActivation:
         return self._activation_fn
-
-    @property
-    def dtype(self) -> torch.dtype:
-        return self._dtype
 
     @property
     def device(self) -> torch.device:
@@ -132,7 +102,7 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
         activation_BXiDi: torch.Tensor,
     ) -> _ForwardResult:
         """returns the activations, the latents, and the reconstructed activations"""
-        assert activation_BXiDi.shape[1:-1] == self._in_crosscoding_dims.sizes()
+        assert activation_BXiDi.shape[1:-1] == self._in_crosscoding_dims
 
         pre_activations_BL = self.get_pre_bias_BL(activation_BXiDi)
 
@@ -143,7 +113,7 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
 
         output_BXoDo = self.decode_BXoDo(latents_BL)
 
-        assert output_BXoDo.shape[1:-1] == self._out_crosscoding_dims.sizes()
+        assert output_BXoDo.shape[1:-1] == self._out_crosscoding_dims
 
         return self._ForwardResult(
             pre_activations_BL=pre_activations_BL,

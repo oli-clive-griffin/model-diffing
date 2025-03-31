@@ -5,7 +5,6 @@ import torch
 from einops import einsum
 from torch import nn
 
-from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.models.activations import ACTIVATIONS_MAP
 from crosscoding.models.base_crosscoder import BaseCrosscoder, TActivation
 from crosscoding.models.initialization.init_strategy import InitStrategy
@@ -24,10 +23,8 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
         init_strategy: InitStrategy["ModelHookpointAcausalCrosscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):
-        crosscoding_dims = CrosscodingDimsDict.from_dims(
-            CrosscodingDim(name="model", index_labels=[f"model_{i}" for i in range(n_models)]),
-            CrosscodingDim(name="hookpoint", index_labels=hookpoints),
-        )
+        crosscoding_dims = (n_models, len(hookpoints))
+
         super().__init__(
             crosscoding_dims,
             d_model,
@@ -84,8 +81,8 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
 
     def _dump_cfg(self) -> dict[str, Any]:
         return {
-            "n_models": len(self._crosscoding_dims["model"].index_labels),
-            "hookpoints": self._crosscoding_dims["hookpoint"].index_labels,
+            "n_models": self.n_models,
+            "hookpoints": self.hookpoints,
             "d_model": self.d_model,
             "n_latents": self.n_latents,
             "activation_fn": {
@@ -94,7 +91,7 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
             },
             "use_encoder_bias": self.b_enc_L is not None,
             "use_decoder_bias": self._b_dec_XoDo is not None,
-            "dtype": self.dtype,
+            "dtype": self._dtype,
         }
 
     @classmethod
@@ -133,9 +130,9 @@ class Transcoder(Generic[TActivation], BaseCrosscoder[TActivation]):
         dtype: torch.dtype = torch.float32,
     ):
         super().__init__(
-            in_crosscoding_dims=CrosscodingDimsDict(),
+            in_crosscoding_dims=(),
             d_in=d_model,
-            out_crosscoding_dims=CrosscodingDimsDict(),
+            out_crosscoding_dims=(),
             d_out=d_model,
             n_latents=n_latents,
             activation_fn=activation_fn,
@@ -197,7 +194,7 @@ class Transcoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             },
             "use_encoder_bias": self.b_enc_L is not None,
             "use_decoder_bias": self._b_dec_XoDo is not None,
-            "dtype": self.dtype,
+            "dtype": self._dtype,
         }
 
     @classmethod
@@ -225,7 +222,7 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
     def __init__(
         self,
         d_model: int,
-        out_layers_names: list[str],
+        n_layers_out: int,
         n_latents: int,
         activation_fn: TActivation,
         use_encoder_bias: bool,
@@ -233,11 +230,10 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
         init_strategy: InitStrategy["CrossLayerTranscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):
-        out_layers_dim = CrosscodingDim(name="out_layer", index_labels=out_layers_names)
         super().__init__(
-            in_crosscoding_dims=CrosscodingDimsDict(),
+            in_crosscoding_dims=(),
             d_in=d_model,
-            out_crosscoding_dims=CrosscodingDimsDict.from_dims(out_layers_dim),
+            out_crosscoding_dims=(n_layers_out,),
             d_out=d_model,
             n_latents=n_latents,
             activation_fn=activation_fn,
@@ -246,10 +242,8 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             init_strategy=None,
             dtype=dtype,
         )
-
         self.d_model = d_model
-        self.out_layers_dim = out_layers_dim
-
+        self.n_layers_out = n_layers_out
         if init_strategy is not None:
             init_strategy.init_weights(self)
 
@@ -261,7 +255,7 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
 
     def forward_train(self, activation_BD: torch.Tensor) -> ForwardResult:
         res = self._forward_train(activation_BD)
-        assert res.output_BXoDo.shape[1:-1] == self._out_crosscoding_dims.sizes()
+        assert res.output_BXoDo.shape[1:-1] == (self.n_layers_out,)
         return self.ForwardResult(
             pre_activations_BL=res.pre_activations_BL,
             latents_BL=res.latents_BL,
@@ -286,7 +280,7 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
     def _dump_cfg(self) -> dict[str, Any]:
         return {
             "d_model": self.d_model,
-            "out_layers_names": self._out_crosscoding_dims["out_layer"].index_labels,
+            "n_layers_out": self.n_layers_out,
             "n_latents": self.n_latents,
             "activation_fn": {
                 "classname": self.activation_fn.__class__.__name__,
@@ -294,7 +288,7 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             },
             "use_encoder_bias": self.b_enc_L is not None,
             "use_decoder_bias": self._b_dec_XoDo is not None,
-            "dtype": self.dtype,
+            "dtype": self._dtype,
         }
 
     @classmethod
@@ -305,7 +299,7 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
 
         return CrossLayerTranscoder(
             d_model=cfg["d_model"],
-            out_layers_names=cfg["out_layers_names"],
+            n_layers_out=cfg["n_layers_out"],
             n_latents=cfg["n_latents"],
             activation_fn=activation_fn,
             use_encoder_bias=cfg["use_encoder_bias"],
