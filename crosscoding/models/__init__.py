@@ -10,9 +10,10 @@ from .initialization.anthropic_transpose import AnthropicTransposeInit
 from .initialization.init_strategy import InitStrategy
 from .initialization.jan_update_init import DataDependentJumpReLUInitStrategy
 from .sparse_coders import (
+    CompoundCrossLayerTranscoder,
     CrossLayerTranscoder,
     ModelHookpointAcausalCrosscoder,
-    Transcoder,
+    SAEOrTranscoder,
 )
 
 __all__ = [
@@ -20,7 +21,8 @@ __all__ = [
     "ACTIVATIONS_MAP",
     "ModelHookpointAcausalCrosscoder",
     "CrossLayerTranscoder",
-    "Transcoder",
+    "CompoundCrossLayerTranscoder",
+    "SAEOrTranscoder",
     "AnthropicSTEJumpReLUActivation",
     "AnthropicTransposeInit",
     "BatchTopkActivation",

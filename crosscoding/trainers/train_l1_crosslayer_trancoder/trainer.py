@@ -15,10 +15,10 @@ class L1CrossLayerTranscoderTrainer(BaseCrossLayerTranscoderTrainer[L1TrainConfi
     def _calculate_loss_and_log(
         self,
         train_res: CrossLayerTranscoder.ForwardResult,
-        out_BPD: torch.Tensor,
+        target_BPD: torch.Tensor,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
-        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(train_res.output_BPD, out_BPD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(train_res.output_BPD, target_BPD)
 
         sparsity_loss = sparsity_loss_l1_of_l2s(self.crosscoder.W_dec_LPD, train_res.latents_BL)
 
@@ -29,7 +29,7 @@ class L1CrossLayerTranscoderTrainer(BaseCrossLayerTranscoderTrainer[L1TrainConfi
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/sparsity_loss": sparsity_loss.item(),
                 "train/loss": loss.item(),
-                **self._get_fvu_dict(out_BPD, train_res.output_BPD),
+                **self._get_fvu_dict(target_BPD, train_res.output_BPD),
                 **get_l0_stats(train_res.latents_BL),
             }
 
@@ -48,3 +48,4 @@ class L1CrossLayerTranscoderTrainer(BaseCrossLayerTranscoderTrainer[L1TrainConfi
             return self.cfg.final_lambda_s * self.step / self.cfg.lambda_s_n_steps
         else:
             return self.cfg.final_lambda_s
+            

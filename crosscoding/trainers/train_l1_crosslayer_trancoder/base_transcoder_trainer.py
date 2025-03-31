@@ -46,20 +46,20 @@ class BaseCrossLayerTranscoderTrainer(
         assert batch_BMPD.shape[2] == len(self.out_layers_names) + 1, "we must have one more hookpoint than out layers"
 
         in_BD = batch_BMPD[:, 0, 0]
-        out_BPD = batch_BMPD[:, 0, 1:]
+        target_BPD = batch_BMPD[:, 0, 1:]
 
         train_res = self.crosscoder.forward_train(in_BD)
 
         self.firing_tracker.add_batch(train_res.latents_BL)
 
-        loss, log_dict = self._calculate_loss_and_log(train_res, out_BPD, log=log)
+        loss, log_dict = self._calculate_loss_and_log(train_res, target_BPD, log=log)
         return loss, log_dict, batch_BMPD.shape[0]
 
     @abstractmethod
     def _calculate_loss_and_log(
         self,
         train_res: CrossLayerTranscoder.ForwardResult,
-        out_BPD: torch.Tensor,
+        target_BPD: torch.Tensor,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]: ...
 
