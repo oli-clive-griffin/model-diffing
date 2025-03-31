@@ -1,11 +1,12 @@
 import fire  # type: ignore
 
-from crosscoding.data.model_hookpoint_dataloader import build_model_hookpoint_dataloader
+from crosscoding.data.activations_dataloader import build_model_hookpoint_dataloader
+from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
+from crosscoding.llms import build_llms
 from crosscoding.log import logger
 from crosscoding.models import AnthropicTransposeInit, ReLUActivation
-from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.trainers.base_trainer import run_exp
-from crosscoding.trainers.llms import build_llms
 from crosscoding.trainers.train_l1_crosscoder.config import L1ExperimentConfig
 from crosscoding.trainers.train_l1_crosscoder.trainer import L1CrosscoderTrainer
 from crosscoding.trainers.utils import build_wandb_run
@@ -30,13 +31,13 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         cache_dir=cfg.cache_dir,
     )
 
-    crosscoding_dims = [
-        ("model", list(map(str, range(len(llms))))),
-        ("hookpoint", cfg.hookpoints),
-    ]
+    crosscoding_dims = CrosscodingDimsDict.from_dims(
+        CrosscodingDim(name="model", index_labels=list(map(str, range(len(llms))))),
+        CrosscodingDim(name="hookpoint", index_labels=cfg.hookpoints),
+    )
 
     crosscoder = AcausalCrosscoder(
-        crosscoding_dims=tuple(len(dim_labels) for _, dim_labels in crosscoding_dims),
+        crosscoding_dims=crosscoding_dims,
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
         activation_fn=ReLUActivation(),

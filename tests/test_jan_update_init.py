@@ -1,7 +1,7 @@
 import torch
 
 from crosscoding.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.base_crosscoder import AcausalCrosscoder
 from crosscoding.models.initialization.jan_update_init import compute_b_enc_L
 
 

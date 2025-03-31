@@ -3,13 +3,12 @@ from typing import Any
 import torch
 
 from crosscoding.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.trainers.base_acausal_trainer import BaseAcausalTrainer
 from crosscoding.trainers.jan_update_acausal_crosscoder.config import TanHSparsityTrainConfig
 from crosscoding.trainers.utils import get_l0_stats, wandb_histogram
 from crosscoding.utils import (
     calculate_reconstruction_loss_summed_norm_MSEs,
-    get_fvu_dict,
     get_summed_decoder_norms_L,
     not_none,
     pre_act_loss,
@@ -29,7 +28,11 @@ class JanUpdateAcausalCrosscoderTrainer(BaseAcausalTrainer[TanHSparsityTrainConf
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.latents_BL, decoder_norms_L)
         pre_act_loss = self._pre_act_loss(train_res.latents_BL, decoder_norms_L)
 
-        loss = reconstruction_loss + self._lambda_s_scheduler() * tanh_sparsity_loss + self.cfg.lambda_p * pre_act_loss
+        loss = (
+            reconstruction_loss  #
+            + self._lambda_s_scheduler() * tanh_sparsity_loss
+            + self.cfg.lambda_p * pre_act_loss
+        )
 
         if log:
             log_dict: dict[str, float] = {
@@ -37,7 +40,7 @@ class JanUpdateAcausalCrosscoderTrainer(BaseAcausalTrainer[TanHSparsityTrainConf
                 "train/tanh_sparsity_loss": tanh_sparsity_loss.item(),
                 "train/pre_act_loss": pre_act_loss.item(),
                 "train/loss": loss.item(),
-                **get_fvu_dict(batch_BXD, train_res.recon_acts_BXD, *self.crosscoding_dims),
+                **self._get_fvu_dict(batch_BXD, train_res.recon_acts_BXD),
                 **get_l0_stats(train_res.latents_BL),
             }
 
@@ -56,11 +59,13 @@ class JanUpdateAcausalCrosscoderTrainer(BaseAcausalTrainer[TanHSparsityTrainConf
         return pre_act_loss(self.crosscoder.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
 
     def _step_logs(self) -> dict[str, Any]:
-        log_dict: dict[str, Any] = {
-            **super()._step_logs(),
-            "train/lambda_s": self._lambda_s_scheduler(),
-            "train/lambda_p": self.cfg.lambda_p,
-        }
+        log_dict = super()._step_logs()
+        log_dict.update(
+            {
+                "train/lambda_s": self._lambda_s_scheduler(),
+                "train/lambda_p": self.cfg.lambda_p,
+            }
+        )
         if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
             threshold_hist = wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp())
             log_dict.update(

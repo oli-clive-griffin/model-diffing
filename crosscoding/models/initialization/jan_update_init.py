@@ -7,7 +7,8 @@ from tqdm import tqdm  # type: ignore
 
 from crosscoding.log import logger
 from crosscoding.models.activations import AnthropicSTEJumpReLUActivation
-from crosscoding.models.crosscoder import AcausalCrosscoder, InitStrategy
+from crosscoding.models.initialization.init_strategy import InitStrategy
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.utils import ceil_div, inspect, round_up
 
 

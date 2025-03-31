@@ -1,29 +1,51 @@
 from collections.abc import Iterator
+from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, cast
 
 import torch
-from datasets import Dataset, DatasetDict, IterableDataset, IterableDatasetDict  # type: ignore
+from datasets import load_dataset  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscoding.data.shuffle import batch_shuffle_tensor_iterator_BX
-from crosscoding.data.token_loader.base import TokenSequenceLoader, TokensSequenceBatch
-
-COMMON_CORPUS_HF_DATASET = "PleIAs/common_corpus"
-THE_PILE_UNCOPYRIGHTED_HF_DATASET = "monology/pile-uncopyrighted"
 
 
-class HuggingfaceTextDatasetTokenSequenceLoader(TokenSequenceLoader):
+@dataclass
+class TokensSequenceBatch:
+    tokens_HS: torch.Tensor
+    special_tokens_mask_HS: torch.Tensor
+
+    def __post_init__(self):
+        if self.special_tokens_mask_HS.sum() / self.special_tokens_mask_HS.numel() > 0.1:
+            pass
+            # logger.warning("more than 10% of tokens are special tokens, this is unexpected")
+
+        if self.tokens_HS.dtype != torch.long:
+            raise ValueError(f"tokens_HS should be a long tensor, got {self.tokens_HS.dtype}")
+
+        if self.special_tokens_mask_HS.dtype != torch.bool:
+            raise ValueError(
+                f"special_tokens_mask_HS should be a boolean tensor, got {self.special_tokens_mask_HS.dtype}"
+            )
+
+
+class TokenSequenceLoader:
     def __init__(
         self,
-        hf_dataset: DatasetDict | Dataset | IterableDatasetDict | IterableDataset,
+        hf_dataset_name: str,
         tokenizer: PreTrainedTokenizerBase,
         sequence_length: int,
         batch_size: int,
         shuffle_buffer_size: int | None = None,
         cache_dir: str | None = None,
     ):
-        self._hf_dataset = hf_dataset
+        self._hf_dataset = load_dataset(
+            path=hf_dataset_name,
+            streaming=True,
+            cache_dir=cache_dir,
+            split="train",
+        )
+
         self._cache_dir = cache_dir
         self._tokenizer = tokenizer
         self._sequence_length = sequence_length
@@ -94,8 +116,3 @@ class HuggingfaceTextDatasetTokenSequenceLoader(TokenSequenceLoader):
 
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:
         return self._get_sequences_batch_iterator
-
-    def num_batches(self) -> int | None:
-        # This kind of can't easily be computed, because it's a function of sequence length and each example's length
-        # This is a good example of why `num_batches` is `None`able
-        return None

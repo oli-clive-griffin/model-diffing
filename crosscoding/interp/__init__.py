@@ -15,7 +15,7 @@ from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscoding.log import logger
-from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.utils import compute_relative_norms_N
 
 

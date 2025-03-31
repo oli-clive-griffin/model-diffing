@@ -5,11 +5,14 @@ from typing import Any, Literal
 from pydantic import Field
 
 from crosscoding.data.activation_harvester import CacheMode
-from crosscoding.data.token_loader import (
-    TokenSequenceLoaderCfg,
-    default_tokens_sequence_iterator,
-)
 from crosscoding.utils import BaseModel
+
+
+class HuggingfaceTextDatasetConfig(BaseModel):
+    hf_dataset_name: str = "monology/pile-uncopyrighted"
+    sequence_length: int = 2048
+    shuffle_buffer_size: int | None = None
+
 
 
 class LLMConfig(BaseModel):
@@ -55,9 +58,7 @@ class ActivationsHarvesterConfig(BaseModel):
 
 
 class DataConfig(BaseModel):
-    token_sequence_loader: TokenSequenceLoaderCfg = Field(
-        discriminator="type", default_factory=default_tokens_sequence_iterator
-    )
+    token_sequence_loader: HuggingfaceTextDatasetConfig = HuggingfaceTextDatasetConfig()
     activations_harvester: ActivationsHarvesterConfig
     n_tokens_for_norm_estimate: int = 100_000
 

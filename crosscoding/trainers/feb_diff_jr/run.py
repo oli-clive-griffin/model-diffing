@@ -1,16 +1,14 @@
-from collections import OrderedDict
-
 import fire  # type: ignore
 
-from crosscoding.data.base_activations_dataloader import CrosscodingDim, CrosscodingDims
-from crosscoding.data.model_hookpoint_dataloader import build_model_hookpoint_dataloader
+from crosscoding.data.activations_dataloader import build_model_hookpoint_dataloader
+from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
+from crosscoding.llms import build_llms
 from crosscoding.log import logger
 from crosscoding.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
 from crosscoding.trainers.base_diffing_trainer import IdenticalLatentsInit
 from crosscoding.trainers.base_trainer import run_exp
 from crosscoding.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
 from crosscoding.trainers.feb_diff_jr.trainer import ModelDiffingFebUpdateJumpReLUTrainer
-from crosscoding.trainers.llms import build_llms
 from crosscoding.trainers.utils import build_wandb_run
 from crosscoding.utils import get_device
 
@@ -37,7 +35,7 @@ def build_feb_update_crosscoder_trainer(
         cache_dir=cfg.cache_dir,
     )
 
-    crosscoding_dims = CrosscodingDims(
+    crosscoding_dims = CrosscodingDimsDict(
         [
             ("model", CrosscodingDim(name="model", index_labels=["0", "1"])),
             ("hookpoint", CrosscodingDim(name="hookpoint", index_labels=[cfg.hookpoint])),

@@ -1,11 +1,12 @@
 import fire  # type: ignore
 
-from crosscoding.data.model_hookpoint_dataloader import build_model_hookpoint_dataloader
+from crosscoding.data.activations_dataloader import build_model_hookpoint_dataloader
+from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
+from crosscoding.llms import build_llms
 from crosscoding.log import logger
 from crosscoding.models import AcausalCrosscoder, AnthropicTransposeInit, TopkActivation
 from crosscoding.models.activations.topk import BatchTopkActivation, GroupMaxActivation
 from crosscoding.trainers.base_trainer import run_exp
-from crosscoding.trainers.llms import build_llms
 from crosscoding.trainers.train_topk_crosscoder.config import TopKExperimentConfig
 from crosscoding.trainers.train_topk_crosscoder.trainer import TopKStyleTrainer
 from crosscoding.trainers.utils import build_wandb_run
@@ -22,8 +23,6 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
         inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
-    n_models = len(llms)
-    n_hookpoints = len(cfg.hookpoints)
     d_model = llms[0].cfg.d_model
 
     match cfg.train.topk_style:
@@ -34,8 +33,14 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
         case "groupmax":
             cc_act = GroupMaxActivation(k_groups=cfg.crosscoder.k, latents_size=cfg.crosscoder.n_latents)
 
+    crosscoding_dims = CrosscodingDimsDict(
+        [
+            ("model", CrosscodingDim(name="model", index_labels=list(map(str, range(len(llms)))))),
+            ("hookpoint", CrosscodingDim(name="hookpoint", index_labels=cfg.hookpoints)),
+        ]
+    )
     crosscoder = AcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
+        crosscoding_dims=crosscoding_dims,
         d_model=d_model,
         n_latents=cfg.crosscoder.n_latents,
         init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
@@ -55,8 +60,6 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
         batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
     )
-
-    crosscoding_dims = [("model", ["0", "1"]), ("hookpoint", cfg.hookpoints)]
 
     if cfg.train.k_aux is None:
         cfg.train.k_aux = d_model // 2

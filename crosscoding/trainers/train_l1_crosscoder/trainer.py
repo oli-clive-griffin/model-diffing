@@ -4,11 +4,11 @@ import einops
 import torch
 
 from crosscoding.models.activations.relu import ReLUActivation
-from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.trainers.base_acausal_trainer import BaseAcausalTrainer
 from crosscoding.trainers.train_l1_crosscoder.config import L1TrainConfig
 from crosscoding.trainers.utils import get_l0_stats
-from crosscoding.utils import calculate_reconstruction_loss_summed_norm_MSEs, get_fvu_dict, l1_norm, l2_norm
+from crosscoding.utils import calculate_reconstruction_loss_summed_norm_MSEs, l1_norm, l2_norm
 
 
 class L1CrosscoderTrainer(BaseAcausalTrainer[L1TrainConfig, ReLUActivation]):
@@ -29,7 +29,7 @@ class L1CrosscoderTrainer(BaseAcausalTrainer[L1TrainConfig, ReLUActivation]):
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/sparsity_loss": sparsity_loss.item(),
                 "train/loss": loss.item(),
-                **get_fvu_dict(batch_BXD, train_res.recon_acts_BXD, *self.crosscoding_dims),
+                **self._get_fvu_dict(batch_BXD, train_res.recon_acts_BXD),
                 **get_l0_stats(train_res.latents_BL),
             }
 

@@ -5,8 +5,9 @@ from einops import rearrange
 
 from crosscoding.log import logger
 from crosscoding.models.activations import AnthropicSTEJumpReLUActivation
-from crosscoding.models.crosscoder import AcausalCrosscoder, InitStrategy
+from crosscoding.models.initialization.init_strategy import InitStrategy
 from crosscoding.models.initialization.jan_update_init import get_quantile_L, harvest_pre_bias_NL
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.utils import random_direction_init_
 
 

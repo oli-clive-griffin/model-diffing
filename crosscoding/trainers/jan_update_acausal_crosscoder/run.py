@@ -1,15 +1,14 @@
-from collections import OrderedDict
 
 import fire  # type: ignore
 
-from crosscoding.data.base_activations_dataloader import CrosscodingDim, CrosscodingDims
-from crosscoding.data.model_hookpoint_dataloader import build_model_hookpoint_dataloader
+from crosscoding.data.activations_dataloader import build_model_hookpoint_dataloader
+from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
+from crosscoding.llms import build_llms
 from crosscoding.log import logger
 from crosscoding.models import AcausalCrosscoder, AnthropicSTEJumpReLUActivation, DataDependentJumpReLUInitStrategy
 from crosscoding.trainers.base_trainer import run_exp
 from crosscoding.trainers.jan_update_acausal_crosscoder.config import JanUpdateExperimentConfig
 from crosscoding.trainers.jan_update_acausal_crosscoder.trainer import JanUpdateAcausalCrosscoderTrainer
-from crosscoding.trainers.llms import build_llms
 from crosscoding.trainers.utils import build_wandb_run
 from crosscoding.utils import get_device
 
@@ -32,10 +31,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> JanUp
         cache_dir=cfg.cache_dir,
     )
 
-    # n_models = len(llms)
-    # n_hookpoints = len(cfg.hookpoints)
-
-    crosscoding_dims = CrosscodingDims(
+    crosscoding_dims = CrosscodingDimsDict(
         [
             ("model", CrosscodingDim(name="model", index_labels=list(map(str, range(len(llms)))))),
             ("hookpoint", CrosscodingDim(name="hookpoint", index_labels=cfg.hookpoints)),

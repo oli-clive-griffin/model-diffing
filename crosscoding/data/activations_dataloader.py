@@ -7,15 +7,15 @@ from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscoding.data.activation_harvester import ActivationsHarvester
-from crosscoding.data.base_activations_dataloader import BaseActivationsDataloader
-from crosscoding.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
+from crosscoding.data.token_loader import TokenSequenceLoader
+from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.log import logger
 from crosscoding.trainers.config_common import DataConfig
 from crosscoding.trainers.utils import estimate_norm_scaling_factor_X
 from crosscoding.utils import change_batch_size_BX
 
 
-class ScaledModelHookpointActivationsDataloader(BaseActivationsDataloader):
+class ModelHookpointActivationsDataloader:
     def __init__(
         self,
         token_sequence_loader: TokenSequenceLoader,
@@ -41,8 +41,11 @@ class ScaledModelHookpointActivationsDataloader(BaseActivationsDataloader):
     def get_norm_scaling_factors_X(self) -> torch.Tensor:
         return self._norm_scaling_factors_MP
 
-    def get_crosscoding_dims_X(self) -> tuple[int, ...]:
-        return self._activations_harvester.num_models, self._activations_harvester.num_hookpoints
+    def get_crosscoding_dims(self) -> CrosscodingDimsDict:
+        return CrosscodingDimsDict.from_dims(
+            CrosscodingDim(name="model", index_labels=list(map(str, range(self._activations_harvester.num_models)))),
+            CrosscodingDim(name="hookpoint", index_labels=list(map(str, range(self._activations_harvester.num_hookpoints)))),
+        )
 
     def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
@@ -73,7 +76,7 @@ def build_model_hookpoint_dataloader(
     hookpoints: list[str],
     batch_size: int,
     cache_dir: str,
-) -> ScaledModelHookpointActivationsDataloader:
+) -> ModelHookpointActivationsDataloader:
     tokenizer = llms[0].tokenizer
     assert all(
         llm.tokenizer.special_tokens_map == tokenizer.special_tokens_map  # type: ignore
@@ -83,8 +86,9 @@ def build_model_hookpoint_dataloader(
         raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")
 
     # first, get an iterator over sequences of tokens
-    token_sequence_loader = build_tokens_sequence_loader(
-        cfg=cfg.token_sequence_loader,
+    token_sequence_loader = TokenSequenceLoader(
+        hf_dataset_name=cfg.token_sequence_loader.hf_dataset_name,
+        sequence_length=cfg.token_sequence_loader.sequence_length,
         cache_dir=cache_dir,
         tokenizer=tokenizer,
         batch_size=cfg.activations_harvester.harvesting_batch_size,
@@ -104,7 +108,7 @@ def build_model_hookpoint_dataloader(
         cache_mode=cfg.activations_harvester.cache_mode,
     )
 
-    activations_dataloader = ScaledModelHookpointActivationsDataloader(
+    activations_dataloader = ModelHookpointActivationsDataloader(
         token_sequence_loader=token_sequence_loader,
         activations_harvester=activations_harvester,
         yield_batch_size_B=batch_size,

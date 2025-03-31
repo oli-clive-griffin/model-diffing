@@ -1,15 +1,16 @@
 from abc import abstractmethod
-from operator import indexOf
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import torch
 from wandb.sdk.wandb_run import Run
 
-from crosscoding.data.base_activations_dataloader import BaseActivationsDataloader, CrosscodingDims
+from crosscoding.data.activations_dataloader import ModelHookpointActivationsDataloader
+from crosscoding.dims import CrosscodingDimsDict
 from crosscoding.models.activations.activation_function import ActivationFunction
-from crosscoding.models.crosscoder import AcausalCrosscoder, InitStrategy
-from crosscoding.trainers.base_trainer import BaseTrainer
+from crosscoding.models.initialization.init_strategy import InitStrategy
+from crosscoding.models.sparse_coders import AcausalCrosscoder
+from crosscoding.trainers.base_acausal_trainer import BaseAcausalTrainer
 from crosscoding.trainers.config_common import BaseTrainConfig
 from crosscoding.trainers.utils import create_cosine_sim_and_relative_norm_histograms_diffing
 from crosscoding.trainers.wandb_utils.main import create_checkpoint_artifact
@@ -46,26 +47,25 @@ class IdenticalLatentsInit(InitStrategy[AcausalCrosscoder[Any]]):
         assert (cc.W_dec_LXD[: self.n_shared_latents, 0] == cc.W_dec_LXD[: self.n_shared_latents, 1]).all()
 
 
-class BaseDiffingTrainer(Generic[TConfig, TAct], BaseTrainer[TConfig, AcausalCrosscoder[TAct]]):
+class BaseDiffingTrainer(Generic[TConfig, TAct], BaseAcausalTrainer[TConfig, TAct]):
     def __init__(
         self,
         cfg: TConfig,
-        activations_dataloader: BaseActivationsDataloader,
+        activations_dataloader: ModelHookpointActivationsDataloader,
         crosscoder: AcausalCrosscoder[TAct],
         wandb_run: Run,
         device: torch.device,
         save_dir: Path | str,
+        crosscoding_dims: CrosscodingDimsDict,
         n_shared_latents: int,
-        crosscoding_dims: CrosscodingDims,
     ):
-        super().__init__(cfg, activations_dataloader, crosscoder, wandb_run, device, save_dir)
+        super().__init__(cfg, activations_dataloader, crosscoder, wandb_run, device, save_dir, crosscoding_dims)
         self.n_shared_latents = n_shared_latents
-        self.crosscoding_dims = crosscoding_dims
 
         assert (
             self.crosscoding_dims
             == self.crosscoder.crosscoding_dims
-            == self.activations_dataloader.get_crosscoding_dims_X()
+            == self.activations_dataloader.get_crosscoding_dims()
         ), "The crosscoder must have the same crosscoding dims as the activations dataloader"
 
         assert len(self.crosscoding_dims["model"]) == 2, "The model crosscoding dim must have length 2"
@@ -73,12 +73,12 @@ class BaseDiffingTrainer(Generic[TConfig, TAct], BaseTrainer[TConfig, AcausalCro
     def run_batch(self, batch_BXD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]:
         train_res = self.crosscoder.forward_train(batch_BXD)
         self.firing_tracker.add_batch(train_res.latents_BL)
-        return self._loss_and_log_dict(batch_BXD, train_res, log=log)
+        return self._calculate_loss_and_log(batch_BXD, train_res, log=log)
 
     @abstractmethod
-    def _loss_and_log_dict(
+    def _calculate_loss_and_log(
         self,
-        batch_BMD: torch.Tensor,
+        batch_BXD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]: ...
@@ -121,9 +121,9 @@ class BaseDiffingTrainer(Generic[TConfig, TAct], BaseTrainer[TConfig, AcausalCro
 
         return log_dict
 
-    def _get_fvu_dict(self, batch_BMD: torch.Tensor, recon_acts_BMD: torch.Tensor) -> dict[str, float]:
+    def _get_fvu_dict(self, batch_BXD: torch.Tensor, recon_acts_BXD: torch.Tensor) -> dict[str, float]:
         return get_fvu_dict(
-            batch_BMD,
-            recon_acts_BMD,
+            batch_BXD,
+            recon_acts_BXD,
             *((dim.name, dim.index_labels) for dim in self.crosscoding_dims.values()),
         )

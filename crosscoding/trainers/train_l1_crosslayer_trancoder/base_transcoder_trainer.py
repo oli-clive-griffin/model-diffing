@@ -1,13 +1,16 @@
 from abc import abstractmethod
-from typing import Any, Generic, TypeVar
+from pathlib import Path
+from typing import Generic, TypeVar
 
 import torch
+from wandb.sdk.wandb_run import Run
 
+from crosscoding.data.activations_dataloader import ModelHookpointActivationsDataloader
+from crosscoding.dims import CrosscodingDim
 from crosscoding.models.activations.activation_function import ActivationFunction
-from crosscoding.models.crosscoder import CrossLayerTranscoder
+from crosscoding.models.sparse_coders import CrossLayerTranscoder
 from crosscoding.trainers.base_acausal_trainer import BaseTrainer
 from crosscoding.trainers.config_common import BaseTrainConfig
-from crosscoding.trainers.utils import wandb_histogram
 from crosscoding.trainers.wandb_utils.main import create_checkpoint_artifact
 from crosscoding.utils import get_fvu_dict
 
@@ -16,10 +19,30 @@ TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
 class BaseCrossLayerTranscoderTrainer(Generic[TConfig, TAct], BaseTrainer[TConfig, CrossLayerTranscoder[TAct]]):
+    def __init__(
+        self,
+        cfg: TConfig,
+        activations_dataloader: ModelHookpointActivationsDataloader,
+        crosscoder: CrossLayerTranscoder[TAct],
+        wandb_run: Run,
+        device: torch.device,
+        save_dir: Path | str,
+        out_layers_names: list[str],
+    ):
+        super().__init__(cfg, activations_dataloader, crosscoder, wandb_run, device, save_dir)
+        self.out_layers_names = out_layers_names
+        self.out_layers_dim = CrosscodingDim(name="out_layer", index_labels=out_layers_names)
+
+        dl_cc_dims = self.activations_dataloader.get_crosscoding_dims()
+        assert len(dl_cc_dims["model"]) == 1
+        assert len(dl_cc_dims["hookpoint"]) == len(self.out_layers_dim) + 1
+
     def run_batch(self, batch_BXD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]:
-        assert batch_BXD.shape[1] == 1, "we must have one model"
-        batch_BPD = batch_BXD[:, 0]
-        in_BD, out_BPD = batch_BPD[:, 0], batch_BPD[:, 1:]
+        batch_BMPD = batch_BXD
+        assert batch_BMPD.shape[1] == 1, "we must have one model"
+        assert batch_BMPD.shape[2] == len(self.out_layers_dim) + 1, "we must have one more hookpoint than out layers"
+        in_BD = batch_BMPD[:, 0, 0]
+        out_BPD = batch_BMPD[:, 0, 1:]
 
         train_res = self.crosscoder.forward_train(in_BD)
 
@@ -35,21 +58,11 @@ class BaseCrossLayerTranscoderTrainer(Generic[TConfig, TAct], BaseTrainer[TConfi
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]: ...
 
-    def _step_logs(self) -> dict[str, Any]:
-        logs = super()._step_logs()
-        if (
-            self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
-            and self.crosscoder.b_dec_PD is not None
-        ):
-            for i, hp_name in enumerate(self.hookpoints[1:]):
-                logs[f"b_dec_{hp_name}"] = wandb_histogram(self.crosscoder.b_dec_PD[i])
-        return logs
-
     def _get_fvu_dict(self, y_BPD: torch.Tensor, recon_y_BPD: torch.Tensor) -> dict[str, float]:
         return get_fvu_dict(
             y_BPD,
             recon_y_BPD,
-            ("hookpoint", self.hookpoints),
+            ("hookpoint", self.out_layers_dim.index_labels),
         )
 
     def _maybe_save_model(self, scaling_factors_X: torch.Tensor) -> None:

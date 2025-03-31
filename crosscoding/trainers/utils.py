@@ -41,28 +41,21 @@ def get_l0_stats(hidden_BL: torch.Tensor, name: str = "l0") -> dict[str, float]:
     }
 
 
-def create_cosine_sim_and_relative_norm_histograms(W_dec_LMD: torch.Tensor) -> dict[str, wandb.Histogram]:
+def create_cosine_sim_and_relative_norm_histograms(W_dec_LMD: torch.Tensor) -> tuple[wandb.Histogram, wandb.Histogram]:
     _, n_models, _ = W_dec_LMD.shape
     assert n_models == 2, "only works for 2 models"
 
-    plots: dict[str, wandb.Histogram] = {}
     W_dec_m1_LD = W_dec_LMD[:, 0]
     W_dec_m2_LD = W_dec_LMD[:, 1]
     relative_norms = compute_relative_norms_N(W_dec_m1_LD, W_dec_m2_LD)
-    try:
-        plots["media/relative_decoder_norms"] = wandb_histogram(relative_norms)
-    except ValueError as e:
-        if "Too many bins for data range" in str(e):
-            logger.warning("Too many bins for data range, skipping histogram")
-        else:
-            raise e
+    relative_decoder_norms_plot = wandb_histogram(relative_norms)
 
     shared_latent_mask = get_shared_latent_mask(relative_norms)
     cosine_sims = compute_cosine_similarities_N(W_dec_m1_LD, W_dec_m2_LD)
     shared_features_cosine_sims = cosine_sims[shared_latent_mask]
-    plots["media/cosine_sim"] = wandb_histogram(shared_features_cosine_sims)
+    shared_features_cosine_sims_plot = wandb_histogram(shared_features_cosine_sims)
 
-    return plots
+    return relative_decoder_norms_plot, shared_features_cosine_sims_plot
 
 
 def create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_LMD: torch.Tensor) -> dict[str, wandb.Histogram]:

@@ -3,7 +3,7 @@ from typing import Any
 import torch
 
 from crosscoding.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.trainers.base_diffing_trainer import BaseDiffingTrainer
 from crosscoding.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from crosscoding.trainers.jan_update_acausal_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
@@ -20,13 +20,14 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
     a JumpReLU crosscoder.
     """
 
-    def _loss_and_log_dict(
+
+    def _calculate_loss_and_log(
         self,
-        batch_BMD: torch.Tensor,
+        batch_BXD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
-        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMD, train_res.recon_acts_BXD)
+        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BXD, train_res.recon_acts_BXD)
 
         decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LXD)
         decoder_norms_shared_Ls = decoder_norms_L[: self.n_shared_latents]
@@ -64,7 +65,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
                 "train/tanh_sparsity_loss_indep": tanh_sparsity_loss_indep.item(),
                 "train/pre_act_loss": pre_act_loss.item(),
                 "train/loss": loss.item(),
-                **self._get_fvu_dict(batch_BMD, train_res.recon_acts_BXD),
+                **self._get_fvu_dict(batch_BXD, train_res.recon_acts_BXD),
                 **get_l0_stats(hidden_shared_BLs, name="shared_l0"),
                 **get_l0_stats(hidden_indep_BLi, name="indep_l0"),
                 **get_l0_stats(train_res.latents_BL, name="both_l0"),

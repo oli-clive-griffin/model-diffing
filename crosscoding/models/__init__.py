@@ -5,15 +5,22 @@ from .activations import (
     ReLUActivation,
     TopkActivation,
 )
-from .crosscoder import AcausalCrosscoder, CrossLayerTranscoder, InitStrategy, _BaseCrosscoder
+from .base_crosscoder import BaseCrosscoder
 from .initialization.anthropic_transpose import AnthropicTransposeInit
+from .initialization.init_strategy import InitStrategy
 from .initialization.jan_update_init import DataDependentJumpReLUInitStrategy
+from .sparse_coders import (
+    AcausalCrosscoder,
+    CrossLayerTranscoder,
+    Transcoder,
+)
 
 __all__ = [
-    "_BaseCrosscoder",
+    "BaseCrosscoder",
     "ACTIVATIONS_MAP",
     "AcausalCrosscoder",
     "CrossLayerTranscoder",
+    "Transcoder",
     "AnthropicSTEJumpReLUActivation",
     "AnthropicTransposeInit",
     "BatchTopkActivation",

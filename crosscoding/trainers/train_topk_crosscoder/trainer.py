@@ -9,10 +9,10 @@ from crosscoding.models.activations.topk import (
     TopkActivation,
     topk_activation,
 )
-from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.sparse_coders import AcausalCrosscoder
 from crosscoding.trainers.base_acausal_trainer import BaseAcausalTrainer
 from crosscoding.trainers.train_topk_crosscoder.config import TopKTrainConfig
-from crosscoding.utils import calculate_reconstruction_loss_summed_norm_MSEs, get_fvu_dict, not_none
+from crosscoding.utils import calculate_reconstruction_loss_summed_norm_MSEs, not_none
 
 
 class TopKStyleTrainer(BaseAcausalTrainer[TopKTrainConfig, BatchTopkActivation | GroupMaxActivation | TopkActivation]):
@@ -31,7 +31,7 @@ class TopKStyleTrainer(BaseAcausalTrainer[TopKTrainConfig, BatchTopkActivation |
                 "train/loss": loss.item(),
                 "train/reconstruction_loss": reconstruction_loss.item(),
                 "train/aux_loss": aux_loss.item(),
-                **get_fvu_dict(batch_BXD, train_res.recon_acts_BXD, *self.crosscoding_dims),
+                **self._get_fvu_dict(batch_BXD, train_res.recon_acts_BXD),
             }
 
             return reconstruction_loss, log_dict

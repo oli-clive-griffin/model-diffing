@@ -82,24 +82,6 @@ def get_device() -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 
-# (oli) sorry - this is probably overengineered
-def multi_reduce(
-    tensor: torch.Tensor,
-    shape_pattern: str,
-    *reductions: tuple[str, Reduction],  # type: ignore
-) -> torch.Tensor:
-    original_shape = einops.parse_shape(tensor, shape_pattern)
-    for reduction_dim, reduction_fn in reductions:
-        if reduction_dim not in original_shape:
-            raise ValueError(f"Dimension {reduction_dim} not found in original_shape {original_shape}")
-        target_pattern_pattern = shape_pattern.replace(reduction_dim, "")
-        exec_pattern = f"{shape_pattern} -> {target_pattern_pattern}"
-        shape_pattern = target_pattern_pattern
-        tensor = einops.reduce(tensor, exec_pattern, reduction_fn)
-
-    return tensor
-
-
 def calculate_fvu_X_old(
     activations_BXD: torch.Tensor,
     reconstructed_BXD: torch.Tensor,

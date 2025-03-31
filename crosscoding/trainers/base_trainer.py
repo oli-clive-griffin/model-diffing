@@ -11,10 +11,10 @@ from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
-from crosscoding.data.base_activations_dataloader import BaseActivationsDataloader
+from crosscoding.data.activations_dataloader import ModelHookpointActivationsDataloader
 from crosscoding.log import logger
 from crosscoding.models.activations.activation_function import ActivationFunction
-from crosscoding.models.crosscoder import _BaseCrosscoder
+from crosscoding.models.base_crosscoder import BaseCrosscoder
 from crosscoding.trainers.config_common import BaseExperimentConfig, BaseTrainConfig
 from crosscoding.trainers.firing_tracker import FiringTracker
 from crosscoding.trainers.utils import (
@@ -25,7 +25,7 @@ from crosscoding.trainers.utils import (
 )
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
-TCC = TypeVar("TCC", bound=_BaseCrosscoder[ActivationFunction])
+TCC = TypeVar("TCC", bound=BaseCrosscoder[Any])
 
 
 class BaseTrainer(Generic[TConfig, TCC], ABC):
@@ -34,7 +34,7 @@ class BaseTrainer(Generic[TConfig, TCC], ABC):
     def __init__(
         self,
         cfg: TConfig,
-        activations_dataloader: BaseActivationsDataloader,
+        activations_dataloader: ModelHookpointActivationsDataloader,
         crosscoder: TCC,
         wandb_run: Run,
         device: torch.device,

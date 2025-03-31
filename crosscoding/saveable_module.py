@@ -51,6 +51,10 @@ class SaveableModule(nn.Module, ABC):
         model.load_state_dict(torch.load(basepath / cls.STATE_DICT_FNAME, weights_only=True, map_location=device))
         return model
 
+    def clone(self) -> Self:
+        out = self._scaffold_from_cfg(self._dump_cfg())
+        out.load_state_dict(self.state_dict())
+        return out
 
 # Add a custom constructor for the !!python/tuple tag,
 # converting the loaded sequence to a Python tuple.

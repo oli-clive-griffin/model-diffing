@@ -3,7 +3,7 @@ from typing import Any
 import torch
 
 from crosscoding.models.activations.relu import ReLUActivation
-from crosscoding.models.crosscoder import CrossLayerTranscoder
+from crosscoding.models.sparse_coders import CrossLayerTranscoder
 from crosscoding.trainers.train_l1_crosscoder.trainer import sparsity_loss_l1_of_l2s
 from crosscoding.trainers.train_l1_crosslayer_trancoder.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
 from crosscoding.trainers.train_l1_crosslayer_trancoder.config import L1TrainConfig
