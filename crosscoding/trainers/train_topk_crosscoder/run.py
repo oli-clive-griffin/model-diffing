@@ -1,10 +1,9 @@
 import fire  # type: ignore
 
 from crosscoding.data.activations_dataloader import build_model_hookpoint_dataloader
-from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.llms import build_llms
 from crosscoding.log import logger
-from crosscoding.models import ModelHookpointAcausalCrosscoder, AnthropicTransposeInit, TopkActivation
+from crosscoding.models import AnthropicTransposeInit, ModelHookpointAcausalCrosscoder, TopkActivation
 from crosscoding.models.activations.topk import BatchTopkActivation, GroupMaxActivation
 from crosscoding.trainers.base_trainer import run_exp
 from crosscoding.trainers.train_topk_crosscoder.config import TopKExperimentConfig
@@ -23,8 +22,6 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
         inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
-    d_model = llms[0].cfg.d_model
-
     match cfg.train.topk_style:
         case "topk":
             cc_act = TopkActivation(k=cfg.crosscoder.k)
@@ -33,14 +30,11 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
         case "groupmax":
             cc_act = GroupMaxActivation(k_groups=cfg.crosscoder.k, latents_size=cfg.crosscoder.n_latents)
 
-    crosscoding_dims = CrosscodingDimsDict(
-        [
-            ("model", CrosscodingDim(name="model", index_labels=list(map(str, range(len(llms)))))),
-            ("hookpoint", CrosscodingDim(name="hookpoint", index_labels=cfg.hookpoints)),
-        ]
-    )
+    d_model = llms[0].cfg.d_model
+
     crosscoder = ModelHookpointAcausalCrosscoder(
-        crosscoding_dims=crosscoding_dims,
+        n_models=len(llms),
+        hookpoints=cfg.hookpoints,
         d_model=d_model,
         n_latents=cfg.crosscoder.n_latents,
         init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
@@ -72,7 +66,6 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,
-        crosscoding_dims=crosscoding_dims,
     )
 
 

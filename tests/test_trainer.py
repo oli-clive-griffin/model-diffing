@@ -1,17 +1,15 @@
 from collections.abc import Iterator
 from typing import Any
 
-import pytest
 import torch
-import wandb
 from torch import Tensor
 
 from crosscoding.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
-from crosscoding.models import ModelHookpointAcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
+from crosscoding.models import ModelHookpointAcausalCrosscoder
 from crosscoding.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
-from crosscoding.trainers.config_common import AdamConfig, BaseTrainConfig
+from crosscoding.trainers.config_common import BaseTrainConfig
 from crosscoding.trainers.train_topk_crosscoder.trainer import aux_loss, topk_dead_latents
-from crosscoding.utils import get_device, l2_norm, not_none
+from crosscoding.utils import l2_norm, not_none
 
 
 class TestTrainer(BaseModelHookpointAcausalTrainer[BaseTrainConfig, Any]):

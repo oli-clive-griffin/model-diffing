@@ -56,6 +56,7 @@ class SaveableModule(nn.Module, ABC):
         out.load_state_dict(self.state_dict())
         return out
 
+
 # Add a custom constructor for the !!python/tuple tag,
 # converting the loaded sequence to a Python tuple.
 def _tuple_constructor(loader: yaml.SafeLoader, node: yaml.nodes.SequenceNode) -> tuple[Any, ...]:

@@ -11,7 +11,6 @@ from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscoding.data.activation_harvester import ActivationsHarvester
 from crosscoding.data.token_loader import TokenSequenceLoader
-from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.log import logger
 from crosscoding.trainers.config_common import DataConfig
 from crosscoding.trainers.utils import estimate_norm_scaling_factor_X
@@ -26,12 +25,6 @@ class ActivationsDataloader(Generic[TBatch], ABC):
 
     @abstractmethod
     def get_scaling_factors(self) -> torch.Tensor: ...
-
-    @abstractmethod
-    def get_crosscoding_dims(self) -> CrosscodingDimsDict: ...
-
-    @abstractmethod
-    def batch_size(self) -> int: ...
 
 
 @dataclass
@@ -59,17 +52,23 @@ class ModelHookpointActivationsDataloader(ActivationsDataloader[ModelHookpointAc
         self._norm_scaling_factors_MP = norm_scaling_factors_MP
         self._iterator = self._activations_iterator_BMPD(norm_scaling_factors_MP)
 
+    @property
+    def n_models(self) -> int:
+        return self._activations_harvester.num_models
+
+    @property
+    def hookpoints(self) -> list[str]:
+        return self._activations_harvester._hookpoints
+
+    @property
+    def n_hookpoints(self) -> int:
+        return len(self.hookpoints)
+
     def get_activations_iterator(self) -> Iterator[ModelHookpointActivationsBatch]:
         return (ModelHookpointActivationsBatch(batch) for batch in self._iterator)
 
-    def get_norm_scaling_factors(self) -> torch.Tensor:
+    def get_scaling_factors(self) -> torch.Tensor:
         return self._norm_scaling_factors_MP
-
-    def get_crosscoding_dims(self) -> CrosscodingDimsDict:
-        return CrosscodingDimsDict.from_dims(
-            CrosscodingDim(name="model", index_labels=list(map(str, range(self._activations_harvester.num_models)))),
-            CrosscodingDim(name="hookpoint", index_labels=self._activations_harvester._hookpoints),
-        )
 
     def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():

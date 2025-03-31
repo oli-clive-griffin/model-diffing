@@ -40,8 +40,13 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
             None,
             dtype,
         )
-        self.crosscoding_dims = crosscoding_dims
+        self._crosscoding_dims = crosscoding_dims
+
+        self.n_models = n_models
+        self.hookpoints = hookpoints
+        self.n_hookpoints = len(hookpoints)
         self.d_model = d_model
+
         if init_strategy is not None:
             init_strategy.init_weights(self)
 
@@ -79,8 +84,8 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
 
     def _dump_cfg(self) -> dict[str, Any]:
         return {
-            "n_models": len(self.crosscoding_dims["model"].index_labels),
-            "hookpoints": self.crosscoding_dims["hookpoint"].index_labels,
+            "n_models": len(self._crosscoding_dims["model"].index_labels),
+            "hookpoints": self._crosscoding_dims["hookpoint"].index_labels,
             "d_model": self.d_model,
             "n_latents": self.n_latents,
             "activation_fn": {
@@ -108,26 +113,6 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
             use_decoder_bias=cfg["use_decoder_bias"],
             dtype=cfg["dtype"],
         )
-
-    # @classmethod
-    # def create_as_SAE(
-    #     cls: type[Self],
-    #     d_model: int,
-    #     n_latents: int,
-    #     activation_fn: TActivation,
-    #     use_encoder_bias: bool,
-    #     use_decoder_bias: bool,
-    #     dtype: torch.dtype = torch.float32,
-    # ) -> "ModelHookpointAcausalCrosscoder[TActivation]":
-    #     return ModelHookpointAcausalCrosscoder(
-    #         crosscoding_dims=CrosscodingDimsDict(),
-    #         d_model=d_model,
-    #         n_latents=n_latents,
-    #         activation_fn=activation_fn,
-    #         use_encoder_bias=use_encoder_bias,
-    #         use_decoder_bias=use_decoder_bias,
-    #         dtype=dtype,
-    #     )
 
 
 class Transcoder(Generic[TActivation], BaseCrosscoder[TActivation]):

@@ -43,7 +43,9 @@ class IdenticalLatentsInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]]):
         assert (cc.W_dec_LMPD[: self.n_shared_latents, 0] == cc.W_dec_LMPD[: self.n_shared_latents, 1]).all()
 
 
-class BaseDiffingTrainer(Generic[TConfig, TAct], BaseModelHookpointAcausalTrainer[TConfig, TAct]):
+class BaseFebUpdateDiffingTrainer(Generic[TConfig, TAct], BaseModelHookpointAcausalTrainer[TConfig, TAct]):
+    activations_dataloader: ModelHookpointActivationsDataloader
+
     def __init__(
         self,
         cfg: TConfig,
@@ -58,12 +60,8 @@ class BaseDiffingTrainer(Generic[TConfig, TAct], BaseModelHookpointAcausalTraine
         n_models = 2
         super().__init__(cfg, n_models, hookpoints, activations_dataloader, crosscoder, wandb_run, device, save_dir)
         self.n_shared_latents = n_shared_latents
-        assert len(self.crosscoder.crosscoding_dims["model"]) == 2, (
-            "expected the model crosscoding dim to have length 2"
-        )
-        assert len(self.activations_dataloader.get_crosscoding_dims()["model"]) == 2, (
-            "expected the activations dataloader to have length 2"
-        )
+        assert self.crosscoder.n_models == 2, "expected the model crosscoding dim to have length 2"
+        assert self.activations_dataloader.n_models == 2, "expected the activations dataloader to have length 2"
 
     def _after_forward_passes(self):
         self._synchronise_shared_weight_grads()

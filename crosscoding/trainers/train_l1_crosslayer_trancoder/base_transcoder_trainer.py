@@ -6,7 +6,6 @@ import torch
 from wandb.sdk.wandb_run import Run
 
 from crosscoding.data.activations_dataloader import ModelHookpointActivationsBatch, ModelHookpointActivationsDataloader
-from crosscoding.dims import CrosscodingDim
 from crosscoding.models.activations.activation_function import ActivationFunction
 from crosscoding.models.sparse_coders import CrossLayerTranscoder
 from crosscoding.trainers.base_acausal_trainer import BaseTrainer
@@ -22,6 +21,8 @@ class BaseCrossLayerTranscoderTrainer(
     Generic[TConfig, TAct],
     BaseTrainer[TConfig, CrossLayerTranscoder[TAct], ModelHookpointActivationsBatch],
 ):
+    activations_dataloader: ModelHookpointActivationsDataloader
+
     def __init__(
         self,
         cfg: TConfig,
@@ -34,18 +35,16 @@ class BaseCrossLayerTranscoderTrainer(
     ):
         super().__init__(cfg, activations_dataloader, crosscoder, wandb_run, device, save_dir)
         self.out_layers_names = out_layers_names
-        self.out_layers_dim = CrosscodingDim(name="out_layer", index_labels=out_layers_names)
-
-        dl_cc_dims = self.activations_dataloader.get_crosscoding_dims()
-        assert len(dl_cc_dims["model"]) == 1
-        assert len(dl_cc_dims["hookpoint"]) == len(self.out_layers_dim) + 1
+        assert self.activations_dataloader.n_models == 1
+        assert self.activations_dataloader.n_hookpoints == len(self.out_layers_names) + 1
 
     def run_batch(
         self, batch: ModelHookpointActivationsBatch, log: bool
-    ) -> tuple[torch.Tensor, dict[str, float] | None]:
+    ) -> tuple[torch.Tensor, dict[str, float] | None, int]:
         batch_BMPD = batch.activations_BMPD
         assert batch_BMPD.shape[1] == 1, "we must have one model"
-        assert batch_BMPD.shape[2] == len(self.out_layers_dim) + 1, "we must have one more hookpoint than out layers"
+        assert batch_BMPD.shape[2] == len(self.out_layers_names) + 1, "we must have one more hookpoint than out layers"
+
         in_BD = batch_BMPD[:, 0, 0]
         out_BPD = batch_BMPD[:, 0, 1:]
 
@@ -53,7 +52,8 @@ class BaseCrossLayerTranscoderTrainer(
 
         self.firing_tracker.add_batch(train_res.latents_BL)
 
-        return self._calculate_loss_and_log(train_res, out_BPD, log=log)
+        loss, log_dict = self._calculate_loss_and_log(train_res, out_BPD, log=log)
+        return loss, log_dict, batch_BMPD.shape[0]
 
     @abstractmethod
     def _calculate_loss_and_log(
@@ -67,7 +67,7 @@ class BaseCrossLayerTranscoderTrainer(
         return get_fvu_dict(
             y_BPD,
             recon_y_BPD,
-            ("hookpoint", self.out_layers_dim.index_labels),
+            ("hookpoint", self.out_layers_names),
         )
 
     def _maybe_save_model(self) -> None:
@@ -79,9 +79,7 @@ class BaseCrossLayerTranscoderTrainer(
             assert scaling_factors_MP.shape[1] == 2, "expected the scaling factors to have one model only"
             scaling_factor_in_ = scaling_factors_MP[0, 0]  # shape ()
             scaling_factors_out_P = scaling_factors_MP[0, 1:]  # shape (P,)
-            self.crosscoder.with_folded_scaling_factors(scaling_factor_in_, scaling_factors_out_P).save(
-                checkpoint_path
-            )
+            self.crosscoder.with_folded_scaling_factors(scaling_factor_in_, scaling_factors_out_P).save(checkpoint_path)
 
             if self.cfg.upload_saves_to_wandb:
                 artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)

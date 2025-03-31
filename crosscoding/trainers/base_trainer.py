@@ -27,6 +27,7 @@ TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
 TCC = TypeVar("TCC", bound=BaseCrosscoder[Any])
 TBatch = TypeVar("TBatch")
 
+
 class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
     LOG_HISTOGRAMS_EVERY_N_LOGS = 10
 
@@ -75,7 +76,9 @@ class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
             log = self.step % self.cfg.log_every_n_steps == 0
 
             for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
-                loss, log_dict = self.run_batch(next(epoch_dataloader), log)
+                loss, log_dict, tokens_trained = self.run_batch(next(epoch_dataloader), log)
+                if self.epoch == 0:
+                    self.unique_tokens_trained += tokens_trained
 
                 loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
                 if log_dict is not None:
@@ -94,8 +97,6 @@ class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
 
             clip_grad_norm_(self.crosscoder.parameters(), 1.0)
             self.optimizer.step()
-            if self.epoch == 0:
-                self.unique_tokens_trained += self.activations_dataloader.batch_size()
             self.step += 1
 
         self.wandb_run.finish()
@@ -103,11 +104,10 @@ class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
     def _after_forward_passes(self): ...
 
     @abstractmethod
-    def run_batch(self, batch: TBatch, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]: ...
+    def run_batch(self, batch: TBatch, log: bool) -> tuple[torch.Tensor, dict[str, float] | None, int]: ...
 
     @abstractmethod
     def _maybe_save_model(self) -> None: ...
-
 
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"

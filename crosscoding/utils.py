@@ -6,7 +6,6 @@ from typing import TypeVar
 
 import einops
 import torch
-from einops.einops import Reduction
 from pydantic import BaseModel as _BaseModel
 
 from crosscoding.log import logger

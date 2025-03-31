@@ -1,7 +1,6 @@
 import fire  # type: ignore
 
 from crosscoding.data.activations_dataloader import build_model_hookpoint_dataloader
-from crosscoding.dims import CrosscodingDim, CrosscodingDimsDict
 from crosscoding.llms import build_llms
 from crosscoding.log import logger
 from crosscoding.models import AnthropicTransposeInit, ReLUActivation
@@ -31,13 +30,9 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         cache_dir=cfg.cache_dir,
     )
 
-    crosscoding_dims = CrosscodingDimsDict.from_dims(
-        CrosscodingDim(name="model", index_labels=list(map(str, range(len(llms))))),
-        CrosscodingDim(name="hookpoint", index_labels=cfg.hookpoints),
-    )
-
     crosscoder = ModelHookpointAcausalCrosscoder(
-        crosscoding_dims=crosscoding_dims,
+        n_models=len(llms),
+        hookpoints=cfg.hookpoints,
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
         activation_fn=ReLUActivation(),
@@ -57,7 +52,6 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,
-        crosscoding_dims=crosscoding_dims,
     )
 
 

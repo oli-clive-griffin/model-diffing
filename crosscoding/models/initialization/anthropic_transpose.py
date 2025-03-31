@@ -4,7 +4,7 @@ import torch
 from einops import rearrange, repeat
 
 from crosscoding.models.initialization.init_strategy import InitStrategy
-from crosscoding.models.sparse_coders import ModelHookpointAcausalCrosscoder, CrossLayerTranscoder
+from crosscoding.models.sparse_coders import CrossLayerTranscoder, ModelHookpointAcausalCrosscoder
 from crosscoding.utils import random_direction_init_
 
 
@@ -14,14 +14,14 @@ class AnthropicTransposeInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]])
 
     @torch.no_grad()
     def init_weights(self, cc: ModelHookpointAcausalCrosscoder[Any]) -> None:
-        random_direction_init_(cc.W_dec_LXD, self.dec_init_norm)
+        random_direction_init_(cc.W_dec_LMPD, self.dec_init_norm)
 
-        cc.W_enc_XDL.copy_(rearrange(cc.W_dec_LXD.clone(), "l ... -> ... l"))
+        cc.W_enc_MPDL.copy_(rearrange(cc.W_dec_LMPD.clone(), "l ... -> ... l"))
 
         if cc.b_enc_L is not None:
             cc.b_enc_L.zero_()
-        if cc.b_dec_XD is not None:
-            cc.b_dec_XD.zero_()
+        if cc.b_dec_MPD is not None:
+            cc.b_dec_MPD.zero_()
 
 
 class AnthropicTransposeInitCrossLayerTC(InitStrategy[CrossLayerTranscoder[Any]]):

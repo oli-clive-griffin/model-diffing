@@ -12,7 +12,6 @@ from torch.optim import Optimizer
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
-from crosscoding.log import logger
 from crosscoding.trainers.config_common import (
     AdamConfig,
     BaseExperimentConfig,

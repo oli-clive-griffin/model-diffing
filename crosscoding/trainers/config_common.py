@@ -14,7 +14,6 @@ class HuggingfaceTextDatasetConfig(BaseModel):
     shuffle_buffer_size: int | None = None
 
 
-
 class LLMConfig(BaseModel):
     name: str | None = None
     revision: str | None = None

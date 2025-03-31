@@ -38,23 +38,6 @@ class LatentSummary:
     density: float
 
 
-def get_relative_decoder_norms_L(cc: ModelHookpointAcausalCrosscoder[Any]) -> torch.Tensor:
-    """
-    returns a dict mapping latent indices to the relative decoder norm of the corresponding latent
-    """
-    cc_unit_normed = cc.with_decoder_unit_norm()
-
-    match cc_unit_normed.W_dec_LMPD.shape:
-        case (_, 2, 1, _):
-            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LMPD[:, :, 0].unbind(dim=1)
-        case (_, 2, _):
-            m1_W_dec_LD, m2_W_dec_LD = cc_unit_normed.W_dec_LMPD.unbind(dim=1)
-        case _:
-            raise ValueError(f"Unexpected crosscoding dimensions: {cc_unit_normed.crosscoding_dims}")
-
-    return compute_relative_norms_N(m1_W_dec_LD, m2_W_dec_LD)
-
-
 class LatentExaminer:
     def __init__(
         self,

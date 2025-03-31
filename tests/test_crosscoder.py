@@ -3,10 +3,10 @@ from typing import Any
 import torch
 
 from crosscoding.models import (
-    ModelHookpointAcausalCrosscoder,
     AnthropicTransposeInit,
     BatchTopkActivation,
     InitStrategy,
+    ModelHookpointAcausalCrosscoder,
     ReLUActivation,
 )
 from crosscoding.utils import l2_norm

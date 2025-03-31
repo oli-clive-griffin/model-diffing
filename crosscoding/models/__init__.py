@@ -10,8 +10,8 @@ from .initialization.anthropic_transpose import AnthropicTransposeInit
 from .initialization.init_strategy import InitStrategy
 from .initialization.jan_update_init import DataDependentJumpReLUInitStrategy
 from .sparse_coders import (
-    ModelHookpointAcausalCrosscoder,
     CrossLayerTranscoder,
+    ModelHookpointAcausalCrosscoder,
     Transcoder,
 )
 

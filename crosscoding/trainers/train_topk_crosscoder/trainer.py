@@ -40,7 +40,9 @@ class TopKStyleTrainer(
 
         return reconstruction_loss, None
 
-    def aux_loss(self, batch_BMPD: torch.Tensor, train_res: ModelHookpointAcausalCrosscoder.ForwardResult) -> torch.Tensor:
+    def aux_loss(
+        self, batch_BMPD: torch.Tensor, train_res: ModelHookpointAcausalCrosscoder.ForwardResult
+    ) -> torch.Tensor:
         """train to reconstruct the error with the topk dead latents"""
         return aux_loss(
             pre_activations_BL=train_res.pre_activations_BL,

@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Generic, Self, TypeVar
 
@@ -6,7 +7,6 @@ import torch
 from einops import einsum, reduce
 from torch import nn
 
-from crosscoding.dims import CrosscodingDimsDict
 from crosscoding.models.activations import ActivationFunction
 from crosscoding.models.initialization.init_strategy import InitStrategy
 from crosscoding.saveable_module import SaveableModule
@@ -21,6 +21,28 @@ Dimensions:
 - Xo: arbitrary number of output crosscoding dimensions
 - Do: output vector space dimensionality
 """
+
+
+@dataclass
+class CrosscodingDim:
+    name: str
+    index_labels: list[str]
+
+    def __len__(self) -> int:
+        return len(self.index_labels)
+
+
+class CrosscodingDimsDict(OrderedDict[str, CrosscodingDim]):
+    def index(self, dim_name: str) -> int:
+        return list(self.keys()).index(dim_name)
+
+    def sizes(self) -> tuple[int, ...]:
+        return tuple(len(dim) for dim in self.values())
+
+    @classmethod
+    def from_dims(cls, *dims: CrosscodingDim) -> "CrosscodingDimsDict":
+        return cls(OrderedDict((dim.name, dim) for dim in dims))
+
 
 TActivation = TypeVar("TActivation", bound=ActivationFunction)
 
