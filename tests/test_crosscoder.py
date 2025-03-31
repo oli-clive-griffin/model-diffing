@@ -2,14 +2,14 @@ from typing import Any
 
 import torch
 
-from model_diffing.models import (
+from crosscoding.models import (
     AcausalCrosscoder,
     AnthropicTransposeInit,
     BatchTopkActivation,
     InitStrategy,
     ReLUActivation,
 )
-from model_diffing.utils import l2_norm
+from crosscoding.utils import l2_norm
 
 
 def test_return_shapes():

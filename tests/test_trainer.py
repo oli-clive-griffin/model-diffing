@@ -6,12 +6,12 @@ import torch
 import wandb
 from torch import Tensor
 
-from model_diffing.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
-from model_diffing.models import AcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
-from model_diffing.trainers.base_acausal_trainer import BaseAcausalTrainer
-from model_diffing.trainers.config_common import AdamConfig, BaseTrainConfig
-from model_diffing.trainers.train_topk_crosscoder.trainer import aux_loss, topk_dead_latents
-from model_diffing.utils import get_device, l2_norm, not_none
+from crosscoding.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
+from crosscoding.models import AcausalCrosscoder, AnthropicTransposeInit, ReLUActivation
+from crosscoding.trainers.base_acausal_trainer import BaseAcausalTrainer
+from crosscoding.trainers.config_common import AdamConfig, BaseTrainConfig
+from crosscoding.trainers.train_topk_crosscoder.trainer import aux_loss, topk_dead_latents
+from crosscoding.utils import get_device, l2_norm, not_none
 
 
 class TestTrainer(BaseAcausalTrainer[BaseTrainConfig, Any]):

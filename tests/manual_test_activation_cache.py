@@ -9,11 +9,11 @@ from typing import cast
 
 import torch
 
-from model_diffing.data.activation_harvester import ActivationsHarvester
-from model_diffing.data.model_hookpoint_dataloader import ScaledModelHookpointActivationsDataloader
-from model_diffing.data.token_loader import ToyOverfittingTokenSequenceLoader
-from model_diffing.trainers.config_common import LLMConfig
-from model_diffing.trainers.llms import build_llms
+from crosscoding.data.activation_harvester import ActivationsHarvester
+from crosscoding.data.model_hookpoint_dataloader import ScaledModelHookpointActivationsDataloader
+from crosscoding.data.token_loader import ToyOverfittingTokenSequenceLoader
+from crosscoding.trainers.config_common import LLMConfig
+from crosscoding.trainers.llms import build_llms
 
 
 def main():

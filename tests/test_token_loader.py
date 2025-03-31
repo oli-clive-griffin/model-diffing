@@ -4,7 +4,7 @@ import torch
 from datasets import IterableDataset  # type: ignore
 from transformers import AutoTokenizer  # type: ignore
 
-from model_diffing.data.token_loader import HuggingfaceTextDatasetTokenSequenceLoader
+from crosscoding.data.token_loader import HuggingfaceTextDatasetTokenSequenceLoader
 
 
 def test_huggingface_text_dataset_token_sequence_loader():

@@ -1,8 +1,8 @@
 import torch
 
-from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.models.initialization.jan_update_init import compute_b_enc_L
+from crosscoding.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
+from crosscoding.models.crosscoder import AcausalCrosscoder
+from crosscoding.models.initialization.jan_update_init import compute_b_enc_L
 
 
 def test_compute_b_enc_L():

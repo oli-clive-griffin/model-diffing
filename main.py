@@ -1,2 +1,2 @@
-from model_diffing.models
+from crosscoding.models import AcausalCrosscoder
 

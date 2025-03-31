@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from einops import reduce
 
-from model_diffing.utils import calculate_vector_norm_fvu_X, l1_norm, l2_norm, multi_reduce
+from crosscoding.utils import calculate_vector_norm_fvu_X, l1_norm, l2_norm, multi_reduce
 
 
 def test_multi_reduce():
