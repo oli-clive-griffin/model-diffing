@@ -54,8 +54,8 @@ def download_experiment_checkpoint(
     run_id: str,
     version: str,
     destination_dir: Path | str,
-    entity: str = "mars-model-diffing",
-    project: str = "model-diffing",
+    entity: str,
+    project: str,
 ) -> Path:
     api = wandb.Api()
     art = api.artifact(f"{entity}/{project}/{checkpoint_name(run_id)}:{version}")
@@ -75,7 +75,9 @@ if __name__ == "__main__":
     # upload_experiment_checkpoint(
     #     model_checkpoint_path=".checkpoints/jan_update_crosscoder_example_2025-02-19_18-39-32/epoch_0_step_2499",
     #     previous_run_id="48rqbqcm",
-    #     wandb_cfg=WandbConfig(entity="mars-model-diffing", project="model-diffing"),
+    #     wandb_cfg=WandbConfig(entity="your_team", project="your_project"),
     # )
+
+    # OR
 
     # download_experiment_checkpoint("48rqbqcm")

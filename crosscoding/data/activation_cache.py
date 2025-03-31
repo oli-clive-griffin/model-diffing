@@ -28,14 +28,14 @@ class ActivationsCache:
     def get_cache_key(self, model: HookedTransformer, sequence_BS: torch.Tensor, hookpoints: list[str]) -> str:
         """Generate a unique cache key based on model identifier and input hash."""
         # Access the model key buffer that was registered in build_llms
-        if not hasattr(model, "model_diffing_model_key"):
+        if not hasattr(model, "crosscode_model_key"):
             raise ValueError(
-                "Model does not have a model_diffing_model_key buffer. "
+                "Model does not have a crosscode_model_key buffer. "
                 "Please use the build_llms function to create the model."
             )
 
         # Convert tensor of ASCII values back to string
-        model_key_tensor = cast(torch.Tensor, model.model_diffing_model_key)
+        model_key_tensor = cast(torch.Tensor, model.crosscode_model_key)
         model_key = "".join(chr(i) for i in model_key_tensor.tolist())
 
         # Create a deterministic hash of the input tokens
