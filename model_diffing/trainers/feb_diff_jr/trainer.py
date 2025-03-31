@@ -28,7 +28,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMD, train_res.recon_acts_BXD)
 
-        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder._W_dec_LXoDo)
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LXD)
         decoder_norms_shared_Ls = decoder_norms_L[: self.n_shared_latents]
         decoder_norms_indep_Li = decoder_norms_L[self.n_shared_latents :]
 
@@ -81,10 +81,7 @@ class ModelDiffingFebUpdateJumpReLUTrainer(
             "train/lambda_p": self.cfg.lambda_p,
         }
 
-        if (
-            self.cfg.log_every_n_steps is not None
-            and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
-        ):
+        if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
             jr_threshold_hist = wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp())
             log_dict.update({"media/jr_threshold": jr_threshold_hist})
 

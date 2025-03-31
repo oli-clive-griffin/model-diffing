@@ -37,7 +37,7 @@ class ActivationsHarvester:
             self._activation_cache = ActivationsCache(cache_dir=cache_dir, use_mmap=cache_mode == "cache_with_mmap")
 
         self.num_models = len(llms)
-        self._num_hookpoints = len(hookpoints)
+        self.num_hookpoints = len(hookpoints)
         self._layer_to_stop_at = self._get_layer_to_stop_at()
 
     def _get_layer_to_stop_at(self) -> int:
@@ -53,7 +53,7 @@ class ActivationsHarvester:
             if activations_HSPD is not None:
                 return activations_HSPD
 
-        acts_HSPD = torch.empty((*sequence_HS.shape, self._num_hookpoints, llm.cfg.d_model), device=self._device)
+        acts_HSPD = torch.empty((*sequence_HS.shape, self.num_hookpoints, llm.cfg.d_model), device=self._device)
         with torch.inference_mode():
             _, cache = llm.run_with_cache(
                 sequence_HS.to(self._device),

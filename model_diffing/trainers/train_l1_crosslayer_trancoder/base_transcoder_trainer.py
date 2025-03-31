@@ -1,25 +1,24 @@
 from abc import abstractmethod
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 import torch
 
-from model_diffing.models.crosscoder import CrossLayerTranscoder, _BaseCrosscoder
+from model_diffing.models.activations.activation_function import ActivationFunction
+from model_diffing.models.crosscoder import CrossLayerTranscoder
 from model_diffing.trainers.base_acausal_trainer import BaseTrainer
 from model_diffing.trainers.config_common import BaseTrainConfig
-from model_diffing.trainers.utils import (
-    wandb_histogram,
-)
+from model_diffing.trainers.utils import wandb_histogram
 from model_diffing.trainers.wandb_utils.main import create_checkpoint_artifact
 from model_diffing.utils import get_fvu_dict
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
-TCC = TypeVar("TCC", bound=_BaseCrosscoder[Any])
+TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
-class BaseCrossLayerTranscoderTrainer(BaseTrainer[TConfig, CrossLayerTranscoder[Any]]):
-    def run_batch(self, batch_BMPD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]:
-        assert batch_BMPD.shape[1] == 1, "we must have one model"
-        batch_BPD = batch_BMPD[:, 0]
+class BaseCrossLayerTranscoderTrainer(Generic[TConfig, TAct], BaseTrainer[TConfig, CrossLayerTranscoder[TAct]]):
+    def run_batch(self, batch_BXD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]:
+        assert batch_BXD.shape[1] == 1, "we must have one model"
+        batch_BPD = batch_BXD[:, 0]
         in_BD, out_BPD = batch_BPD[:, 0], batch_BPD[:, 1:]
 
         train_res = self.crosscoder.forward_train(in_BD)
@@ -39,8 +38,7 @@ class BaseCrossLayerTranscoderTrainer(BaseTrainer[TConfig, CrossLayerTranscoder[
     def _step_logs(self) -> dict[str, Any]:
         logs = super()._step_logs()
         if (
-            self.cfg.log_every_n_steps is not None
-            and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
+            self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
             and self.crosscoder.b_dec_PD is not None
         ):
             for i, hp_name in enumerate(self.hookpoints[1:]):
@@ -54,11 +52,11 @@ class BaseCrossLayerTranscoderTrainer(BaseTrainer[TConfig, CrossLayerTranscoder[
             ("hookpoint", self.hookpoints),
         )
 
-    def _maybe_save_model(self, scaling_factors_MP: torch.Tensor) -> None:
+    def _maybe_save_model(self, scaling_factors_X: torch.Tensor) -> None:
         if self.cfg.save_every_n_steps is not None and self.step % self.cfg.save_every_n_steps == 0:
             checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
 
-            self.crosscoder.with_folded_scaling_factors(scaling_factors_MP[:, 0], scaling_factors_MP[:, 1:]).save(
+            self.crosscoder.with_folded_scaling_factors(scaling_factors_X[:, 0], scaling_factors_X[:, 1:]).save(
                 checkpoint_path
             )
             if self.cfg.upload_saves_to_wandb:

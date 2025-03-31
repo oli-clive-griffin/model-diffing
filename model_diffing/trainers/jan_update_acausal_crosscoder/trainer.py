@@ -4,11 +4,12 @@ import torch
 
 from model_diffing.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
 from model_diffing.models.crosscoder import AcausalCrosscoder
-from model_diffing.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
+from model_diffing.trainers.base_acausal_trainer import BaseAcausalTrainer
 from model_diffing.trainers.jan_update_acausal_crosscoder.config import TanHSparsityTrainConfig
 from model_diffing.trainers.utils import get_l0_stats, wandb_histogram
 from model_diffing.utils import (
     calculate_reconstruction_loss_summed_norm_MSEs,
+    get_fvu_dict,
     get_summed_decoder_norms_L,
     not_none,
     pre_act_loss,
@@ -16,17 +17,15 @@ from model_diffing.utils import (
 )
 
 
-class JanUpdateAcausalCrosscoderTrainer(
-    BaseModelHookpointAcausalTrainer[TanHSparsityTrainConfig, AnthropicSTEJumpReLUActivation]
-):
+class JanUpdateAcausalCrosscoderTrainer(BaseAcausalTrainer[TanHSparsityTrainConfig, AnthropicSTEJumpReLUActivation]):
     def _calculate_loss_and_log(
         self,
-        batch_BMPD: torch.Tensor,
+        batch_BXD: torch.Tensor,
         train_res: AcausalCrosscoder.ForwardResult,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
-        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BXD)
-        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder._W_dec_LXoDo)
+        reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BXD, train_res.recon_acts_BXD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LXD)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.latents_BL, decoder_norms_L)
         pre_act_loss = self._pre_act_loss(train_res.latents_BL, decoder_norms_L)
 
@@ -38,7 +37,7 @@ class JanUpdateAcausalCrosscoderTrainer(
                 "train/tanh_sparsity_loss": tanh_sparsity_loss.item(),
                 "train/pre_act_loss": pre_act_loss.item(),
                 "train/loss": loss.item(),
-                **self._get_fvu_dict(batch_BMPD, train_res.recon_acts_BXD),
+                **get_fvu_dict(batch_BXD, train_res.recon_acts_BXD, *self.crosscoding_dims),
                 **get_l0_stats(train_res.latents_BL),
             }
 
@@ -62,7 +61,7 @@ class JanUpdateAcausalCrosscoderTrainer(
             "train/lambda_s": self._lambda_s_scheduler(),
             "train/lambda_p": self.cfg.lambda_p,
         }
-        if self.cfg.log_every_n_steps is not None and self.step % (self.cfg.log_every_n_steps * 10) == 0:
+        if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
             threshold_hist = wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp())
             log_dict.update(
                 {
@@ -72,4 +71,7 @@ class JanUpdateAcausalCrosscoderTrainer(
                     ),
                 }
             )
+            if self.crosscoder.b_enc_L is not None:
+                log_dict["b_enc_values"] = wandb_histogram(self.crosscoder.b_enc_L)
+
         return log_dict

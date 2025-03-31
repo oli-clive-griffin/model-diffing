@@ -7,6 +7,7 @@ import torch
 from einops import einsum, reduce
 from torch import nn
 
+from model_diffing.data.base_activations_dataloader import CrosscodingDims
 from model_diffing.models.activations import ACTIVATIONS_MAP, ActivationFunction
 from model_diffing.saveable_module import SaveableModule
 from model_diffing.utils import l2_norm
@@ -25,7 +26,7 @@ Dimensions:
 TModel = TypeVar("TModel", bound=SaveableModule)
 
 
-class InitStrategy(ABC, Generic[TModel]):
+class InitStrategy(Generic[TModel], ABC):
     @abstractmethod
     def init_weights(self, cc: TModel) -> None: ...
 
@@ -33,7 +34,7 @@ class InitStrategy(ABC, Generic[TModel]):
 TActivation = TypeVar("TActivation", bound=ActivationFunction)
 
 
-class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
+class _BaseCrosscoder(Generic[TActivation], SaveableModule):
     is_folded: torch.Tensor
     folded_scaling_factors_in_Xi: torch.Tensor | None
     folded_scaling_factors_out_Xo: torch.Tensor | None
@@ -192,10 +193,10 @@ class _BaseCrosscoder(SaveableModule, Generic[TActivation]):
         return cc
 
 
-class AcausalCrosscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
+class AcausalCrosscoder(Generic[TActivation], _BaseCrosscoder[TActivation]):
     def __init__(
         self,
-        crosscoding_dims: tuple[int, ...],
+        crosscoding_dims: CrosscodingDims,
         d_model: int,
         n_latents: int,
         activation_fn: TActivation,
@@ -204,10 +205,11 @@ class AcausalCrosscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
         init_strategy: InitStrategy["AcausalCrosscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):
+        crosscoding_dims_lengths = tuple(len(d) for d in crosscoding_dims.values())
         super().__init__(
-            crosscoding_dims,
+            crosscoding_dims_lengths,
             d_model,
-            crosscoding_dims,
+            crosscoding_dims_lengths,
             d_model,
             n_latents,
             activation_fn,
@@ -283,7 +285,7 @@ class AcausalCrosscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
             dtype=cfg["dtype"],
         )
 
-class CrossLayerTranscoder(_BaseCrosscoder[TActivation], Generic[TActivation]):
+class CrossLayerTranscoder(Generic[TActivation], _BaseCrosscoder[TActivation]):
     # Xo = (P,)
     # Xi = (),
     # Di = D

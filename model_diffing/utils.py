@@ -150,7 +150,7 @@ def _norm_variance(y: torch.Tensor, y_hat: torch.Tensor) -> torch.Tensor:
 def get_fvu_dict(
     y_BXD: torch.Tensor,
     y_pred_BXD: torch.Tensor,
-    *crosscoding_dims: tuple[str, list[str] | list[int]],
+    *crosscoding_dims: tuple[str, list[str]],
 ) -> dict[str, float]:
     """
     crosscoding_dims is a list of tuples, each (a, b) tuple is:

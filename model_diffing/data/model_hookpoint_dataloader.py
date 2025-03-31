@@ -1,5 +1,4 @@
 import os
-from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
 import torch
@@ -8,6 +7,7 @@ from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from model_diffing.data.activation_harvester import ActivationsHarvester
+from model_diffing.data.base_activations_dataloader import BaseActivationsDataloader
 from model_diffing.data.token_loader import TokenSequenceLoader, build_tokens_sequence_loader
 from model_diffing.log import logger
 from model_diffing.trainers.config_common import DataConfig
@@ -15,18 +15,7 @@ from model_diffing.trainers.utils import estimate_norm_scaling_factor_X
 from model_diffing.utils import change_batch_size_BX
 
 
-class BaseModelHookpointActivationsDataloader(ABC):
-    @abstractmethod
-    def get_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]: ...
-
-    @abstractmethod
-    def num_batches(self) -> int | None: ...
-
-    @abstractmethod
-    def get_norm_scaling_factors_MP(self) -> torch.Tensor: ...
-
-
-class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDataloader):
+class ScaledModelHookpointActivationsDataloader(BaseActivationsDataloader):
     def __init__(
         self,
         token_sequence_loader: TokenSequenceLoader,
@@ -46,14 +35,14 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
         self._norm_scaling_factors_MP = norm_scaling_factors_MP
         self._iterator = self._activations_iterator_BMPD(norm_scaling_factors_MP)
 
-    def num_batches(self) -> int | None:
-        return self._token_sequence_loader.num_batches()
-
-    def get_activations_iterator_BMPD(self) -> Iterator[torch.Tensor]:
+    def get_activations_iterator_BXD(self) -> Iterator[torch.Tensor]:
         return self._iterator
 
-    def get_norm_scaling_factors_MP(self) -> torch.Tensor:
+    def get_norm_scaling_factors_X(self) -> torch.Tensor:
         return self._norm_scaling_factors_MP
+
+    def get_crosscoding_dims_X(self) -> tuple[int, ...]:
+        return self._activations_harvester.num_models, self._activations_harvester.num_hookpoints
 
     def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
@@ -78,7 +67,7 @@ class ScaledModelHookpointActivationsDataloader(BaseModelHookpointActivationsDat
                 torch.cuda.empty_cache()
 
 
-def build_dataloader(
+def build_model_hookpoint_dataloader(
     cfg: DataConfig,
     llms: list[HookedTransformer],
     hookpoints: list[str],

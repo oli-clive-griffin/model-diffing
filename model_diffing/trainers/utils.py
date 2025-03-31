@@ -13,7 +13,12 @@ from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
 from model_diffing.log import logger
-from model_diffing.trainers.config_common import AdamConfig, BaseExperimentConfig, OptimizerCfg, ScheduleFreeSigNumConfig
+from model_diffing.trainers.config_common import (
+    AdamConfig,
+    BaseExperimentConfig,
+    OptimizerCfg,
+    ScheduleFreeSigNumConfig,
+)
 from model_diffing.utils import (
     compute_cosine_similarities_N,
     compute_relative_norms_N,
@@ -36,32 +41,26 @@ def get_l0_stats(hidden_BL: torch.Tensor, name: str = "l0") -> dict[str, float]:
     }
 
 
-def create_cosine_sim_and_relative_norm_histograms(
-    W_dec_LMPD: torch.Tensor,
-    hookpoints: list[str],
-) -> dict[str, wandb.Histogram]:
-    _, n_models, num_hookpoints, _ = W_dec_LMPD.shape
+def create_cosine_sim_and_relative_norm_histograms(W_dec_LMD: torch.Tensor) -> dict[str, wandb.Histogram]:
+    _, n_models, _ = W_dec_LMD.shape
     assert n_models == 2, "only works for 2 models"
 
     plots: dict[str, wandb.Histogram] = {}
-    for hookpoint_idx in range(num_hookpoints):
-        hookpoint_name = hookpoints[hookpoint_idx]
-        W_dec_a_LD = W_dec_LMPD[:, 0, hookpoint_idx]
-        W_dec_b_LD = W_dec_LMPD[:, 1, hookpoint_idx]
+    W_dec_m1_LD = W_dec_LMD[:, 0]
+    W_dec_m2_LD = W_dec_LMD[:, 1]
+    relative_norms = compute_relative_norms_N(W_dec_m1_LD, W_dec_m2_LD)
+    try:
+        plots["media/relative_decoder_norms"] = wandb_histogram(relative_norms)
+    except ValueError as e:
+        if "Too many bins for data range" in str(e):
+            logger.warning("Too many bins for data range, skipping histogram")
+        else:
+            raise e
 
-        relative_norms = compute_relative_norms_N(W_dec_a_LD, W_dec_b_LD)
-        try:
-            plots[f"media/relative_decoder_norms_{hookpoint_name}"] = wandb_histogram(relative_norms)
-        except ValueError as e:
-            if "Too many bins for data range" in str(e):
-                logger.warning(f"Too many bins for {hookpoint_name}, skipping histogram")
-            else:
-                raise e
-
-        shared_latent_mask = get_shared_latent_mask(relative_norms)
-        cosine_sims = compute_cosine_similarities_N(W_dec_a_LD, W_dec_b_LD)
-        shared_features_cosine_sims = cosine_sims[shared_latent_mask]
-        plots[f"media/cosine_sim_{hookpoint_name}"] = wandb_histogram(shared_features_cosine_sims)
+    shared_latent_mask = get_shared_latent_mask(relative_norms)
+    cosine_sims = compute_cosine_similarities_N(W_dec_m1_LD, W_dec_m2_LD)
+    shared_features_cosine_sims = cosine_sims[shared_latent_mask]
+    plots["media/cosine_sim"] = wandb_histogram(shared_features_cosine_sims)
 
     return plots
 

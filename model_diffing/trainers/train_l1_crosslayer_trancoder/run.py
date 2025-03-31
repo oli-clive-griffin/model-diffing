@@ -1,6 +1,6 @@
 import fire  # type: ignore
 
-from model_diffing.data.model_hookpoint_dataloader import build_dataloader
+from model_diffing.data.model_hookpoint_dataloader import build_model_hookpoint_dataloader
 from model_diffing.log import logger
 from model_diffing.models import ReLUActivation
 from model_diffing.models.crosscoder import CrossLayerTranscoder
@@ -24,7 +24,7 @@ def build_l1_crosscoder_trainer(cfg: L1CrossLayerTranscoderExperimentConfig) -> 
         inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
-    dataloader = build_dataloader(
+    dataloader = build_model_hookpoint_dataloader(
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,

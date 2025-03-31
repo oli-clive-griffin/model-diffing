@@ -1,6 +1,6 @@
 import fire  # type: ignore
 
-from model_diffing.data.model_hookpoint_dataloader import build_dataloader
+from model_diffing.data.model_hookpoint_dataloader import build_model_hookpoint_dataloader
 from model_diffing.log import logger
 from model_diffing.models import AcausalCrosscoder, AnthropicTransposeInit, TopkActivation
 from model_diffing.models.activations.topk import BatchTopkActivation, GroupMaxActivation
@@ -48,13 +48,15 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
 
     wandb_run = build_wandb_run(cfg)
 
-    dataloader = build_dataloader(
+    dataloader = build_model_hookpoint_dataloader(
         cfg=cfg.data,
         llms=llms,
         hookpoints=cfg.hookpoints,
         batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
     )
+
+    crosscoding_dims = [("model", ["0", "1"]), ("hookpoint", cfg.hookpoints)]
 
     if cfg.train.k_aux is None:
         cfg.train.k_aux = d_model // 2
@@ -66,9 +68,8 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
         crosscoder=crosscoder,
         wandb_run=wandb_run,
         device=device,
-        hookpoints=cfg.hookpoints,
         save_dir=cfg.save_dir,
-        k_aux=cfg.train.k_aux,
+        crosscoding_dims=crosscoding_dims,
     )
 
 

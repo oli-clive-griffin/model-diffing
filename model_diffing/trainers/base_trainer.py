@@ -1,6 +1,6 @@
 import os
-from abc import abstractmethod
-from collections.abc import Callable, Iterator
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Generic, TypeVar
@@ -8,12 +8,10 @@ from typing import Any, Generic, TypeVar
 import torch
 import yaml
 from torch.nn.utils import clip_grad_norm_
-from tqdm import tqdm  # type: ignore  # type: ignore
+from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
-from model_diffing.data.model_hookpoint_dataloader import (
-    BaseModelHookpointActivationsDataloader,
-)
+from model_diffing.data.base_activations_dataloader import BaseActivationsDataloader
 from model_diffing.log import logger
 from model_diffing.models.activations.activation_function import ActivationFunction
 from model_diffing.models.crosscoder import _BaseCrosscoder
@@ -31,17 +29,16 @@ TCC = TypeVar("TCC", bound=_BaseCrosscoder[Any])
 TAct = TypeVar("TAct", bound=ActivationFunction)
 
 
-class BaseTrainer(Generic[TConfig, TCC]):
+class BaseTrainer(Generic[TConfig, TCC], ABC):
     LOG_HISTOGRAMS_EVERY_N_LOGS = 10
 
     def __init__(
         self,
         cfg: TConfig,
-        activations_dataloader: BaseModelHookpointActivationsDataloader,
+        activations_dataloader: BaseActivationsDataloader,
         crosscoder: TCC,
         wandb_run: Run,
         device: torch.device,
-        hookpoints: list[str],
         save_dir: Path | str,
     ):
         self.cfg = cfg
@@ -50,7 +47,6 @@ class BaseTrainer(Generic[TConfig, TCC]):
         self.crosscoder = crosscoder
         self.wandb_run = wandb_run
         self.device = device
-        self.hookpoints = hookpoints
 
         self.optimizer = build_optimizer(cfg.optimizer, crosscoder.parameters())
 
@@ -66,8 +62,8 @@ class BaseTrainer(Generic[TConfig, TCC]):
         self.unique_tokens_trained = 0
 
     def train(self) -> None:
-        scaling_factors_MP = self.activations_dataloader.get_norm_scaling_factors_MP().to(self.device)
-        epoch_dataloader_BMPD = self.activations_dataloader.get_activations_iterator_BMPD()
+        scaling_factors_X = self.activations_dataloader.get_norm_scaling_factors_X().to(self.device)
+        epoch_dataloader_BXD = self.activations_dataloader.get_activations_iterator_BXD()
 
         for _ in tqdm(
             range(self.cfg.num_steps),
@@ -78,11 +74,11 @@ class BaseTrainer(Generic[TConfig, TCC]):
             self.optimizer.zero_grad()
 
             log_dicts: list[dict[str, float]] = []
-            log = self.cfg.log_every_n_steps is not None and self.step % self.cfg.log_every_n_steps == 0
+            log = self.step % self.cfg.log_every_n_steps == 0
 
             for _ in range(self.cfg.gradient_accumulation_steps_per_batch):
-                batch_BMPD = next(epoch_dataloader_BMPD).to(self.device)
-                loss, log_dict = self.run_batch(batch_BMPD, log)
+                batch_BXD = next(epoch_dataloader_BXD).to(self.device)
+                loss, log_dict = self.run_batch(batch_BXD, log)
 
                 loss.div(self.cfg.gradient_accumulation_steps_per_batch).backward()
                 if log_dict is not None:
@@ -97,12 +93,12 @@ class BaseTrainer(Generic[TConfig, TCC]):
                 }
                 self.wandb_run.log(batch_log_dict_avgs, step=self.step)
 
-            self._maybe_save_model(scaling_factors_MP)
+            self._maybe_save_model(scaling_factors_X)
 
             clip_grad_norm_(self.crosscoder.parameters(), 1.0)
             self.optimizer.step()
             if self.epoch == 0:
-                self.unique_tokens_trained += batch_BMPD.shape[0]
+                self.unique_tokens_trained += batch_BXD.shape[0]
             self.step += 1
 
         self.wandb_run.finish()
@@ -110,10 +106,10 @@ class BaseTrainer(Generic[TConfig, TCC]):
     def _after_forward_passes(self): ...
 
     @abstractmethod
-    def run_batch(self, batch_BMPD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]: ...
+    def run_batch(self, batch_BXD: torch.Tensor, log: bool) -> tuple[torch.Tensor, dict[str, float] | None]: ...
 
     @abstractmethod
-    def _maybe_save_model(self, scaling_factors_MP: torch.Tensor) -> None: ...
+    def _maybe_save_model(self, scaling_factors_X: torch.Tensor) -> None: ...
 
     def _lr_step(self) -> None:
         assert len(self.optimizer.param_groups) == 1, "sanity check failed"
@@ -127,10 +123,7 @@ class BaseTrainer(Generic[TConfig, TCC]):
             "train/learning_rate": self.optimizer.param_groups[0]["lr"],
         }
 
-        if (
-            self.cfg.log_every_n_steps is not None
-            and self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0
-        ):
+        if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
             tokens_since_fired_hist = wandb_histogram(self.firing_tracker.tokens_since_fired_L)
             log_dict.update({"media/tokens_since_fired": tokens_since_fired_hist})
             if self.crosscoder.b_enc_L is not None:

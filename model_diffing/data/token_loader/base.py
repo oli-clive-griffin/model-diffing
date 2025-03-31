@@ -27,6 +27,3 @@ class TokensSequenceBatch:
 class TokenSequenceLoader(ABC):
     @abstractmethod
     def get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]: ...
-
-    def num_batches(self) -> int | None:  # not using __len__ because __len__ doesn't work well with `| None`
-        return None
