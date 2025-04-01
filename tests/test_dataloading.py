@@ -1,12 +1,12 @@
-from crosscoding.data.model_hookpoint_dataloader import (
+from crosscode.data.model_hookpoint_dataloader import (
     ActivationsHarvester,
     ScaledModelHookpointActivationsDataloader,
 )
-from crosscoding.data.token_hookpoint_dataloader import SlidingWindowScaledActivationsDataloader
-from crosscoding.data.token_loader import ToyOverfittingTokenSequenceLoader
-from crosscoding.trainers.config_common import LLMConfig
-from crosscoding.trainers.llms import build_llms
-from crosscoding.utils import get_device
+from crosscode.data.token_hookpoint_dataloader import SlidingWindowScaledActivationsDataloader
+from crosscode.data.token_loader import ToyOverfittingTokenSequenceLoader
+from crosscode.trainers.config_common import LLMConfig
+from crosscode.trainers.llms import build_llms
+from crosscode.utils import get_device
 
 # TODO(oli): fixme, this test is slow because it estimates the norm scaling factor.
 # Need to find a better way to test the shapes while not actually streaming a large amount of data

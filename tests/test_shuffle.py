@@ -1,6 +1,6 @@
 import torch
 
-from crosscoding.data.shuffle import batch_shuffle_tensor_iterator_BX
+from crosscode.data.shuffle import batch_shuffle_tensor_iterator_BX
 
 
 def test_shuffle():

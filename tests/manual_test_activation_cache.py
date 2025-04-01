@@ -9,10 +9,10 @@
 
 # import torch
 
-# from crosscoding.data.activations_dataloader import ScaledModelHookpointActivationsDataloader
-# from crosscoding.data.token_loader import ToyOverfittingTokenSequenceLoader
-# from crosscoding.llms import build_llms
-# from crosscoding.trainers.config_common import LLMConfig
+# from crosscode.data.activations_dataloader import ScaledModelHookpointActivationsDataloader
+# from crosscode.data.token_loader import ToyOverfittingTokenSequenceLoader
+# from crosscode.llms import build_llms
+# from crosscode.trainers.config_common import LLMConfig
 
 
 # def main():

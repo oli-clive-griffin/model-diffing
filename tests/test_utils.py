@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from crosscoding.utils import calculate_vector_norm_fvu_X
+from crosscode.utils import calculate_vector_norm_fvu_X
 
 
 def test_fvu_should_be_1():
