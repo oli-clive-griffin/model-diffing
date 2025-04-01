@@ -58,12 +58,7 @@ def sparsity_loss_l1_of_l2s(
     # think about it like: each latent has a separate projection onto each (model, hookpoint)
     # so we have a separate l2 norm for each (latent, model, hookpoint)
     norms_LX = einops.reduce(W_dec_LMPD, "... d_model -> ...", l2_norm)
-    # norms_LX_ = einx.reduce("... [d_model]", W_dec_LMPD, l2_norm)
-    # assert torch.allclose(norms_LX, norms_LX_), 'sanity'
-
     l1_of_norms_L = einops.reduce(norms_LX, "l ... -> l", l1_norm)
-    # l1_of_norms_L_ = einx.reduce("l [...]", norms_LX, l1_norm)
-    # assert torch.allclose(l1_of_norms_L, l1_of_norms_L_), 'sanity'
 
     # now we weight the latents by the sum of their output l2 norms
     weighted_latents_BL = latents_BL * l1_of_norms_L

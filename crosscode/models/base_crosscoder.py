@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Generic, Self, TypeVar
 
-import einx
 import torch
 from einops import einsum, reduce
 from torch import nn
@@ -137,12 +136,7 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
         """
         # output_space_norms_LX = reduce(self.W_dec_LXoDo, "l ... do -> l ...", l2_norm)
         output_space_norms_LX = reduce(self._W_dec_LXoDo, "l ... do -> l ...", l2_norm)
-        output_space_norms_LX_ = einx.reduce("... [do]", self._W_dec_LXoDo, l2_norm)
-        assert torch.allclose(output_space_norms_LX, output_space_norms_LX_)
-
         max_norms_per_latent_L = reduce(output_space_norms_LX, "l ... -> l", torch.amax)
-        max_norms_per_latent_L_ = einx.reduce("l [...]", output_space_norms_LX, torch.amax)
-        assert torch.allclose(max_norms_per_latent_L, max_norms_per_latent_L_)
 
         # this means that the maximum norm of the decoder vectors into a given output space is 1
         # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
