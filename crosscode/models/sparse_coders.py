@@ -370,11 +370,10 @@ class CompoundCrossLayerTranscoder(Generic[TActivation]):
         for i in range(len(self.hookpoints) - 1):
             transcoder = cast(CrossLayerTranscoder[TActivation], self.transcoders[i])
             input_BD = activation_BPD[:, i]  # we should never take the last hookpoint as input
-
-            res = transcoder.forward_train(input_BD)
-            output_BPoD[:, i:, :] = res.output_BPD
-            latents_BPoL[:, i, :] = res.latents_BL
-            pre_activations_BPoL[:, i, :] = res.pre_activations_BL
+            train_output = transcoder.forward_train(input_BD)
+            output_BPoD[:, i:, :] = train_output.output_BPD
+            latents_BPoL[:, i, :] = train_output.latents_BL
+            pre_activations_BPoL[:, i, :] = train_output.pre_activations_BL
 
         return self.ForwardResult(
             output_BPoD=output_BPoD,
