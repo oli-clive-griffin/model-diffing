@@ -1,25 +1,18 @@
+
 import torch
 
 from crosscode.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscode.models.base_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.initialization.jan_update_init import compute_b_enc_L
+from crosscode.models.sparse_coders import ModelHookpointAcausalCrosscoder
 
 
 def test_compute_b_enc_L():
-    d_model = 2
+    # d_model = 2  # as below in `batch_BD`
     n_latents = 2
 
-    # use an identity matrix for the encoder weights so that the pre-bias is just the feature values
-    cc = ModelHookpointAcausalCrosscoder(
-        n_latents=n_latents,
-        d_model=d_model,
-        activation_fn=AnthropicSTEJumpReLUActivation(size=n_latents, bandwidth=1.0, log_threshold_init=0.1),
-        init_strategy=None,
-        crosscoding_dims=(),
-        use_encoder_bias=False,
-        use_decoder_bias=False,
-    )
-    cc.W_enc_XDL.copy_(torch.eye(n_latents).float())
+    # define `get_pre_bias_BL` to be the identity function from d_model=2 -> n_latents=2 to make everything easier
+    def get_pre_bias_BL(BD: torch.Tensor) -> torch.Tensor:
+        return BD
 
     initial_approx_firing_pct = 0.25
 
@@ -40,7 +33,7 @@ def test_compute_b_enc_L():
     initial_jumprelu_threshold_L = torch.ones(n_latents).float() * initial_jumprelu_threshold
 
     b_enc_L = compute_b_enc_L(
-        cc,
+        get_pre_bias_BL,
         activations_iterator_BD,
         initial_jumprelu_threshold_L,
         initial_approx_firing_pct,
@@ -56,26 +49,19 @@ def test_compute_b_enc_L():
     assert torch.allclose(b_enc_L, expected_b_enc_L), f"b_enc_L: {b_enc_L}, expected_b_enc_L: {expected_b_enc_L}"
 
     # Test that `initial_approx_firing_pct` of features fire when processing the batch
-    pre_acts_BL = (batch_BD @ cc.W_enc_XDL) + cc.b_enc_L  # type: ignore
+
+    pre_acts_BL = get_pre_bias_BL(batch_BD) + b_enc_L  # type: ignore
     acts_BL = (pre_acts_BL > initial_jumprelu_threshold) * pre_acts_BL
     assert (acts_BL != 0.0).float().mean() == initial_approx_firing_pct
 
 
 def test_compute_b_enc_L_batches_rounding():
     n_latents = 1
-    d_model = 1
+    # d_model = 1  # as below in `batch_BD`
 
-    cc = ModelHookpointAcausalCrosscoder(
-        n_latents=n_latents,
-        d_model=d_model,
-        activation_fn=AnthropicSTEJumpReLUActivation(size=n_latents, bandwidth=1.0, log_threshold_init=0.1),
-        init_strategy=None,
-        crosscoding_dims=(),
-        use_encoder_bias=False,
-        use_decoder_bias=False,
-    )
-    # use an identity matrix for the encoder weights so that the pre-bias is just the feature values
-    cc.W_enc_XDL.copy_(torch.eye(n_latents).float())
+    # define `get_pre_bias_BL` to be the identity function from d_model=1 -> n_latents=1 to make everything easier
+    def get_pre_bias_BL(BD: torch.Tensor) -> torch.Tensor:
+        return BD
 
     initial_approx_firing_pct = 0.25
 
@@ -87,7 +73,7 @@ def test_compute_b_enc_L_batches_rounding():
     initial_jumprelu_threshold_L = torch.randn(n_latents).float()
 
     b_enc_L = compute_b_enc_L(
-        cc,
+        get_pre_bias_BL,
         activations_iterator_BD,
         initial_jumprelu_threshold_L,
         initial_approx_firing_pct,

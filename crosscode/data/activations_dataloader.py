@@ -109,7 +109,7 @@ def build_model_hookpoint_dataloader(
         raise ValueError("Tokenizer is not a PreTrainedTokenizerBase")
 
     # first, get an iterator over sequences of tokens
-    token_sequence_loader = TokenSequenceLoader(
+    token_sequence_loader = TokenSequenceLoader.from_hf_dataset_name(
         hf_dataset_name=cfg.token_sequence_loader.hf_dataset_name,
         sequence_length=cfg.token_sequence_loader.sequence_length,
         cache_dir=cache_dir,

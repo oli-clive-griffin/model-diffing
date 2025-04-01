@@ -14,8 +14,8 @@ def test_shuffle():
 
     shuffled_iterator = batch_shuffle_tensor_iterator_BX(
         iter(items),
-        shuffle_buffer_size,
-        yield_batch_size,
+        yield_batch_size_B=yield_batch_size,
+        shuffle_buffer_size=shuffle_buffer_size,
     )
 
     items_batches = list(shuffled_iterator)
@@ -31,7 +31,7 @@ def test_shuffle_uniq():
     shuffled_iterator = batch_shuffle_tensor_iterator_BX(
         iter(items_N),
         shuffle_buffer_size=2,
-        yield_batch_size=1,
+        yield_batch_size_B=1,
     )
 
     items_batches_N = torch.concat(list(shuffled_iterator), dim=0)

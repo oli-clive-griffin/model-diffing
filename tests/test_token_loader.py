@@ -4,7 +4,7 @@ import torch
 from datasets import IterableDataset  # type: ignore
 from transformers import AutoTokenizer  # type: ignore
 
-from crosscode.data.token_loader import HuggingfaceTextDatasetTokenSequenceLoader
+from crosscode.data.token_loader import TokenSequenceLoader
 
 
 def test_huggingface_text_dataset_token_sequence_loader():
@@ -24,7 +24,7 @@ def test_huggingface_text_dataset_token_sequence_loader():
 
     sequence_length = 7  # to test bos wrapping
 
-    token_sequence_loader = HuggingfaceTextDatasetTokenSequenceLoader(
+    token_sequence_loader = TokenSequenceLoader(
         hf_dataset=mock_dataset,
         tokenizer=tokenizer,
         sequence_length=sequence_length,

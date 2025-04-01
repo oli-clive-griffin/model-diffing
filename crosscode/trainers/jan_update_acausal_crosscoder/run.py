@@ -37,7 +37,7 @@ def build_jan_update_crosscoder_trainer(
 
     crosscoder = ModelHookpointAcausalCrosscoder(
         n_models=len(llms),
-        hookpoints=cfg.hookpoints,
+        n_hookpoints=len(cfg.hookpoints),
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
         init_strategy=DataDependentJumpReLUInitStrategy(

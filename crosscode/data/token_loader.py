@@ -4,7 +4,7 @@ from functools import cached_property
 from typing import Any, cast
 
 import torch
-from datasets import load_dataset  # type: ignore
+from datasets import IterableDataset, IterableDatasetDict, load_dataset  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscode.data.shuffle import batch_shuffle_tensor_iterator_BX
@@ -30,22 +30,46 @@ class TokensSequenceBatch:
 
 
 class TokenSequenceLoader:
-    def __init__(
-        self,
+    @classmethod
+    def from_hf_dataset_name(
+        cls,
+        *,
         hf_dataset_name: str,
+        split: str = "train",
         tokenizer: PreTrainedTokenizerBase,
         sequence_length: int,
         batch_size: int,
         shuffle_buffer_size: int | None = None,
         cache_dir: str | None = None,
     ):
-        self._hf_dataset = load_dataset(
-            path=hf_dataset_name,
-            streaming=True,
+        hf_dataset = cast(
+            IterableDataset,
+            load_dataset(
+                path=hf_dataset_name,
+                streaming=True,
+                cache_dir=cache_dir,
+                split=split,
+            ),
+        )
+        return cls(
+            hf_dataset=hf_dataset,
+            tokenizer=tokenizer,
+            sequence_length=sequence_length,
+            batch_size=batch_size,
+            shuffle_buffer_size=shuffle_buffer_size,
             cache_dir=cache_dir,
-            split="train",
         )
 
+    def __init__(
+        self,
+        hf_dataset: IterableDataset,
+        tokenizer: PreTrainedTokenizerBase,
+        sequence_length: int,
+        batch_size: int,
+        shuffle_buffer_size: int | None = None,
+        cache_dir: str | None = None,
+    ):
+        self._hf_dataset = hf_dataset
         self._cache_dir = cache_dir
         self._tokenizer = tokenizer
         self._sequence_length = sequence_length

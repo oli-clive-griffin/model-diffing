@@ -159,17 +159,17 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
 
         return cc
 
-    def fold_activation_scaling_into_weights_(
+    @torch.no_grad()
+    def _fold_activation_scaling_into_weights_(
         self, scaling_factors_in_Xi: torch.Tensor, scaling_factors_out_Xo: torch.Tensor
     ) -> None:
         """scales the crosscoder weights by the activation scaling factors, so that the m can be run on raw llm activations."""
         if self.is_folded.item():
             raise ValueError("Scaling factors already folded into weights")
 
-        raise NotImplementedError("Not tested")
         self._W_enc_XiDiL.mul_(scaling_factors_in_Xi[..., None, None])
         self._W_dec_LXoDo.div_(scaling_factors_out_Xo[..., None])
-        if self._b_dec_XoDo:
+        if self._b_dec_XoDo is not None:
             self._b_dec_XoDo.div_(scaling_factors_out_Xo[..., None])
 
         # set buffer to prevent double-folding
@@ -177,10 +177,11 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
         self.folded_scaling_factors_out_Xo = scaling_factors_out_Xo
         self.is_folded = torch.tensor(True, dtype=torch.bool)
 
-    def with_folded_scaling_factors(
+    @torch.no_grad()
+    def _with_folded_scaling_factors(
         self, scaling_factors_in_Xi: torch.Tensor, scaling_factors_out_Xo: torch.Tensor
     ) -> Self:
         cc = self.clone().to(self.device)
         cc.load_state_dict(self.state_dict())
-        cc.fold_activation_scaling_into_weights_(scaling_factors_in_Xi, scaling_factors_out_Xo)
+        cc._fold_activation_scaling_into_weights_(scaling_factors_in_Xi, scaling_factors_out_Xo)
         return cc

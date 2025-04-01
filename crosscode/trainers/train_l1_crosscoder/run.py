@@ -32,7 +32,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
 
     crosscoder = ModelHookpointAcausalCrosscoder(
         n_models=len(llms),
-        hookpoints=cfg.hookpoints,
+        n_hookpoints=len(cfg.hookpoints),
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
         activation_fn=ReLUActivation(),

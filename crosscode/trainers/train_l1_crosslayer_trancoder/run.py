@@ -33,10 +33,11 @@ def build_l1_crosscoder_trainer(cfg: L1CrossLayerTranscoderExperimentConfig) -> 
     )
 
     d_model = llms[0].cfg.d_model
+    out_layers_names = cfg.hookpoints[1:]
 
     crosscoder = CrossLayerTranscoder(
         d_model=d_model,
-        out_layers_names=cfg.hookpoints[1:],
+        n_layers_out=len(out_layers_names),
         n_latents=cfg.crosscoder.n_latents,
         activation_fn=ReLUActivation(),
         use_encoder_bias=cfg.crosscoder.use_encoder_bias,
@@ -55,8 +56,7 @@ def build_l1_crosscoder_trainer(cfg: L1CrossLayerTranscoderExperimentConfig) -> 
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,
-        # crosscoding_dims=crosscoding_dims,
-        out_layers_names=cfg.hookpoints[1:],
+        out_layers_names=out_layers_names,
     )
 
 

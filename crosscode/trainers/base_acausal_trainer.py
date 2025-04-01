@@ -29,8 +29,8 @@ class BaseModelHookpointAcausalTrainer(
         )
         self.n_models = self.activations_dataloader.n_models
 
-        assert self.activations_dataloader.hookpoints == self.crosscoder.hookpoints, (
-            "expected the hookpoints to be the same between the activations dataloader and the crosscoder"
+        assert self.activations_dataloader.n_hookpoints == self.crosscoder.n_hookpoints, (
+            "expected the number of hookpoints to be the same between the activations dataloader and the crosscoder"
         )
         self.hookpoints = self.activations_dataloader.hookpoints
 
@@ -47,7 +47,7 @@ class BaseModelHookpointAcausalTrainer(
             checkpoint_path = self.save_dir / f"epoch_{self.epoch}_step_{self.step}"
 
             scaling_factors_MP = self.activations_dataloader.get_scaling_factors().to(self.device)
-            self.crosscoder.with_folded_scaling_factors(scaling_factors_MP, scaling_factors_MP).save(checkpoint_path)
+            self.crosscoder.with_folded_scaling_factors(scaling_factors_MP).save(checkpoint_path)
 
             if self.cfg.upload_saves_to_wandb:
                 artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)

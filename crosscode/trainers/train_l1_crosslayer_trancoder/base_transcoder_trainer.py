@@ -77,9 +77,8 @@ class BaseCrossLayerTranscoderTrainer(
             # We know this is (model, hookpoint) because it's a ModelHookpointActivationsDataloader
             scaling_factors_MP = self.activations_dataloader.get_scaling_factors()
             assert scaling_factors_MP.shape[1] == 2, "expected the scaling factors to have one model only"
-            scaling_factor_in_ = scaling_factors_MP[0, 0]  # shape ()
-            scaling_factors_out_P = scaling_factors_MP[0, 1:]  # shape (P,)
-            self.crosscoder.with_folded_scaling_factors(scaling_factor_in_, scaling_factors_out_P).save(checkpoint_path)
+            scaling_factors_P = scaling_factors_MP[0]
+            self.crosscoder.with_folded_scaling_factors(scaling_factors_P).save(checkpoint_path)
 
             if self.cfg.upload_saves_to_wandb:
                 artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)

@@ -1,6 +1,7 @@
 from typing import Any
 
 import torch
+from einops import einsum
 
 from crosscode.models import (
     AnthropicTransposeInit,
@@ -9,6 +10,8 @@ from crosscode.models import (
     ModelHookpointAcausalCrosscoder,
     ReLUActivation,
 )
+from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
+from crosscode.models.sparse_coders import CrossLayerTranscoder
 from crosscode.utils import l2_norm
 
 
@@ -21,20 +24,18 @@ def test_return_shapes():
     dec_init_norm = 1
 
     crosscoder = ModelHookpointAcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
+        n_models=n_models,
+        n_hookpoints=n_hookpoints,
         d_model=d_model,
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
         init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
-        use_encoder_bias=True,
-        use_decoder_bias=True,
     )
 
     activations_BMPD = torch.randn(batch_size, n_models, n_hookpoints, d_model)
-    y_BPD = crosscoder.forward(activations_BMPD)
-    assert y_BPD.shape == activations_BMPD.shape
+    assert crosscoder.forward(activations_BMPD).shape == activations_BMPD.shape
     train_res = crosscoder.forward_train(activations_BMPD)
-    assert train_res.recon_acts_BXD.shape == activations_BMPD.shape
+    assert train_res.recon_acts_BMPD.shape == activations_BMPD.shape
     assert train_res.latents_BL.shape == (batch_size, n_latents)
 
 
@@ -55,7 +56,8 @@ def test_weights_folding_keeps_hidden_representations_consistent():
     dec_init_norm = 1
 
     crosscoder = ModelHookpointAcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
+        n_models=n_models,
+        n_hookpoints=n_hookpoints,
         d_model=d_model,
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
@@ -71,9 +73,7 @@ def test_weights_folding_keeps_hidden_representations_consistent():
 
     output_without_folding = crosscoder.forward_train(scaled_input_BMPD)
 
-    output_with_folding = crosscoder.with_folded_scaling_factors(scaling_factors_MP, scaling_factors_MP).forward_train(
-        unscaled_input_BMPD
-    )
+    output_with_folding = crosscoder.with_folded_scaling_factors(scaling_factors_MP).forward_train(unscaled_input_BMPD)
 
     # all hidden representations should be the same
     assert torch.allclose(output_without_folding.latents_BL, output_with_folding.latents_BL), (
@@ -96,7 +96,8 @@ def assert_close(a: torch.Tensor, b: torch.Tensor, rtol: float = 1e-05, atol: fl
 def test_weights_folding_scales_output_correctly():
     batch_size = 2
 
-    # TODO UNDO ME
+    # TODO UNDO ME.
+    # (oli from future): What?
     n_models = 2
     n_hookpoints = 1
 
@@ -105,7 +106,8 @@ def test_weights_folding_scales_output_correctly():
     dec_init_norm = 0.1
 
     crosscoder = ModelHookpointAcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
+        n_models=n_models,
+        n_hookpoints=n_hookpoints,
         d_model=d_model,
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
@@ -119,10 +121,10 @@ def test_weights_folding_scales_output_correctly():
     unscaled_input_BMPD = torch.randn(batch_size, n_models, n_hookpoints, d_model)
     scaled_input_BMPD = unscaled_input_BMPD * scaling_factors_MP1
 
-    scaled_output_BMPD = crosscoder.forward_train(scaled_input_BMPD).recon_acts_BXD
+    scaled_output_BMPD = crosscoder.forward_train(scaled_input_BMPD).recon_acts_BMPD
 
-    crosscoder.fold_activation_scaling_into_weights_(scaling_factors_MP, scaling_factors_MP)
-    unscaled_output_folded_BMPD = crosscoder.forward_train(unscaled_input_BMPD).recon_acts_BXD
+    crosscoder.fold_activation_scaling_into_weights_(scaling_factors_MP)
+    unscaled_output_folded_BMPD = crosscoder.forward_train(unscaled_input_BMPD).recon_acts_BMPD
 
     # with folded weights, the output should be scaled by the scaling factors
     assert_close(scaled_output_BMPD, unscaled_output_folded_BMPD * scaling_factors_MP1)
@@ -131,13 +133,13 @@ def test_weights_folding_scales_output_correctly():
 class RandomInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]]):
     @torch.no_grad()
     def init_weights(self, cc: ModelHookpointAcausalCrosscoder[Any]) -> None:
-        cc.W_enc_XDL.normal_()
+        cc.W_enc_MPDL.normal_()
         if cc.b_enc_L is not None:
             cc.b_enc_L.zero_()
 
-        cc.W_dec_LXD.normal_()
-        if cc.b_dec_XD is not None:
-            cc.b_dec_XD.zero_()
+        cc.W_dec_LMPD.normal_()
+        if cc.b_dec_MPD is not None:
+            cc.b_dec_MPD.zero_()
 
 
 def test_weights_rescaling_retains_output():
@@ -147,21 +149,25 @@ def test_weights_rescaling_retains_output():
     d_model = 4
     n_latents = 8
 
+    dtype = torch.float64  # for accuracy so we don't get false negatives
+
     crosscoder = ModelHookpointAcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
+        n_models=n_models,
+        n_hookpoints=n_hookpoints,
         d_model=d_model,
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
         init_strategy=RandomInit(),
+        dtype=dtype,
     )
 
-    activations_BMPD = torch.randn(batch_size, n_models, n_hookpoints, d_model)
+    activations_BMPD = torch.randn((batch_size, n_models, n_hookpoints, d_model), dtype=dtype)
 
     train_res = crosscoder.forward_train(activations_BMPD)
     output_rescaled_BMPD = crosscoder.with_decoder_unit_norm().forward_train(activations_BMPD)
 
-    assert torch.allclose(train_res.recon_acts_BXD, output_rescaled_BMPD.recon_acts_BXD), (
-        f"max diff: {torch.max(torch.abs(train_res.recon_acts_BXD - output_rescaled_BMPD.recon_acts_BXD))}"
+    assert torch.allclose(train_res.recon_acts_BMPD, output_rescaled_BMPD.recon_acts_BMPD), (
+        f"max diff: {torch.max(torch.abs(train_res.recon_acts_BMPD - output_rescaled_BMPD.recon_acts_BMPD))}"
     )
 
 
@@ -171,19 +177,54 @@ def test_weights_rescaling_max_norm():
     d_model = 4
     n_latents = 8
 
+    dtype = torch.float64  # for accuracy so we don't get false negatives
+
     cc = ModelHookpointAcausalCrosscoder(
-        crosscoding_dims=(n_models, n_hookpoints),
+        n_models=n_models,
+        n_hookpoints=n_hookpoints,
         d_model=d_model,
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
         init_strategy=RandomInit(),
+        dtype=dtype,
     ).with_decoder_unit_norm()
 
-    cc_dec_norms_LMP = l2_norm(cc.W_dec_LXD, dim=-1)  # dec norms for each output vector space
+    cc_dec_norms_LMP = l2_norm(cc.W_dec_LMPD, dim=-1)  # dec norms for each output vector space
 
-    assert torch.allclose(
-        torch.isclose(cc_dec_norms_LMP, torch.tensor(1.0))  # for each cc hidden dim,
-        .sum(dim=(1, 2))  # only 1 output vector space should have norm 1
-        .long(),
-        torch.ones(n_latents).long(),
-    )
+    which_decoder_vectors_have_unit_norm_LMP = torch.isclose(cc_dec_norms_LMP, torch.tensor(1.0, dtype=dtype))
+    unit_norm_decoder_vectors_per_latent_L = einsum(which_decoder_vectors_have_unit_norm_LMP, "l m p -> l")
+    assert torch.allclose(unit_norm_decoder_vectors_per_latent_L.long(), torch.ones(n_latents).long())
+
+
+class RandomCrosslayerTranscoderInit(InitStrategy[CrossLayerTranscoder[Any]]):
+    @torch.no_grad()
+    def init_weights(self, cc: CrossLayerTranscoder[Any]) -> None:
+        cc.W_enc_DL.normal_()
+        cc.W_dec_LPD.normal_()
+        if cc.b_enc_L is not None:
+            cc.b_enc_L.zero_()
+        if cc.b_dec_PD is not None:
+            cc.b_dec_PD.zero_()
+
+
+def test_weights_rescaling_max_norm_cross_layer_transcoder():
+    n_layers_out = 2
+    d_model = 4
+    n_latents = 8
+
+    dtype = torch.float64  # for accuracy so we don't get false negatives
+
+    cc = CrossLayerTranscoder(
+        n_layers_out=n_layers_out,
+        d_model=d_model,
+        n_latents=n_latents,
+        activation_fn=ReLUActivation(),
+        init_strategy=RandomCrosslayerTranscoderInit(),
+        dtype=dtype,
+    ).with_decoder_unit_norm()
+
+    cc_dec_norms_LP = l2_norm(cc.W_dec_LPD, dim=-1)  # dec norms for each output vector space
+
+    which_decoder_vectors_have_unit_norm_LP = torch.isclose(cc_dec_norms_LP, torch.tensor(1.0, dtype=dtype))
+    unit_norm_decoder_vectors_per_latent_L = einsum(which_decoder_vectors_have_unit_norm_LP, "l p -> l")
+    assert torch.allclose(unit_norm_decoder_vectors_per_latent_L.long(), torch.ones(n_latents).long())

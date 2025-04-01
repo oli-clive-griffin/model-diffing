@@ -1,60 +1,8 @@
-from collections.abc import Iterator
-from typing import Any
 
 import torch
-from torch import Tensor
 
-from crosscode.data.model_hookpoint_dataloader import BaseModelHookpointActivationsDataloader
-from crosscode.models import ModelHookpointAcausalCrosscoder
-from crosscode.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
-from crosscode.trainers.config_common import BaseTrainConfig
 from crosscode.trainers.train_topk_crosscoder.trainer import aux_loss, topk_dead_latents
 from crosscode.utils import l2_norm, not_none
-
-
-class TestTrainer(BaseModelHookpointAcausalTrainer[BaseTrainConfig, Any]):
-    __test__ = False
-
-    def _calculate_loss_and_log(
-        self,
-        batch_BMPD: torch.Tensor,
-        train_res: ModelHookpointAcausalCrosscoder.ForwardResult,
-        log: bool,
-    ) -> tuple[torch.Tensor, dict[str, float] | None]:
-        return torch.tensor(0.0), None
-
-
-class FakeActivationsDataloader(BaseModelHookpointActivationsDataloader):
-    __test__ = False
-
-    def __init__(
-        self,
-        batch_size: int = 16,
-        n_models: int = 1,
-        n_hookpoints: int = 1,
-        d_model: int = 16,
-        num_batches: int = 100,
-    ):
-        self._batch_size = batch_size
-        self._n_models = n_models
-        self._n_hookpoints = n_hookpoints
-        self._d_model = d_model
-        self._num_batches = num_batches
-
-    def get_activations_iterator_BMPD(self) -> Iterator[Tensor]:
-        for _ in range(self._num_batches):
-            yield torch.randint(
-                0,
-                100,
-                (self._batch_size, self._n_models, self._n_hookpoints, self._d_model),
-                dtype=torch.float32,
-            )
-
-    def num_batches(self) -> int | None:
-        return self._num_batches
-
-    def get_norm_scaling_factors_MP(self) -> torch.Tensor:
-        return torch.ones(self._n_models, self._d_model)
 
 
 def test_topk_dead_latents_with_k_less_than_dead():

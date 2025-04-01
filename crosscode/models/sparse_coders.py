@@ -14,7 +14,7 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
     def __init__(
         self,
         n_models: int,
-        hookpoints: list[str],
+        n_hookpoints: int,
         d_model: int,
         n_latents: int,
         activation_fn: TActivation,
@@ -23,7 +23,7 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
         init_strategy: InitStrategy["ModelHookpointAcausalCrosscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):
-        crosscoding_dims = (n_models, len(hookpoints))
+        crosscoding_dims = (n_models, n_hookpoints)
 
         super().__init__(
             crosscoding_dims,
@@ -40,8 +40,7 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
         self._crosscoding_dims = crosscoding_dims
 
         self.n_models = n_models
-        self.hookpoints = hookpoints
-        self.n_hookpoints = len(hookpoints)
+        self.n_hookpoints = n_hookpoints
         self.d_model = d_model
 
         if init_strategy is not None:
@@ -68,21 +67,21 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
         return self.decode_BXoDo(latents_BL)
 
     @property
-    def W_dec_LMPD(self) -> torch.Tensor:
+    def W_dec_LMPD(self) -> nn.Parameter:
         return self._W_dec_LXoDo
 
     @property
-    def W_enc_MPDL(self) -> torch.Tensor:
+    def W_enc_MPDL(self) -> nn.Parameter:
         return self._W_enc_XiDiL
 
     @property
-    def b_dec_MPD(self) -> torch.Tensor | None:
+    def b_dec_MPD(self) -> nn.Parameter | None:
         return self._b_dec_XoDo
 
     def _dump_cfg(self) -> dict[str, Any]:
         return {
             "n_models": self.n_models,
-            "hookpoints": self.hookpoints,
+            "n_hookpoints": self.n_hookpoints,
             "d_model": self.d_model,
             "n_latents": self.n_latents,
             "activation_fn": {
@@ -102,7 +101,7 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
 
         return ModelHookpointAcausalCrosscoder(
             n_models=cfg["n_models"],
-            hookpoints=cfg["hookpoints"],
+            n_hookpoints=cfg["n_hookpoints"],
             d_model=cfg["d_model"],
             n_latents=cfg["n_latents"],
             activation_fn=activation_fn,
@@ -110,6 +109,12 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
             use_decoder_bias=cfg["use_decoder_bias"],
             dtype=cfg["dtype"],
         )
+
+    def fold_activation_scaling_into_weights_(self, scaling_factors_out_MP: torch.Tensor) -> None:
+        self._fold_activation_scaling_into_weights_(scaling_factors_out_MP, scaling_factors_out_MP)
+
+    def with_folded_scaling_factors(self, scaling_factors_out_MP: torch.Tensor) -> Self:
+        return self._with_folded_scaling_factors(scaling_factors_out_MP, scaling_factors_out_MP)
 
 
 class SAEOrTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
@@ -173,15 +178,15 @@ class SAEOrTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
         return self.forward_train(activation_BD).output_BD
 
     @property
-    def W_dec_LD(self) -> torch.Tensor:
+    def W_dec_LD(self) -> nn.Parameter:
         return self._W_dec_LXoDo
 
     @property
-    def W_enc_DL(self) -> torch.Tensor:
+    def W_enc_DL(self) -> nn.Parameter:
         return self._W_enc_XiDiL
 
     @property
-    def b_dec_D(self) -> torch.Tensor | None:
+    def b_dec_D(self) -> nn.Parameter | None:
         return self._b_dec_XoDo
 
     def _dump_cfg(self) -> dict[str, Any]:
@@ -211,6 +216,15 @@ class SAEOrTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             use_decoder_bias=cfg["use_decoder_bias"],
             dtype=cfg["dtype"],
         )
+
+    def fold_activation_scaling_into_weights_(self, scaling_factor: float) -> None:
+        scaling_factor_tensor = torch.tensor(scaling_factor)
+        self._fold_activation_scaling_into_weights_(scaling_factor_tensor, scaling_factor_tensor)
+
+    def with_folded_scaling_factors(self, scaling_factor: float) -> Self:
+        scaling_factor_tensor = torch.tensor(scaling_factor)
+        return self._with_folded_scaling_factors(scaling_factor_tensor, scaling_factor_tensor)
+
 
 
 class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
@@ -277,15 +291,15 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
         return self.forward_train(activation_BD).output_BPD
 
     @property
-    def W_dec_LPD(self) -> torch.Tensor:
+    def W_dec_LPD(self) -> nn.Parameter:
         return self._W_dec_LXoDo
 
     @property
-    def W_enc_DL(self) -> torch.Tensor:
+    def W_enc_DL(self) -> nn.Parameter:
         return self._W_enc_XiDiL
 
     @property
-    def b_dec_PD(self) -> torch.Tensor | None:
+    def b_dec_PD(self) -> nn.Parameter | None:
         return self._b_dec_XoDo
 
     def _dump_cfg(self) -> dict[str, Any]:
@@ -317,19 +331,29 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             use_decoder_bias=cfg["use_decoder_bias"],
             dtype=cfg["dtype"],
         )
+    
+    def fold_activation_scaling_into_weights_(self, scaling_factors_P: torch.Tensor) -> None:
+        scaling_factor_in = scaling_factors_P[0]
+        scaling_factors_out_Po = scaling_factors_P[1:]
+        self._fold_activation_scaling_into_weights_(scaling_factor_in, scaling_factors_out_Po)
+
+    def with_folded_scaling_factors(self, scaling_factors_P: torch.Tensor) -> Self:
+        scaling_factor_in = scaling_factors_P[0]
+        scaling_factors_out_Po = scaling_factors_P[1:]
+        return self._with_folded_scaling_factors(scaling_factor_in, scaling_factors_out_Po)
 
 
 class CompoundCrossLayerTranscoder(Generic[TActivation]):
     def __init__(
         self,
-        hookpoints: list[str],
+        n_hookpoints: int,
         d_model: int,
         n_latents_per_tc: int,
         activation_fn: TActivation,
         linear_skip: bool = False,
         dtype: torch.dtype = torch.float32,
     ):
-        self.n_hookpoints = len(hookpoints)
+        self.n_hookpoints = n_hookpoints
         self.n_hookpoints_out = self.n_hookpoints - 1
         self.transcoders = nn.ModuleList(
             [
@@ -343,10 +367,10 @@ class CompoundCrossLayerTranscoder(Generic[TActivation]):
                     linear_skip=linear_skip,
                     dtype=dtype,
                 )
-                for i in range(len(hookpoints) - 1)
+                for i in range(self.n_hookpoints - 1)
             ]
         )
-        self.hookpoints = hookpoints
+        self.n_hookpoints = n_hookpoints
         self._dtype = dtype
         self.n_latents_per_tc = n_latents_per_tc
 
@@ -357,8 +381,8 @@ class CompoundCrossLayerTranscoder(Generic[TActivation]):
         pre_activations_BPoL: torch.Tensor
 
     def forward(self, activation_BPD: torch.Tensor) -> ForwardResult:
-        # P = all hookpoints = len(self.hookpoints)
-        # Po = out hookpoints = self.hookpoints[1:]
+        # P = all hookpoints has length self.n_hookpoints
+        # Po = out hookpoints = self.n_hookpoints - 1
         B, P, D = activation_BPD.shape
         Po = P - 1
         device = activation_BPD.device
@@ -367,13 +391,17 @@ class CompoundCrossLayerTranscoder(Generic[TActivation]):
         latents_BPoL = torch.zeros((B, Po, self.n_latents_per_tc), dtype=dtype, device=device)
         pre_activations_BPoL = torch.zeros((B, Po, self.n_latents_per_tc), dtype=dtype, device=device)
 
-        for i in range(len(self.hookpoints) - 1):
-            transcoder = cast(CrossLayerTranscoder[TActivation], self.transcoders[i])
-            input_BD = activation_BPD[:, i]  # we should never take the last hookpoint as input
+        for input_idx in range(self.n_hookpoints - 1):
+            transcoder = cast(CrossLayerTranscoder[TActivation], self.transcoders[input_idx])
+            input_BD = activation_BPD[:, input_idx]  # we should never take the last hookpoint as input
             train_output = transcoder.forward_train(input_BD)
-            output_BPoD[:, i:, :] = train_output.output_BPD
-            latents_BPoL[:, i, :] = train_output.latents_BL
-            pre_activations_BPoL[:, i, :] = train_output.pre_activations_BL
+
+            # output is different to latents and pre_activations, as it's cumulatively built up, with transcoder i
+            # outputting from hookpoint i+1 onwards
+            output_BPoD[:, input_idx:, :] += train_output.output_BPD
+
+            latents_BPoL[:, input_idx, :] = train_output.latents_BL
+            pre_activations_BPoL[:, input_idx, :] = train_output.pre_activations_BL
 
         return self.ForwardResult(
             output_BPoD=output_BPoD,
