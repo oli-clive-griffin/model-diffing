@@ -37,8 +37,8 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
         d_out: int,
         n_latents: int,
         activation_fn: TActivation,
-        use_encoder_bias: bool,
-        use_decoder_bias: bool,
+        use_encoder_bias: bool = True,
+        use_decoder_bias: bool = True,
         init_strategy: InitStrategy["BaseCrosscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):

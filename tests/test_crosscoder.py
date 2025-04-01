@@ -110,8 +110,6 @@ def test_weights_folding_scales_output_correctly():
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
         init_strategy=AnthropicTransposeInit(dec_init_norm=dec_init_norm),
-        use_encoder_bias=True,
-        use_decoder_bias=True,
     )
 
     # scaling_factors_MP = torch.randn(n_models, n_hookpoints)
@@ -155,8 +153,6 @@ def test_weights_rescaling_retains_output():
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
         init_strategy=RandomInit(),
-        use_encoder_bias=True,
-        use_decoder_bias=True,
     )
 
     activations_BMPD = torch.randn(batch_size, n_models, n_hookpoints, d_model)
@@ -181,8 +177,6 @@ def test_weights_rescaling_max_norm():
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
         init_strategy=RandomInit(),
-        use_encoder_bias=True,
-        use_decoder_bias=True,
     ).with_decoder_unit_norm()
 
     cc_dec_norms_LMP = l2_norm(cc.W_dec_LXD, dim=-1)  # dec norms for each output vector space
