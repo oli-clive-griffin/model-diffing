@@ -1,0 +1,28 @@
+data:
+  token_sequence_loader:
+    type: HuggingfaceTextDatasetTokenSequenceLoader
+    hf_dataset_name: "monology/pile-uncopyrighted"
+    sequence_length: 256
+  activations_harvester:
+    llms:
+      # - name: EleutherAI/pythia-160M
+      #   revision: step142000
+      - name: EleutherAI/pythia-160M
+        revision: step143000 # last checkpoint
+    harvesting_batch_size: 1
+crosscoder:
+  n_latents: 4096
+  k: 19
+  use_encoder_bias: True
+  use_decoder_bias: True
+train:
+  num_steps: 30_000
+  batch_size: 512
+  save_every_n_steps: 2500
+  log_every_n_steps: 10
+  topk_style: "topk"
+  lambda_aux: 0.1
+experiment_name: "yesbias_k-1"
+hookpoints: ["blocks.8.hook_resid_post"]
+wandb:
+  project: topk_bias

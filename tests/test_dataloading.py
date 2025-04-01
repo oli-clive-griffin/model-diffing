@@ -1,12 +1,12 @@
-from model_diffing.data.model_hookpoint_dataloader import (
+from crosscoding.data.model_hookpoint_dataloader import (
     ActivationsHarvester,
     ScaledModelHookpointActivationsDataloader,
 )
-from model_diffing.data.token_hookpoint_dataloader import SlidingWindowScaledActivationsDataloader
-from model_diffing.data.token_loader import ToyOverfittingTokenSequenceLoader
-from model_diffing.scripts.config_common import LLMConfig
-from model_diffing.scripts.llms import build_llms
-from model_diffing.utils import get_device
+from crosscoding.data.token_hookpoint_dataloader import SlidingWindowScaledActivationsDataloader
+from crosscoding.data.token_loader import ToyOverfittingTokenSequenceLoader
+from crosscoding.trainers.config_common import LLMConfig
+from crosscoding.trainers.llms import build_llms
+from crosscoding.utils import get_device
 
 # TODO(oli): fixme, this test is slow because it estimates the norm scaling factor.
 # Need to find a better way to test the shapes while not actually streaming a large amount of data

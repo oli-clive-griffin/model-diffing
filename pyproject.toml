@@ -1,7 +1,7 @@
 [project]
-name = "model-diffing"
+name = "crosscode"
 version = "0.0.1"
-description = "MARS Model Diffing project under Bilal Chughtai"
+description = "Train Crosscoders"
 requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [
@@ -22,6 +22,7 @@ dependencies = [
     "pandas",
     "matplotlib",
     "schedulefree",
+    "zstandard"
 ]
 
 [project.optional-dependencies]
@@ -64,7 +65,7 @@ isort.known-third-party = ["wandb"]
 docstring-code-format = true
 
 [tool.pyright]
-include = ["model_diffing", "tests"]
+include = ["crosscode", "tests"]
 
 strictListInference = true
 strictDictionaryInference = true

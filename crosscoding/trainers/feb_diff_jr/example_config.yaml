@@ -1,0 +1,31 @@
+data:
+  activations_harvester:
+    llms:
+      - name: EleutherAI/pythia-160M
+        revision: step100000
+      - name: EleutherAI/pythia-160M
+        revision: step143000
+    harvesting_batch_size: 2
+  n_tokens_for_norm_estimate: 10_000
+crosscoder:
+  n_latents: 16_384
+  n_shared_latents: 1024
+  jumprelu:
+    backprop_through_jumprelu_input: true
+  initial_approx_firing_pct: 0.3 # WARNING(oli): very uncertain this is a good default!
+  n_tokens_for_threshold_setting: 10_000
+train:
+  num_steps: 10_000
+  batch_size: 1024
+  gradient_accumulation_steps_per_batch: 1
+  save_every_n_steps: 1000
+  log_every_n_steps: 8
+  c: 4.0
+  final_lambda_s: 3.0
+  final_lambda_f: 30.0
+  lambda_p: 0.000003
+experiment_name: test-jr-diffing
+hookpoint: "blocks.8.hook_resid_post"
+wandb:
+  project: test
+  mode: disabled
