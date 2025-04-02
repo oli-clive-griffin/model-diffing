@@ -1,6 +1,6 @@
 # Crosscode
 
-A library for trainnig crosscoders, and by extension, transcoders, SAEs, and other sparse coding models.
+A library for training crosscoders, and by extension, transcoders, SAEs, and other sparse coding models.
 
 ### Training Examples:
 - Training a multi-layer / multi-model crosscoder
