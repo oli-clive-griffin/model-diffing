@@ -86,12 +86,6 @@ def test_weights_folding_keeps_hidden_representations_consistent():
     )
 
 
-def assert_close(a: torch.Tensor, b: torch.Tensor, rtol: float = 1e-05, atol: float = 1e-08):
-    assert torch.allclose(a, b, rtol=rtol, atol=atol), (
-        f"max diff: abs: {torch.max(torch.abs(a - b)).item():.2e}, rel: {torch.max(torch.abs(a - b) / torch.abs(b)).item():.2e}"
-    )
-
-
 def test_weights_folding_scales_output_correctly():
     batch_size = 2
 
@@ -126,7 +120,7 @@ def test_weights_folding_scales_output_correctly():
     unscaled_output_folded_BMPD = crosscoder.forward_train(unscaled_input_BMPD).recon_acts_BMPD
 
     # with folded weights, the output should be scaled by the scaling factors
-    assert_close(scaled_output_BMPD, unscaled_output_folded_BMPD * scaling_factors_MP1)
+    torch.testing.assert_close(scaled_output_BMPD, unscaled_output_folded_BMPD * scaling_factors_MP1)
 
 
 class RandomInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]]):
