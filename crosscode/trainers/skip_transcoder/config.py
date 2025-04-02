@@ -1,5 +1,5 @@
 from crosscode.trainers.config_common import BaseExperimentConfig, BaseSparseCoder
-from crosscode.trainers.train_topk_crosscoder.config import TopKTrainConfig
+from crosscode.trainers.topk_crosscoder.config import TopKTrainConfig
 
 
 class TopkSkipTranscoderConfig(BaseSparseCoder):

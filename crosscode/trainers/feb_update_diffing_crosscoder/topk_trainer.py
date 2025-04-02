@@ -5,8 +5,8 @@ import torch
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.topk import BatchTopkActivation, GroupMaxActivation, TopkActivation
 from crosscode.trainers.base_diffing_trainer import BaseFebUpdateDiffingTrainer
-from crosscode.trainers.train_topk_crosscoder.config import TopKTrainConfig
-from crosscode.trainers.train_topk_crosscoder.trainer import aux_loss
+from crosscode.trainers.topk_crosscoder.config import TopKTrainConfig
+from crosscode.trainers.topk_crosscoder.trainer import aux_loss
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs, not_none
 
 

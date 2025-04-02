@@ -5,7 +5,7 @@ import torch
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
 from crosscode.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
-from crosscode.trainers.jan_update_acausal_crosscoder.config import TanHSparsityTrainConfig
+from crosscode.trainers.jan_update_crosscoder.config import TanHSparsityTrainConfig
 from crosscode.trainers.utils import get_l0_stats, wandb_histogram
 from crosscode.utils import (
     calculate_reconstruction_loss_summed_norm_MSEs,

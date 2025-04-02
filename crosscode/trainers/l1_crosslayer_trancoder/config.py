@@ -1,5 +1,5 @@
 from crosscode.trainers.config_common import BaseExperimentConfig, BaseSparseCoder
-from crosscode.trainers.train_l1_crosscoder.config import L1TrainConfig
+from crosscode.trainers.l1_crosscoder.config import L1TrainConfig
 
 
 class L1CrossLayerTranscoderConfig(BaseSparseCoder):

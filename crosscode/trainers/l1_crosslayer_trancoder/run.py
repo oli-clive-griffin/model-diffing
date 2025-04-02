@@ -7,8 +7,8 @@ from crosscode.models import ReLUActivation
 from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
 from crosscode.trainers.base_trainer import run_exp
-from crosscode.trainers.train_l1_crosslayer_trancoder.config import L1CrossLayerTranscoderExperimentConfig
-from crosscode.trainers.train_l1_crosslayer_trancoder.trainer import L1CrossLayerTranscoderTrainer
+from crosscode.trainers.l1_crosslayer_trancoder.config import L1CrossLayerTranscoderExperimentConfig
+from crosscode.trainers.l1_crosslayer_trancoder.trainer import L1CrossLayerTranscoderTrainer
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 

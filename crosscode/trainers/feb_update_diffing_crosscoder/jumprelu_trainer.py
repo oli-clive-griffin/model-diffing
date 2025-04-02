@@ -5,8 +5,8 @@ import torch
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
 from crosscode.trainers.base_diffing_trainer import BaseFebUpdateDiffingTrainer
-from crosscode.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
-from crosscode.trainers.jan_update_acausal_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
+from crosscode.trainers.feb_update_diffing_crosscoder.config import JumpReLUModelDiffingFebUpdateTrainConfig
+from crosscode.trainers.jan_update_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
 from crosscode.trainers.utils import get_l0_stats, wandb_histogram
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs, get_summed_decoder_norms_L
 

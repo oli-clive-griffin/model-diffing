@@ -2,7 +2,7 @@ from typing import Any
 
 from crosscode.log import logger
 from crosscode.trainers.config_common import BaseExperimentConfig
-from crosscode.trainers.jan_update_acausal_crosscoder.config import JanUpdateCrosscoderConfig, TanHSparsityTrainConfig
+from crosscode.trainers.jan_update_crosscoder.config import JanUpdateCrosscoderConfig, TanHSparsityTrainConfig
 
 
 class JumpReLUModelDiffingFebUpdateCrosscoderConfig(JanUpdateCrosscoderConfig):

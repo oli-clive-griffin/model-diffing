@@ -6,7 +6,7 @@ import torch
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.relu import ReLUActivation
 from crosscode.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
-from crosscode.trainers.train_l1_crosscoder.config import L1TrainConfig
+from crosscode.trainers.l1_crosscoder.config import L1TrainConfig
 from crosscode.trainers.utils import get_l0_stats
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs, l1_norm, l2_norm
 

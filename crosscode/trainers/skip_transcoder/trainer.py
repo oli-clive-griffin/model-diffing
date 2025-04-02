@@ -4,9 +4,9 @@ import torch
 
 from crosscode.models.activations.topk import TopkActivation
 from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
-from crosscode.trainers.train_l1_crosslayer_trancoder.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
-from crosscode.trainers.train_topk_crosscoder.config import TopKTrainConfig
-from crosscode.trainers.train_topk_crosscoder.trainer import aux_loss
+from crosscode.trainers.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
+from crosscode.trainers.topk_crosscoder.config import TopKTrainConfig
+from crosscode.trainers.topk_crosscoder.trainer import aux_loss
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs, not_none
 
 

@@ -6,8 +6,8 @@ from crosscode.log import logger
 from crosscode.models import AnthropicTransposeInit, ModelHookpointAcausalCrosscoder, TopkActivation
 from crosscode.models.activations.topk import BatchTopkActivation, GroupMaxActivation
 from crosscode.trainers.base_trainer import run_exp
-from crosscode.trainers.train_topk_crosscoder.config import TopKAcausalCrosscoderExperimentConfig
-from crosscode.trainers.train_topk_crosscoder.trainer import TopKStyleTrainer
+from crosscode.trainers.topk_crosscoder.config import TopKAcausalCrosscoderExperimentConfig
+from crosscode.trainers.topk_crosscoder.trainer import TopKStyleTrainer
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 

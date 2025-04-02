@@ -6,8 +6,8 @@ from crosscode.log import logger
 from crosscode.models import AnthropicTransposeInit, ReLUActivation
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.trainers.base_trainer import run_exp
-from crosscode.trainers.train_l1_crosscoder.config import L1ExperimentConfig
-from crosscode.trainers.train_l1_crosscoder.trainer import L1CrosscoderTrainer
+from crosscode.trainers.l1_crosscoder.config import L1ExperimentConfig
+from crosscode.trainers.l1_crosscoder.trainer import L1CrosscoderTrainer
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 
