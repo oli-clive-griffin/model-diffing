@@ -1,6 +1,6 @@
 from typing import Any
 
-from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, BaseSparseCoder
+from crosscode.trainers.config_common import BaseExperimentConfig, BaseSparseCoder, BaseTrainConfig
 from crosscode.utils import BaseModel
 
 

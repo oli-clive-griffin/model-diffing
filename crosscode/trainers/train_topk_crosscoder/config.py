@@ -1,5 +1,5 @@
 from crosscode.models.activations.topk import TopKStyle
-from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, BaseSparseCoder
+from crosscode.trainers.config_common import BaseExperimentConfig, BaseSparseCoder, BaseTrainConfig
 
 
 class TopKCrosscoderConfig(BaseSparseCoder):

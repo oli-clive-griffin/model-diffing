@@ -72,10 +72,3 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleTraine
 if __name__ == "__main__":
     logger.info("Starting...")
     fire.Fire(run_exp(build_trainer, TopKAcausalCrosscoderExperimentConfig))
-
-
-
-
-
-
-

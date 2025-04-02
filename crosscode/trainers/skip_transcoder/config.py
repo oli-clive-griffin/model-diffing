@@ -7,6 +7,7 @@ class TopkSkipTranscoderConfig(BaseSparseCoder):
     k: int
     linear_skip: bool = True
 
+
 class TopkSkipTranscoderExperimentConfig(BaseExperimentConfig):
     transcoder: TopkSkipTranscoderConfig
     train: TopKTrainConfig

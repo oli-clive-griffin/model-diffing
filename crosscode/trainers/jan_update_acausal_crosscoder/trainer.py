@@ -73,9 +73,7 @@ class JanUpdateModelHookpointAcausalCrosscoderTrainer(
             log_dict.update(
                 {
                     "media/jr_threshold": threshold_hist,
-                    "media/jr_threshold_grad": wandb_histogram(
-                        not_none(self.model.activation_fn.log_threshold_L.grad)
-                    ),
+                    "media/jr_threshold_grad": wandb_histogram(not_none(self.model.activation_fn.log_threshold_L.grad)),
                 }
             )
             if self.model.b_enc_L is not None:

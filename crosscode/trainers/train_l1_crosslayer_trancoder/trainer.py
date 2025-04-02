@@ -3,7 +3,7 @@ from typing import Any
 import torch
 
 from crosscode.models.activations.relu import ReLUActivation
-from crosscode.models.sae import CrossLayerTranscoder
+from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
 from crosscode.trainers.train_l1_crosscoder.trainer import sparsity_loss_l1_of_l2s
 from crosscode.trainers.train_l1_crosslayer_trancoder.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
 from crosscode.trainers.train_l1_crosslayer_trancoder.config import L1TrainConfig
@@ -48,4 +48,3 @@ class L1CrossLayerTranscoderTrainer(BaseCrossLayerTranscoderTrainer[L1TrainConfi
             return self.cfg.final_lambda_s * self.step / self.cfg.lambda_s_n_steps
         else:
             return self.cfg.final_lambda_s
-            

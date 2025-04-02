@@ -114,7 +114,7 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             use_decoder_bias=cfg["use_decoder_bias"],
             dtype=cfg["dtype"],
         )
-    
+
     def fold_activation_scaling_into_weights_(self, scaling_factors_P: torch.Tensor) -> None:
         scaling_factor_in = scaling_factors_P[0]
         scaling_factors_out_Po = scaling_factors_P[1:]

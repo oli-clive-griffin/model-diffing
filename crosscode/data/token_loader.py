@@ -4,7 +4,7 @@ from functools import cached_property
 from typing import Any, cast
 
 import torch
-from datasets import IterableDataset, IterableDatasetDict, load_dataset  # type: ignore
+from datasets import IterableDataset, load_dataset  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscode.data.shuffle import batch_shuffle_tensor_iterator_BX

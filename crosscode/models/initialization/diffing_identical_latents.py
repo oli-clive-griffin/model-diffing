@@ -31,4 +31,3 @@ class IdenticalLatentsInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]]):
         cc.W_dec_LMPD[: self.n_shared_latents, 0].copy_(cc.W_dec_LMPD[: self.n_shared_latents, 1])
 
         assert (cc.W_dec_LMPD[: self.n_shared_latents, 0] == cc.W_dec_LMPD[: self.n_shared_latents, 1]).all()
-

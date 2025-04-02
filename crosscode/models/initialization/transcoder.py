@@ -1,4 +1,4 @@
-from typing import Iterator
+from collections.abc import Iterator
 
 import torch
 
@@ -68,4 +68,3 @@ class OrthogonalSkipTranscoderInit(InitStrategy[CrossLayerTranscoder[TopkActivat
 
         assert cc.W_skip_DPD is not None, "This strategy expects a skip connection"
         cc.W_skip_DPD.zero_()
-

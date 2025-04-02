@@ -117,4 +117,3 @@ class SAEOrTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
     def with_folded_scaling_factors(self, scaling_factor: float) -> Self:
         scaling_factor_tensor = torch.tensor(scaling_factor)
         return self._with_folded_scaling_factors(scaling_factor_tensor, scaling_factor_tensor)
-

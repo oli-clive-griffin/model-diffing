@@ -36,7 +36,7 @@ def build_trainer(cfg: TopkSkipTranscoderExperimentConfig) -> TopkSkipTransCross
         cache_dir=cfg.cache_dir,
     )
 
-    d_mlp = llms[0].cfg.d_mlp # this doesn't seem right?
+    d_mlp = llms[0].cfg.d_mlp  # this doesn't seem right?
 
     transcoder = CrossLayerTranscoder(
         d_model=d_mlp,
