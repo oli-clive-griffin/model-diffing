@@ -68,7 +68,6 @@ def build_feb_update_crosscoder_trainer(
         wandb_run=build_wandb_run(cfg),
         device=device,
         save_dir=cfg.save_dir,
-        hookpoints=[cfg.hookpoint],
         n_shared_latents=cfg.crosscoder.n_shared_latents,
     )
 
