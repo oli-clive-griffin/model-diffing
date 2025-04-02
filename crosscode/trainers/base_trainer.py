@@ -16,26 +16,21 @@ from crosscode.log import logger
 from crosscode.models.base_crosscoder import BaseCrosscoder
 from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig
 from crosscode.trainers.firing_tracker import FiringTracker
-from crosscode.trainers.utils import (
-    build_lr_scheduler,
-    build_optimizer,
-    dict_join,
-    wandb_histogram,
-)
+from crosscode.trainers.utils import build_lr_scheduler, build_optimizer, dict_join, wandb_histogram
 
 TConfig = TypeVar("TConfig", bound=BaseTrainConfig)
-TCC = TypeVar("TCC", bound=BaseCrosscoder[Any])
+TModel = TypeVar("TModel", bound=BaseCrosscoder[Any])
 TBatch = TypeVar("TBatch")
 
 
-class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
+class BaseTrainer(Generic[TConfig, TModel, TBatch], ABC):
     LOG_HISTOGRAMS_EVERY_N_LOGS = 10
 
     def __init__(
         self,
         cfg: TConfig,
         activations_dataloader: ActivationsDataloader[TBatch],
-        crosscoder: TCC,
+        model: TModel,
         wandb_run: Run,
         device: torch.device,
         save_dir: Path | str,
@@ -43,18 +38,18 @@ class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
         self.cfg = cfg
         self.activations_dataloader = activations_dataloader
 
-        self.crosscoder = crosscoder
+        self.model = model
         self.wandb_run = wandb_run
         self.device = device
 
-        self.optimizer = build_optimizer(cfg.optimizer, crosscoder.parameters())
+        self.optimizer = build_optimizer(cfg.optimizer, model.parameters())
 
         self.lr_scheduler = build_lr_scheduler(cfg.optimizer, cfg.num_steps) if cfg.optimizer.type == "adam" else None
 
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
-        self.firing_tracker = FiringTracker(activation_size=crosscoder.n_latents, device=self.device)
+        self.firing_tracker = FiringTracker(activation_size=model.n_latents, device=self.device)
 
         self.step = 0
         self.epoch = 0
@@ -95,7 +90,7 @@ class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
 
             self._maybe_save_model()
 
-            clip_grad_norm_(self.crosscoder.parameters(), 1.0)
+            clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
             self.step += 1
 
@@ -124,8 +119,8 @@ class BaseTrainer(Generic[TConfig, TCC, TBatch], ABC):
         if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
             tokens_since_fired_hist = wandb_histogram(self.firing_tracker.tokens_since_fired_L)
             log_dict.update({"media/tokens_since_fired": tokens_since_fired_hist})
-            if self.crosscoder.b_enc_L is not None:
-                log_dict["b_enc"] = wandb_histogram(self.crosscoder.b_enc_L)
+            if self.model.b_enc_L is not None:
+                log_dict["b_enc"] = wandb_histogram(self.model.b_enc_L)
 
         return log_dict
 

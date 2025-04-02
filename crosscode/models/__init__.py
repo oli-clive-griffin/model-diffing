@@ -1,3 +1,7 @@
+from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
+from crosscode.models.compound_clt import CompoundCrossLayerTranscoder
+from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+
 from .activations import (
     ACTIVATIONS_MAP,
     AnthropicSTEJumpReLUActivation,
@@ -9,12 +13,7 @@ from .base_crosscoder import BaseCrosscoder
 from .initialization.anthropic_transpose import AnthropicTransposeInit
 from .initialization.init_strategy import InitStrategy
 from .initialization.jan_update_init import DataDependentJumpReLUInitStrategy
-from .sparse_coders import (
-    CompoundCrossLayerTranscoder,
-    CrossLayerTranscoder,
-    ModelHookpointAcausalCrosscoder,
-    SAEOrTranscoder,
-)
+from .sae import SAEOrTranscoder
 
 __all__ = [
     "BaseCrosscoder",

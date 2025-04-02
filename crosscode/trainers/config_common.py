@@ -82,7 +82,7 @@ class BaseTrainConfig(BaseModel):
             raise ValueError("batch_size must be divisible by gradient_accumulation_steps_per_batch")
 
 
-class CrosscoderConfig(BaseModel):
+class BaseSparseCoder(BaseModel):
     n_latents: int
     use_encoder_bias: bool = True
     use_decoder_bias: bool = True

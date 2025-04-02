@@ -3,8 +3,9 @@ from typing import Any
 import torch
 from einops import rearrange, repeat
 
+from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
+from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.init_strategy import InitStrategy
-from crosscode.models.sparse_coders import CrossLayerTranscoder, ModelHookpointAcausalCrosscoder
 from crosscode.utils import random_direction_init_
 
 

@@ -8,10 +8,10 @@ from crosscode.models import (
     DataDependentJumpReLUInitStrategy,
     ModelHookpointAcausalCrosscoder,
 )
-from crosscode.trainers.base_diffing_trainer import IdenticalLatentsInit
+from crosscode.models.initialization.diffing_identical_latents import IdenticalLatentsInit
 from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateExperimentConfig
-from crosscode.trainers.feb_diff_jr.trainer import JumpReLUFebUpdateDiffingTrainer
+from crosscode.trainers.feb_diff_jr.jumprelu_trainer import JumpReLUFebUpdateDiffingTrainer
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 
@@ -40,12 +40,12 @@ def build_feb_update_crosscoder_trainer(
 
     crosscoder = ModelHookpointAcausalCrosscoder(
         n_models=len(llms),
-        hookpoints=[cfg.hookpoint],
+        n_hookpoints=1,
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
         init_strategy=IdenticalLatentsInit(
             first_init=DataDependentJumpReLUInitStrategy(
-                activations_iterator_BMPD=(batch.activations_BMPD for batch in dataloader.get_activations_iterator()),
+                activations_iterator=dataloader.get_activations_iterator(),
                 initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
                 n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
                 device=device,

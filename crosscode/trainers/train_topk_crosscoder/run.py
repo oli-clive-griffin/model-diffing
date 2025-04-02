@@ -6,13 +6,13 @@ from crosscode.log import logger
 from crosscode.models import AnthropicTransposeInit, ModelHookpointAcausalCrosscoder, TopkActivation
 from crosscode.models.activations.topk import BatchTopkActivation, GroupMaxActivation
 from crosscode.trainers.base_trainer import run_exp
-from crosscode.trainers.train_topk_crosscoder.config import TopKExperimentConfig
+from crosscode.trainers.train_topk_crosscoder.config import TopKAcausalCrosscoderExperimentConfig
 from crosscode.trainers.train_topk_crosscoder.trainer import TopKStyleTrainer
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 
 
-def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
+def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleTrainer:
     device = get_device()
 
     llms = build_llms(
@@ -34,7 +34,7 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
 
     crosscoder = ModelHookpointAcausalCrosscoder(
         n_models=len(llms),
-        hookpoints=cfg.hookpoints,
+        n_hookpoints=len(cfg.hookpoints),
         d_model=d_model,
         n_latents=cfg.crosscoder.n_latents,
         init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
@@ -71,4 +71,11 @@ def build_trainer(cfg: TopKExperimentConfig) -> TopKStyleTrainer:
 
 if __name__ == "__main__":
     logger.info("Starting...")
-    fire.Fire(run_exp(build_trainer, TopKExperimentConfig))
+    fire.Fire(run_exp(build_trainer, TopKAcausalCrosscoderExperimentConfig))
+
+
+
+
+
+
+

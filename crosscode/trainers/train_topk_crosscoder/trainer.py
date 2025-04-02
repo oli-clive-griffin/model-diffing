@@ -3,13 +3,13 @@ from typing import Any
 
 import torch
 
+from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.topk import (
     BatchTopkActivation,
     GroupMaxActivation,
     TopkActivation,
     topk_activation,
 )
-from crosscode.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscode.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
 from crosscode.trainers.train_topk_crosscoder.config import TopKTrainConfig
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs, not_none
@@ -48,7 +48,7 @@ class TopKStyleTrainer(
             pre_activations_BL=train_res.pre_activations_BL,
             dead_features_mask_L=self.firing_tracker.tokens_since_fired_L > self.cfg.dead_latents_threshold_n_examples,
             k_aux=not_none(self.cfg.k_aux),
-            decode_BXD=self.crosscoder.decode_BMPD,
+            decode_BXD=self.model.decode_BMPD,
             error_BXD=batch_BMPD - train_res.recon_acts_BMPD,
         )
 

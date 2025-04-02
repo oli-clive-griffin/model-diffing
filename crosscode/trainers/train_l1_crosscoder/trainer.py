@@ -3,8 +3,8 @@ from typing import Any
 import einops
 import torch
 
+from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.relu import ReLUActivation
-from crosscode.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscode.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
 from crosscode.trainers.train_l1_crosscoder.config import L1TrainConfig
 from crosscode.trainers.utils import get_l0_stats
@@ -20,7 +20,7 @@ class L1CrosscoderTrainer(BaseModelHookpointAcausalTrainer[L1TrainConfig, ReLUAc
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BMPD)
 
-        sparsity_loss = sparsity_loss_l1_of_l2s(self.crosscoder.W_dec_LMPD, train_res.latents_BL)
+        sparsity_loss = sparsity_loss_l1_of_l2s(self.model.W_dec_LMPD, train_res.latents_BL)
 
         loss = reconstruction_loss + self._l1_coef_scheduler() * sparsity_loss
 

@@ -2,8 +2,8 @@ from typing import Any
 
 import torch
 
+from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscode.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscode.trainers.base_diffing_trainer import BaseFebUpdateDiffingTrainer
 from crosscode.trainers.feb_diff_jr.config import JumpReLUModelDiffingFebUpdateTrainConfig
 from crosscode.trainers.jan_update_acausal_crosscoder.trainer import pre_act_loss, tanh_sparsity_loss
@@ -28,7 +28,7 @@ class JumpReLUFebUpdateDiffingTrainer(
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BMPD)
 
-        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LMPD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.model.W_dec_LMPD)
         decoder_norms_shared_Ls = decoder_norms_L[: self.n_shared_latents]
         decoder_norms_indep_Li = decoder_norms_L[self.n_shared_latents :]
 
@@ -82,7 +82,7 @@ class JumpReLUFebUpdateDiffingTrainer(
         }
 
         if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
-            jr_threshold_hist = wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp())
+            jr_threshold_hist = wandb_histogram(self.model.activation_fn.log_threshold_L.exp())
             log_dict.update({"media/jr_threshold": jr_threshold_hist})
 
         return log_dict
@@ -99,4 +99,4 @@ class JumpReLUFebUpdateDiffingTrainer(
         return tanh_sparsity_loss(self.cfg.c, hidden_BL, decoder_norms_L)
 
     def _pre_act_loss(self, hidden_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
-        return pre_act_loss(self.crosscoder.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
+        return pre_act_loss(self.model.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)

@@ -1,14 +1,14 @@
 from collections.abc import Iterator
-from typing import Callable
 
 import torch
 from einops import rearrange
 from tqdm import tqdm  # type: ignore
 
+from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch
 from crosscode.log import logger
+from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations import AnthropicSTEJumpReLUActivation
 from crosscode.models.initialization.init_strategy import InitStrategy
-from crosscode.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscode.utils import ceil_div, inspect, round_up
 
 
@@ -20,19 +20,19 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[ModelHookpointAcausalCrossc
 
     def __init__(
         self,
-        activations_iterator_BMPD: Iterator[torch.Tensor],
+        activations_iterator: Iterator[ModelHookpointActivationsBatch],
         initial_approx_firing_pct: float,
         device: torch.device,
         n_tokens_for_threshold_setting: int = 100_000,
     ):
         """
         Args:
-            activations_iterator_BMPD: iterator over activations with which to calibrate the initial jumprelu threshold
+            activations_iterator: iterator over activations with which to calibrate the initial jumprelu threshold
             initial_approx_firing_pct: percentage of examples that should fire. In the update, this value is 10_000/n\
                 But we're often training with n << 10_000, so we allow setting this value directly.
             n_tokens_for_threshold_setting: number of examples to sample
         """
-        self.activations_iterator_BMPD = activations_iterator_BMPD
+        self.activations_iterator = activations_iterator
         self.n_tokens_for_threshold_setting = n_tokens_for_threshold_setting
         self.device = device
 
@@ -52,35 +52,30 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[ModelHookpointAcausalCrossc
         )
 
         assert cc.b_enc_L is not None, "this strategy requires an encoder bias"
-        cc.b_enc_L.copy_(self._get_calibrated_b_enc_L(cc.get_pre_bias_BL, cc.activation_fn).to(cc.b_enc_L.device))
+        pre_bias_iterator_BL = (cc.get_pre_bias_BL(batch.activations_BMPD) for batch in self.activations_iterator)
 
-        if cc.b_dec_MPD is not None:
-            cc.b_dec_MPD.zero_()
-
-    def _get_calibrated_b_enc_L(
-        self,
-        get_pre_bias_BL: Callable[[torch.Tensor], torch.Tensor],
-        hidden_activation: AnthropicSTEJumpReLUActivation,
-    ) -> torch.Tensor:
-        return compute_b_enc_L(
-            get_pre_bias_BL,
-            self.activations_iterator_BMPD,
-            hidden_activation.log_threshold_L.exp(),
+        calibrated_b_enc_L = compute_b_enc_L(
+            pre_bias_iterator_BL,
+            cc.activation_fn.log_threshold_L.exp(),
             self.initial_approx_firing_pct,
             self.n_tokens_for_threshold_setting,
         )
 
+        cc.b_enc_L.copy_(calibrated_b_enc_L.to(cc.b_enc_L.device))
+
+        if cc.b_dec_MPD is not None:
+            cc.b_dec_MPD.zero_()
+
 
 def compute_b_enc_L(
-    get_pre_bias_BL: Callable[[torch.Tensor], torch.Tensor],
-    activations_iterator_BMPD: Iterator[torch.Tensor],
+    pre_bias_iterator_BL: Iterator[torch.Tensor],
     initial_jumprelu_threshold_L: torch.Tensor,
     initial_approx_firing_pct: float,
     n_tokens_for_threshold_setting: int,
 ) -> torch.Tensor:
     logger.info(f"Harvesting pre-bias for {n_tokens_for_threshold_setting} examples")
 
-    pre_bias_NL = harvest_pre_bias_NL(get_pre_bias_BL, activations_iterator_BMPD, n_tokens_for_threshold_setting)
+    pre_bias_NL = harvest_pre_bias_NL(pre_bias_iterator_BL, n_tokens_for_threshold_setting)
 
     pre_bias_firing_threshold_quantile_L = get_quantile_L(pre_bias_NL, initial_approx_firing_pct)
 
@@ -97,12 +92,9 @@ def compute_b_enc_L(
 
 
 def harvest_pre_bias_NL(
-    get_pre_bias_BL: Callable[[torch.Tensor], torch.Tensor],
-    # cc: ModelHookpointAcausalCrosscoder[AnthropicSTEJumpReLUActivation],
-    activations_iterator_BMPD: Iterator[torch.Tensor],
-    n_tokens_for_threshold_setting: int,
+    pre_bias_iterator_BL: Iterator[torch.Tensor], n_tokens_for_threshold_setting: int
 ) -> torch.Tensor:
-    sample_BL = get_pre_bias_BL(next(activations_iterator_BMPD))
+    sample_BL = next(pre_bias_iterator_BL)
     batch_size, latent_size = sample_BL.shape
 
     rounded_n_tokens_for_threshold_setting = round_up(n_tokens_for_threshold_setting, to_multiple_of=batch_size)
@@ -126,7 +118,7 @@ def harvest_pre_bias_NL(
 
     # start at 1 because we already sampled the first batch
     for i in tqdm(range(1, num_batches), desc="Harvesting pre-bias"):
-        batch_pre_bias_BL = get_pre_bias_BL(next(activations_iterator_BMPD))
+        batch_pre_bias_BL = next(pre_bias_iterator_BL)
         pre_bias_buffer_NL[i * batch_size : (i + 1) * batch_size] = batch_pre_bias_BL
 
     return pre_bias_buffer_NL

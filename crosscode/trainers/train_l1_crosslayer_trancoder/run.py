@@ -5,7 +5,7 @@ from crosscode.llms import build_llms
 from crosscode.log import logger
 from crosscode.models import ReLUActivation
 from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
-from crosscode.models.sparse_coders import CrossLayerTranscoder
+from crosscode.models.sae import CrossLayerTranscoder
 from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.train_l1_crosslayer_trancoder.config import L1CrossLayerTranscoderExperimentConfig
 from crosscode.trainers.train_l1_crosslayer_trancoder.trainer import L1CrossLayerTranscoderTrainer
@@ -38,11 +38,11 @@ def build_l1_crosscoder_trainer(cfg: L1CrossLayerTranscoderExperimentConfig) -> 
     crosscoder = CrossLayerTranscoder(
         d_model=d_model,
         n_layers_out=len(out_layers_names),
-        n_latents=cfg.crosscoder.n_latents,
+        n_latents=cfg.transcoder.n_latents,
         activation_fn=ReLUActivation(),
-        use_encoder_bias=cfg.crosscoder.use_encoder_bias,
-        use_decoder_bias=cfg.crosscoder.use_decoder_bias,
-        init_strategy=AnthropicTransposeInitCrossLayerTC(dec_init_norm=cfg.crosscoder.dec_init_norm),
+        use_encoder_bias=cfg.transcoder.use_encoder_bias,
+        use_decoder_bias=cfg.transcoder.use_decoder_bias,
+        init_strategy=AnthropicTransposeInitCrossLayerTC(dec_init_norm=cfg.transcoder.dec_init_norm),
     )
 
     crosscoder = crosscoder.to(device)

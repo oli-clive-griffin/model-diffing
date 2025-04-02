@@ -2,8 +2,8 @@ from typing import Any
 
 import torch
 
+from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.jumprelu import AnthropicSTEJumpReLUActivation
-from crosscode.models.sparse_coders import ModelHookpointAcausalCrosscoder
 from crosscode.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
 from crosscode.trainers.jan_update_acausal_crosscoder.config import TanHSparsityTrainConfig
 from crosscode.trainers.utils import get_l0_stats, wandb_histogram
@@ -26,7 +26,7 @@ class JanUpdateModelHookpointAcausalCrosscoderTrainer(
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(batch_BMPD, train_res.recon_acts_BMPD)
-        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LMPD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.model.W_dec_LMPD)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.latents_BL, decoder_norms_L)
         pre_act_loss = self._pre_act_loss(train_res.latents_BL, decoder_norms_L)
 
@@ -58,7 +58,7 @@ class JanUpdateModelHookpointAcausalCrosscoderTrainer(
         return tanh_sparsity_loss(self.cfg.c, hidden_BL, decoder_norms_L)
 
     def _pre_act_loss(self, hidden_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
-        return pre_act_loss(self.crosscoder.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
+        return pre_act_loss(self.model.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
 
     def _step_logs(self) -> dict[str, Any]:
         log_dict = super()._step_logs()
@@ -69,16 +69,16 @@ class JanUpdateModelHookpointAcausalCrosscoderTrainer(
             }
         )
         if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
-            threshold_hist = wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp())
+            threshold_hist = wandb_histogram(self.model.activation_fn.log_threshold_L.exp())
             log_dict.update(
                 {
                     "media/jr_threshold": threshold_hist,
                     "media/jr_threshold_grad": wandb_histogram(
-                        not_none(self.crosscoder.activation_fn.log_threshold_L.grad)
+                        not_none(self.model.activation_fn.log_threshold_L.grad)
                     ),
                 }
             )
-            if self.crosscoder.b_enc_L is not None:
-                log_dict["b_enc_values"] = wandb_histogram(self.crosscoder.b_enc_L)
+            if self.model.b_enc_L is not None:
+                log_dict["b_enc_values"] = wandb_histogram(self.model.b_enc_L)
 
         return log_dict

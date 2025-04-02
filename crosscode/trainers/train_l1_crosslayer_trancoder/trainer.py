@@ -3,7 +3,7 @@ from typing import Any
 import torch
 
 from crosscode.models.activations.relu import ReLUActivation
-from crosscode.models.sparse_coders import CrossLayerTranscoder
+from crosscode.models.sae import CrossLayerTranscoder
 from crosscode.trainers.train_l1_crosscoder.trainer import sparsity_loss_l1_of_l2s
 from crosscode.trainers.train_l1_crosslayer_trancoder.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
 from crosscode.trainers.train_l1_crosslayer_trancoder.config import L1TrainConfig
@@ -20,7 +20,7 @@ class L1CrossLayerTranscoderTrainer(BaseCrossLayerTranscoderTrainer[L1TrainConfi
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(train_res.output_BPD, target_BPD)
 
-        sparsity_loss = sparsity_loss_l1_of_l2s(self.crosscoder.W_dec_LPD, train_res.latents_BL)
+        sparsity_loss = sparsity_loss_l1_of_l2s(self.model.W_dec_LPD, train_res.latents_BL)
 
         loss = reconstruction_loss + self._l1_coef_scheduler() * sparsity_loss
 

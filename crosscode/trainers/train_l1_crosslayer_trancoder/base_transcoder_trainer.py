@@ -7,7 +7,7 @@ from wandb.sdk.wandb_run import Run
 
 from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch, ModelHookpointActivationsDataloader
 from crosscode.models.activations.activation_function import ActivationFunction
-from crosscode.models.sparse_coders import CrossLayerTranscoder
+from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
 from crosscode.trainers.base_acausal_trainer import BaseTrainer
 from crosscode.trainers.config_common import BaseTrainConfig
 from crosscode.trainers.wandb_utils.main import create_checkpoint_artifact
@@ -27,13 +27,13 @@ class BaseCrossLayerTranscoderTrainer(
         self,
         cfg: TConfig,
         activations_dataloader: ModelHookpointActivationsDataloader,
-        crosscoder: CrossLayerTranscoder[TAct],
+        model: CrossLayerTranscoder[TAct],
         wandb_run: Run,
         device: torch.device,
         save_dir: Path | str,
         out_layers_names: list[str],
     ):
-        super().__init__(cfg, activations_dataloader, crosscoder, wandb_run, device, save_dir)
+        super().__init__(cfg, activations_dataloader, model, wandb_run, device, save_dir)
         self.out_layers_names = out_layers_names
         assert self.activations_dataloader.n_models == 1
         assert self.activations_dataloader.n_hookpoints == len(self.out_layers_names) + 1
@@ -48,7 +48,7 @@ class BaseCrossLayerTranscoderTrainer(
         in_BD = batch_BMPD[:, 0, 0]
         target_BPD = batch_BMPD[:, 0, 1:]
 
-        train_res = self.crosscoder.forward_train(in_BD)
+        train_res = self.model.forward_train(in_BD)
 
         self.firing_tracker.add_batch(train_res.latents_BL)
 
@@ -78,7 +78,7 @@ class BaseCrossLayerTranscoderTrainer(
             scaling_factors_MP = self.activations_dataloader.get_scaling_factors()
             assert scaling_factors_MP.shape[1] == 2, "expected the scaling factors to have one model only"
             scaling_factors_P = scaling_factors_MP[0]
-            self.crosscoder.with_folded_scaling_factors(scaling_factors_P).save(checkpoint_path)
+            self.model.with_folded_scaling_factors(scaling_factors_P).save(checkpoint_path)
 
             if self.cfg.upload_saves_to_wandb:
                 artifact = create_checkpoint_artifact(checkpoint_path, self.wandb_run.id, self.step, self.epoch)

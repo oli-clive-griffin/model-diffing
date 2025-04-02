@@ -1,7 +1,7 @@
-from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig
+from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, BaseSparseCoder
 
 
-class L1CrosscoderConfig(CrosscoderConfig):
+class L1CrosscoderConfig(BaseSparseCoder):
     dec_init_norm: float = 0.1
 
 

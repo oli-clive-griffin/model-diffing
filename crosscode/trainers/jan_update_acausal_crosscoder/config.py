@@ -1,6 +1,6 @@
 from typing import Any
 
-from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig
+from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, BaseSparseCoder
 from crosscode.utils import BaseModel
 
 
@@ -10,7 +10,7 @@ class JumpReLUConfig(BaseModel):
     backprop_through_jumprelu_input: bool = True
 
 
-class JanUpdateCrosscoderConfig(CrosscoderConfig):
+class JanUpdateCrosscoderConfig(BaseSparseCoder):
     jumprelu: JumpReLUConfig = JumpReLUConfig()
     initial_approx_firing_pct: float
     n_tokens_for_threshold_setting: int = 100_000

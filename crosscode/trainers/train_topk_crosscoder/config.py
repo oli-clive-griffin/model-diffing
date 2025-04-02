@@ -1,8 +1,8 @@
 from crosscode.models.activations.topk import TopKStyle
-from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, CrosscoderConfig
+from crosscode.trainers.config_common import BaseExperimentConfig, BaseTrainConfig, BaseSparseCoder
 
 
-class TopKCrosscoderConfig(CrosscoderConfig):
+class TopKCrosscoderConfig(BaseSparseCoder):
     dec_init_norm: float = 0.1
     k: int
 
@@ -15,7 +15,7 @@ class TopKTrainConfig(BaseTrainConfig):
     """see heuristic in appendix B.1 in 'scaling and evaluating sparse autoencoders'"""
 
 
-class TopKExperimentConfig(BaseExperimentConfig):
+class TopKAcausalCrosscoderExperimentConfig(BaseExperimentConfig):
     crosscoder: TopKCrosscoderConfig
     train: TopKTrainConfig
     hookpoints: list[str]
