@@ -6,7 +6,7 @@ from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch
 from crosscode.models.activations.topk import TopkActivation
 from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.init_strategy import InitStrategy
-from crosscode.utils import random_direction_init_
+from crosscode.models.initialization.utils import random_direction_init_
 
 
 class ZeroDecSkipTranscoderInit(InitStrategy[CrossLayerTranscoder[TopkActivation]]):

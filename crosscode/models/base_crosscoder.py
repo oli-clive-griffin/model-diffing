@@ -123,43 +123,6 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
     #     return self.forward_train(activation_BXiDi).output_BXoDo
 
     @torch.no_grad()
-    def make_decoder_max_unit_norm_(self) -> None:
-        """
-        scales the decoder weights such that the model makes the same predictions, but for
-        each latent, the maximum norm of it's decoder vectors is 1.
-
-        For example, in a 2-model, 3-hookpoint crosscoder, the norms for a given latent might be scaled to:
-
-        [[1, 0.2],
-         [0.2, 0.4],
-         [0.1, 0.3]]
-        """
-        # output_space_norms_LX = reduce(self.W_dec_LXoDo, "l ... do -> l ...", l2_norm)
-        output_space_norms_LX = reduce(self._W_dec_LXoDo, "l ... do -> l ...", l2_norm)
-        max_norms_per_latent_L = reduce(output_space_norms_LX, "l ... -> l", torch.amax)
-
-        # this means that the maximum norm of the decoder vectors into a given output space is 1
-        # for example, in a cross-model cc, the norms for each model might be (1, 0.2) or (0.2, 1) or (1, 1)
-        self._W_dec_LXoDo.copy_(einsum(self._W_dec_LXoDo, 1 / max_norms_per_latent_L, "l ..., l -> l ..."))
-        self._W_enc_XiDiL.copy_(einsum(self._W_enc_XiDiL, max_norms_per_latent_L, "... l, l -> ... l"))
-
-        if self.b_enc_L is not None:
-            self.b_enc_L.copy_(self.b_enc_L * max_norms_per_latent_L)
-        # no alteration needed for self.b_dec_XoDo
-
-    def with_decoder_unit_norm(self) -> Self:
-        """
-        returns a copy of the model with the weights rescaled such that the decoder norm of each feature is one,
-        but the model makes the same predictions.
-        """
-
-        cc = self.clone().to(self.device)
-        cc.load_state_dict(self.state_dict())
-        cc.make_decoder_max_unit_norm_()
-
-        return cc
-
-    @torch.no_grad()
     def _fold_activation_scaling_into_weights_(
         self, scaling_factors_in_Xi: torch.Tensor, scaling_factors_out_Xo: torch.Tensor
     ) -> None:

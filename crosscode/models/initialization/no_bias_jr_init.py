@@ -9,7 +9,7 @@ from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations import AnthropicSTEJumpReLUActivation
 from crosscode.models.initialization.init_strategy import InitStrategy
 from crosscode.models.initialization.jan_update_init import get_quantile_L, harvest_pre_bias_NL
-from crosscode.utils import random_direction_init_
+from crosscode.models.initialization.utils import random_direction_init_
 
 """Experimental. Trying to answer the question 'why does jumprelu even need a bias?'"""
 

@@ -31,19 +31,19 @@ class BaseCrossLayerTranscoderTrainer(
         wandb_run: Run,
         device: torch.device,
         save_dir: Path | str,
-        out_layers_names: list[str],
+        out_hookpoints: list[str],
     ):
         super().__init__(cfg, activations_dataloader, model, wandb_run, device, save_dir)
-        self.out_layers_names = out_layers_names
+        self.out_hookpoints = out_hookpoints
         assert self.activations_dataloader.n_models == 1
-        assert self.activations_dataloader.n_hookpoints == len(self.out_layers_names) + 1
+        assert self.activations_dataloader.n_hookpoints == len(self.out_hookpoints) + 1
 
     def run_batch(
         self, batch: ModelHookpointActivationsBatch, log: bool
     ) -> tuple[torch.Tensor, dict[str, float] | None, int]:
         batch_BMPD = batch.activations_BMPD
         assert batch_BMPD.shape[1] == 1, "we must have one model"
-        assert batch_BMPD.shape[2] == len(self.out_layers_names) + 1, "we must have one more hookpoint than out layers"
+        assert batch_BMPD.shape[2] == len(self.out_hookpoints) + 1, "we must have one more hookpoint than out layers"
 
         in_BD = batch_BMPD[:, 0, 0]
         target_BPD = batch_BMPD[:, 0, 1:]
@@ -67,7 +67,7 @@ class BaseCrossLayerTranscoderTrainer(
         return get_fvu_dict(
             y_BPD,
             recon_y_BPD,
-            ("hookpoint", self.out_layers_names),
+            ("hookpoint", self.out_hookpoints),
         )
 
     def _maybe_save_model(self) -> None:

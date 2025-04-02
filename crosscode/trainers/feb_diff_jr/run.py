@@ -64,7 +64,7 @@ def build_feb_update_crosscoder_trainer(
     return JumpReLUFebUpdateDiffingTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
-        crosscoder=crosscoder.to(device),
+        model=crosscoder.to(device),
         wandb_run=build_wandb_run(cfg),
         device=device,
         save_dir=cfg.save_dir,

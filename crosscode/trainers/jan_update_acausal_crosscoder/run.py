@@ -41,7 +41,7 @@ def build_jan_update_crosscoder_trainer(
         d_model=llms[0].cfg.d_model,
         n_latents=cfg.crosscoder.n_latents,
         init_strategy=DataDependentJumpReLUInitStrategy(
-            activations_iterator_BMPD=(batch.activations_BMPD for batch in dataloader.get_activations_iterator()),
+            activations_iterator=dataloader.get_activations_iterator(),
             initial_approx_firing_pct=cfg.crosscoder.initial_approx_firing_pct,
             n_tokens_for_threshold_setting=cfg.crosscoder.n_tokens_for_threshold_setting,
             device=device,
@@ -62,7 +62,7 @@ def build_jan_update_crosscoder_trainer(
     return JanUpdateModelHookpointAcausalCrosscoderTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
-        crosscoder=crosscoder,
+        model=crosscoder,
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,

@@ -52,11 +52,11 @@ def build_l1_crosscoder_trainer(cfg: L1CrossLayerTranscoderExperimentConfig) -> 
     return L1CrossLayerTranscoderTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
-        crosscoder=crosscoder,
+        model=crosscoder,
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,
-        out_layers_names=out_layers_names,
+        out_hookpoints=out_layers_names,
     )
 
 

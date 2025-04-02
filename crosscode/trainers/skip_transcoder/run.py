@@ -23,15 +23,15 @@ def build_trainer(cfg: TopkSkipTranscoderExperimentConfig) -> TopkSkipTransCross
         inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
-    hookpoints = [
-        f"blocks.{cfg.mlp_index_in}.mlp.hook_pre",
-        *[f"blocks.{idx}.mlp.hook_post" for idx in cfg.mlp_indices_out],
-    ]
+    in_hookpoint = f"blocks.{cfg.mlp_index_in}.mlp.hook_pre"
+    out_hookpoints = [f"blocks.{idx}.mlp.hook_post" for idx in cfg.mlp_indices_out]
+
+    harvesting_hookpoints = [in_hookpoint, *out_hookpoints]
 
     dataloader = build_model_hookpoint_dataloader(
         cfg=cfg.data,
         llms=llms,
-        hookpoints=hookpoints,
+        hookpoints=harvesting_hookpoints,
         batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
     )
@@ -59,9 +59,9 @@ def build_trainer(cfg: TopkSkipTranscoderExperimentConfig) -> TopkSkipTransCross
 
     return TopkSkipTransCrosscoderTrainer(
         cfg=cfg.train,
-        out_layers_names=hookpoints[1:],
+        out_hookpoints=out_hookpoints,
         activations_dataloader=dataloader,
-        crosscoder=transcoder,
+        model=transcoder,
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,

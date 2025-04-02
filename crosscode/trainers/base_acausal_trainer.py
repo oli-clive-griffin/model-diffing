@@ -1,9 +1,15 @@
 from abc import abstractmethod
+from pathlib import Path
 from typing import Any, TypeVar
 
 import torch
+from wandb.sdk.wandb_run import Run
 
-from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch, ModelHookpointActivationsDataloader
+from crosscode.data.activations_dataloader import (
+    ActivationsDataloader,
+    ModelHookpointActivationsBatch,
+    ModelHookpointActivationsDataloader,
+)
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.activation_function import ActivationFunction
 from crosscode.trainers.base_trainer import BaseTrainer
@@ -21,8 +27,16 @@ class BaseModelHookpointAcausalTrainer(
 ):
     activations_dataloader: ModelHookpointActivationsDataloader
 
-    def __init__(self, *args, **kwargs):  # type: ignore
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        cfg: TConfig,
+        activations_dataloader: ActivationsDataloader[ModelHookpointActivationsBatch],
+        model: ModelHookpointAcausalCrosscoder[TAct],
+        wandb_run: Run,
+        device: torch.device,
+        save_dir: Path | str,
+    ):
+        super().__init__(cfg, activations_dataloader, model, wandb_run, device, save_dir)
 
         assert self.activations_dataloader.n_models == self.model.n_models, (
             "expected the number of models to be the same between the activations dataloader and the crosscoder"

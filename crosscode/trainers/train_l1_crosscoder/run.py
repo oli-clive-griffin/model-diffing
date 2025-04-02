@@ -48,7 +48,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> L1CrosscoderTrainer:
     return L1CrosscoderTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
-        crosscoder=crosscoder,
+        model=crosscoder,
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,

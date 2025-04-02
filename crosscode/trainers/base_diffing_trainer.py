@@ -21,16 +21,14 @@ class BaseFebUpdateDiffingTrainer(Generic[TConfig, TAct], BaseModelHookpointAcau
     def __init__(
         self,
         cfg: TConfig,
-        hookpoints: list[str],
         activations_dataloader: ModelHookpointActivationsDataloader,
-        crosscoder: ModelHookpointAcausalCrosscoder[TAct],
+        model: ModelHookpointAcausalCrosscoder[TAct],
         wandb_run: Run,
         device: torch.device,
         save_dir: Path | str,
         n_shared_latents: int,
     ):
-        n_models = 2
-        super().__init__(cfg, n_models, hookpoints, activations_dataloader, crosscoder, wandb_run, device, save_dir)
+        super().__init__(cfg, activations_dataloader, model, wandb_run, device, save_dir)
         self.n_shared_latents = n_shared_latents
         assert self.model.n_models == 2, "expected the model crosscoding dim to have length 2"
         assert self.activations_dataloader.n_models == 2, "expected the activations dataloader to have length 2"

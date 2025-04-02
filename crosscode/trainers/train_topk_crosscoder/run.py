@@ -62,7 +62,7 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleTraine
     return TopKStyleTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
-        crosscoder=crosscoder,
+        model=crosscoder,
         wandb_run=wandb_run,
         device=device,
         save_dir=cfg.save_dir,

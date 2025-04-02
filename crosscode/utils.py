@@ -81,6 +81,7 @@ def get_device() -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 
+# deprecated, see https://www.lesswrong.com/posts/ZBjhp6zwfE8o8yfni/#Rm8xDeB95fb2usorb for a discussion of this
 def calculate_fvu_X_old(
     activations_BXD: torch.Tensor,
     reconstructed_BXD: torch.Tensor,
@@ -166,23 +167,6 @@ def get_summed_decoder_norms_L(W_dec_LXoDo: torch.Tensor) -> torch.Tensor:
     return norms_L
 
 
-# useful for debugging
-def inspect(tensor: torch.Tensor) -> str:
-    return f"{tensor.shape}, dtype={tensor.dtype}, device={tensor.device}, size={_size_human_readable(tensor)}"
-
-
-def _size_human_readable(tensor: torch.Tensor) -> str:
-    # Calculate the number of bytes in the tensor
-    if tensor.nbytes >= 1024**3:
-        return f"{tensor.nbytes / (1024**3):.2f} GB"
-    elif tensor.nbytes >= 1024**2:
-        return f"{tensor.nbytes / (1024**2):.2f} MB"
-    elif tensor.nbytes >= 1024:
-        return f"{tensor.nbytes / 1024:.2f} KB"
-    else:
-        return f"{tensor.nbytes} B"
-
-
 def round_up(x: int, to_multiple_of: int) -> int:
     remainder = x % to_multiple_of
     if remainder != 0:
@@ -190,19 +174,19 @@ def round_up(x: int, to_multiple_of: int) -> int:
     return x
 
 
-def torch_batch_iterator(tensor_iterator_X: Iterator[torch.Tensor], yield_batch_size: int) -> Iterator[torch.Tensor]:
-    sample_X = next(tensor_iterator_X)
-    batch_BX = torch.empty([yield_batch_size, *sample_X.shape], device=sample_X.device, dtype=sample_X.dtype)
-    batch_BX[0] = sample_X
-    ptr = 1
+# def torch_batch_iterator(tensor_iterator_X: Iterator[torch.Tensor], yield_batch_size: int) -> Iterator[torch.Tensor]:
+#     sample_X = next(tensor_iterator_X)
+#     batch_BX = torch.empty([yield_batch_size, *sample_X.shape], device=sample_X.device, dtype=sample_X.dtype)
+#     batch_BX[0] = sample_X
+#     ptr = 1
 
-    for batch_X in tensor_iterator_X:
-        if ptr == yield_batch_size:
-            yield batch_BX
-            ptr = 0
+#     for batch_X in tensor_iterator_X:
+#         if ptr == yield_batch_size:
+#             yield batch_BX
+#             ptr = 0
 
-        batch_BX[ptr] = batch_X
-        ptr += 1
+#         batch_BX[ptr] = batch_X
+#         ptr += 1
 
 
 # admin function for alerting on finishing long-running cells in notebooks
@@ -244,24 +228,28 @@ def change_batch_size_BX(
         yield torch.cat(list(queue))
 
 
-@torch.no_grad()
-def random_direction_init_(tensor: torch.Tensor, norm: float) -> None:
-    tensor.normal_()
-    tensor.div_(l2_norm(tensor, dim=-1, keepdim=True))
-    tensor.mul_(norm)
+# useful for debugging
+def inspect(tensor: torch.Tensor) -> str:
+    return f"{tensor.shape}, dtype={tensor.dtype}, device={tensor.device}, size={_size_human_readable(tensor)}"
 
 
-T = TypeVar("T")
-
-
-def runtimecast(thing: T, cls: type[T]) -> T:
-    if not isinstance(thing, cls):
-        raise ValueError(f"Expected a {cls.__name__}, got {type(thing)}")
-    return thing
+def _size_human_readable(tensor: torch.Tensor) -> str:
+    # Calculate the number of bytes in the tensor
+    if tensor.nbytes >= 1024**3:
+        return f"{tensor.nbytes / (1024**3):.2f} GB"
+    elif tensor.nbytes >= 1024**2:
+        return f"{tensor.nbytes / (1024**2):.2f} MB"
+    elif tensor.nbytes >= 1024:
+        return f"{tensor.nbytes / 1024:.2f} KB"
+    else:
+        return f"{tensor.nbytes} B"
 
 
 # hacky but useful for debugging
 torch.Tensor.i = lambda self: inspect(self)  # type: ignore
+
+
+T = TypeVar("T")
 
 
 def not_none(x: T | None) -> T:
@@ -270,6 +258,7 @@ def not_none(x: T | None) -> T:
     return x
 
 
+# From anthropic january 2025 update
 def pre_act_loss(
     log_threshold_L: torch.Tensor, latents_BL: torch.Tensor, decoder_norms_L: torch.Tensor
 ) -> torch.Tensor:
@@ -277,6 +266,7 @@ def pre_act_loss(
     return loss_BL.sum(-1).mean()
 
 
+# Also from anthropic january 2025 update
 def tanh_sparsity_loss(c: float, latents_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
     loss_BL = torch.tanh(c * latents_BL * decoder_norms_L)
     return loss_BL.sum(-1).mean()
@@ -288,6 +278,7 @@ def ceil_div(a: int, b: int) -> int:
 
 # N = num_vectors
 # F = feature dim
+# Written by Victor Gillioz (github: @victorgillioz)
 def compute_relative_norms_N(vectors_a_NF: torch.Tensor, vectors_b_NF: torch.Tensor) -> torch.Tensor:
     """Compute relative norms between two sets of vectors."""
     norm_a_N = torch.norm(vectors_a_NF, dim=-1)
@@ -295,11 +286,13 @@ def compute_relative_norms_N(vectors_a_NF: torch.Tensor, vectors_b_NF: torch.Ten
     return (norm_b_N + 1e-6) / (norm_a_N + norm_b_N + 1e-6)
 
 
+# Written by Victor Gillioz (github: @victorgillioz)
 def compute_cosine_similarities_N(vectors_a_NF: torch.Tensor, vectors_b_NF: torch.Tensor) -> torch.Tensor:
     """Compute cosine similarities between corresponding vectors."""
     return torch.nn.functional.cosine_similarity(vectors_a_NF, vectors_b_NF, dim=-1)
 
 
+# Written by Victor Gillioz (github: @victorgillioz)
 def get_shared_latent_mask(
     relative_norms: torch.Tensor, min_thresh: float = 0.3, max_thresh: float = 0.7
 ) -> torch.Tensor:

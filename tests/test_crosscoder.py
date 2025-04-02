@@ -1,17 +1,13 @@
-from typing import Any
-
 import torch
-from einops import einsum
 
 from crosscode.models import (
     AnthropicTransposeInit,
     BatchTopkActivation,
-    InitStrategy,
     ModelHookpointAcausalCrosscoder,
     ReLUActivation,
 )
 from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
-from crosscode.utils import l2_norm
+from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
 
 
 def test_return_shapes():
@@ -89,8 +85,6 @@ def test_weights_folding_keeps_hidden_representations_consistent():
 def test_weights_folding_scales_output_correctly():
     batch_size = 2
 
-    # TODO UNDO ME.
-    # (oli from future): What?
     n_models = 2
     n_hookpoints = 1
 
@@ -123,101 +117,39 @@ def test_weights_folding_scales_output_correctly():
     torch.testing.assert_close(scaled_output_BMPD, unscaled_output_folded_BMPD * scaling_factors_MP1)
 
 
-class RandomInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]]):
-    @torch.no_grad()
-    def init_weights(self, cc: ModelHookpointAcausalCrosscoder[Any]) -> None:
-        cc.W_enc_MPDL.normal_()
-        if cc.b_enc_L is not None:
-            cc.b_enc_L.zero_()
-
-        cc.W_dec_LMPD.normal_()
-        if cc.b_dec_MPD is not None:
-            cc.b_dec_MPD.zero_()
-
-
-def test_weights_rescaling_retains_output():
-    batch_size = 1
-    n_models = 2
-    n_hookpoints = 3
+def test_weights_folding_scales_output_correctly_tc():
+    batch_size = 2
     d_model = 4
-    n_latents = 8
+    n_layers_out = 3
+    n_latents = 6
+    dec_init_norm = 0.1
 
-    dtype = torch.float64  # for accuracy so we don't get false negatives
-
-    crosscoder = ModelHookpointAcausalCrosscoder(
-        n_models=n_models,
-        n_hookpoints=n_hookpoints,
-        d_model=d_model,
-        n_latents=n_latents,
-        activation_fn=ReLUActivation(),
-        init_strategy=RandomInit(),
-        dtype=dtype,
-    )
-
-    activations_BMPD = torch.randn((batch_size, n_models, n_hookpoints, d_model), dtype=dtype)
-
-    train_res = crosscoder.forward_train(activations_BMPD)
-    output_rescaled_BMPD = crosscoder.with_decoder_unit_norm().forward_train(activations_BMPD)
-
-    assert torch.allclose(train_res.recon_acts_BMPD, output_rescaled_BMPD.recon_acts_BMPD), (
-        f"max diff: {torch.max(torch.abs(train_res.recon_acts_BMPD - output_rescaled_BMPD.recon_acts_BMPD))}"
-    )
-
-
-def test_weights_rescaling_max_norm():
-    n_models = 2
-    n_hookpoints = 3
-    d_model = 4
-    n_latents = 8
-
-    dtype = torch.float64  # for accuracy so we don't get false negatives
-
-    cc = ModelHookpointAcausalCrosscoder(
-        n_models=n_models,
-        n_hookpoints=n_hookpoints,
-        d_model=d_model,
-        n_latents=n_latents,
-        activation_fn=ReLUActivation(),
-        init_strategy=RandomInit(),
-        dtype=dtype,
-    ).with_decoder_unit_norm()
-
-    cc_dec_norms_LMP = l2_norm(cc.W_dec_LMPD, dim=-1)  # dec norms for each output vector space
-
-    which_decoder_vectors_have_unit_norm_LMP = torch.isclose(cc_dec_norms_LMP, torch.tensor(1.0, dtype=dtype))
-    unit_norm_decoder_vectors_per_latent_L = einsum(which_decoder_vectors_have_unit_norm_LMP, "l m p -> l")
-    assert torch.allclose(unit_norm_decoder_vectors_per_latent_L.long(), torch.ones(n_latents).long())
-
-
-class RandomCrosslayerTranscoderInit(InitStrategy[CrossLayerTranscoder[Any]]):
-    @torch.no_grad()
-    def init_weights(self, cc: CrossLayerTranscoder[Any]) -> None:
-        cc.W_enc_DL.normal_()
-        cc.W_dec_LPD.normal_()
-        if cc.b_enc_L is not None:
-            cc.b_enc_L.zero_()
-        if cc.b_dec_PD is not None:
-            cc.b_dec_PD.zero_()
-
-
-def test_weights_rescaling_max_norm_cross_layer_transcoder():
-    n_layers_out = 2
-    d_model = 4
-    n_latents = 8
-
-    dtype = torch.float64  # for accuracy so we don't get false negatives
-
-    cc = CrossLayerTranscoder(
+    crosscoder = CrossLayerTranscoder(
         n_layers_out=n_layers_out,
         d_model=d_model,
         n_latents=n_latents,
         activation_fn=ReLUActivation(),
-        init_strategy=RandomCrosslayerTranscoderInit(),
-        dtype=dtype,
-    ).with_decoder_unit_norm()
+        init_strategy=AnthropicTransposeInitCrossLayerTC(dec_init_norm=dec_init_norm),
+    )
 
-    cc_dec_norms_LP = l2_norm(cc.W_dec_LPD, dim=-1)  # dec norms for each output vector space
+    # scaling_factors_MP = torch.randn(n_models, n_hookpoints)
+    scaling_factors_P = (torch.rand(1 + n_layers_out) / 10) + 0.8  # 0.8 to 0.9
+    scaling_factor_in = scaling_factors_P[0]
+    scaling_factors_out_Po = scaling_factors_P[1:]
 
-    which_decoder_vectors_have_unit_norm_LP = torch.isclose(cc_dec_norms_LP, torch.tensor(1.0, dtype=dtype))
-    unit_norm_decoder_vectors_per_latent_L = einsum(which_decoder_vectors_have_unit_norm_LP, "l p -> l")
-    assert torch.allclose(unit_norm_decoder_vectors_per_latent_L.long(), torch.ones(n_latents).long())
+    # input shape: (batch_size, d_model)
+
+    unscaled_input_BD = torch.randn(batch_size, d_model)
+    scaled_input_BD = unscaled_input_BD * scaling_factor_in
+
+    scaled_output = crosscoder.forward_train(scaled_input_BD)
+    unscaled_output_folded = crosscoder.with_folded_scaling_factors(scaling_factors_P).forward_train(unscaled_input_BD)
+
+    # with folded weights, the output should be scaled by the scaling factors
+    torch.testing.assert_close(
+        scaled_output.output_BPD,
+        unscaled_output_folded.output_BPD * scaling_factors_out_Po[..., None],
+    )
+
+    # and the latents should be the same
+    torch.testing.assert_close(scaled_output.latents_BL, unscaled_output_folded.latents_BL)
