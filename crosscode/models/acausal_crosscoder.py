@@ -114,3 +114,107 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
 
     def with_folded_scaling_factors(self, scaling_factors_out_MP: torch.Tensor) -> Self:
         return self._with_folded_scaling_factors(scaling_factors_out_MP, scaling_factors_out_MP)
+
+
+@dataclass
+class HookpointShape:
+    dim: int
+
+
+class ModelShape:
+    hookpoints: list[HookpointShape]
+
+
+@dataclass
+class CrosscodingShape:
+    models: list[ModelShape]
+
+
+class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
+    def __init__(
+        self,
+        shape: CrosscodingShape,
+        n_latents: int,
+        activation_fn: TActivation,
+        use_encoder_bias: bool = True,
+        use_decoder_bias: bool = True,
+        init_strategy: InitStrategy["ModelHookpointAcausalCrosscoder[TActivation]"] | None = None,
+        dtype: torch.dtype = torch.float32,
+    ):
+        max_d_model = max(hp.dim for model in shape.models for hp in model.hookpoints)
+        max_n_hookpoints = max(len(model.hookpoints) for model in shape.models)
+
+        self.in_shape_MPD = (len(shape.models), max_n_hookpoints, max_d_model)
+
+        self.cc = ModelHookpointAcausalCrosscoder(
+            n_models=len(shape.models),
+            n_hookpoints=max_n_hookpoints,
+            d_model=max_d_model,
+            n_latents=n_latents,
+            activation_fn=activation_fn,
+            use_encoder_bias=use_encoder_bias,
+            use_decoder_bias=use_decoder_bias,
+            init_strategy=init_strategy,
+            dtype=dtype,
+        )
+        self.shape = shape
+        if init_strategy is not None:
+            init_strategy.init_weights(self.cc)
+
+    @dataclass
+    class ForwardResult:
+        pre_activations_BL: torch.Tensor
+        latents_BL: torch.Tensor
+        recon_acts_BMPD: torch.Tensor
+
+    @dataclass
+    class HookpointActivations:
+        activations_BD: torch.Tensor
+
+    @dataclass
+    class ModelActivations:
+        hookpoints: list["IrregularModelHookpointAcausalCrosscoder.HookpointActivations"]
+
+    @dataclass
+    class Activations:
+        models: list["IrregularModelHookpointAcausalCrosscoder.ModelActivations"]
+        batch_size: int
+
+    def forward_train(self, activations: Activations) -> Activations:
+        in_BMPD = torch.zeros(activations.batch_size, *self.in_shape_MPD, dtype=self.cc._dtype, device=self.cc.device)
+        for model_idx, model in enumerate(activations.models):
+            for hookpoint_idx, hookpoint in enumerate(model.hookpoints):
+                d = hookpoint.activations_BD.shape[1]
+                in_BMPD[:, model_idx, hookpoint_idx, :d] = hookpoint.activations_BD
+
+        res = self.cc._forward_train(in_BMPD)
+
+        output = self.Activations(
+            models=[
+                self.ModelActivations(
+                    hookpoints=[
+                        self.HookpointActivations(activations_BD=res.output_BXoDo[:, model_idx, hookpoint_idx])
+                        for hookpoint_idx in range(len(model.hookpoints))
+                    ]
+                )
+                for model_idx, model in enumerate(activations.models)
+            ],
+            batch_size=activations.batch_size,
+        )
+
+        return output
+
+    def forward(self, activations: Activations) -> torch.Tensor:
+        # MPDB
+        output = self.forward_train(activations)
+        return torch.nested.nested_tensor(
+            [
+                torch.nested.nested_tensor(
+                    [
+                        output.models[model_idx].hookpoints[hookpoint_idx].activations_BD
+                        for hookpoint_idx in range(len(model.hookpoints))
+                    ]
+                )
+                for model_idx, model in enumerate(self.shape.models)
+            ]
+        )
