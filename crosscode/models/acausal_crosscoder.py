@@ -195,7 +195,9 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
             models=[
                 self.ModelActivations(
                     hookpoints=[
-                        self.HookpointActivations(activations_BD=res.recon_acts_BMPD[:, model_idx, hookpoint_idx, :hookpoint_dim])
+                        self.HookpointActivations(
+                            activations_BD=res.recon_acts_BMPD[:, model_idx, hookpoint_idx, :hookpoint_dim]
+                        )
                         for hookpoint_idx, hookpoint_dim in enumerate(model_shape.hookpoint_dims)
                     ]
                 )
@@ -224,5 +226,69 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
                 for model_idx, model in enumerate(self.shape.models)
             ]
         )
-        raise NotImplementedError()
 
+
+class IrregularCrossModelAcausalCrosscoder(Generic[TActivation]):
+    def __init__(
+        self,
+        hookpoint_dim_groups: dict[str, int],
+        n_latents: int,
+        activation_fn: TActivation,
+        use_encoder_bias: bool = True,
+        use_decoder_bias: bool = True,
+        init_strategy: InitStrategy["ModelHookpointAcausalCrosscoder[TActivation]"] | None = None,
+        dtype: torch.dtype = torch.float32,
+    ):
+        self.ccs = nn.ModuleDict(
+            {
+                name: ModelHookpointAcausalCrosscoder(
+                    n_models=1,
+                    n_hookpoints=1,
+                    d_model=d_hookpoint,
+                    n_latents=n_latents,
+                    activation_fn=activation_fn,
+                    use_encoder_bias=use_encoder_bias,
+                    use_decoder_bias=use_decoder_bias,
+                    init_strategy=init_strategy,
+                    dtype=dtype,
+                )
+                for name, d_hookpoint in hookpoint_dim_groups.items()
+            }
+        )
+        self.n_latents = n_latents
+        self.activation_fn = activation_fn
+        self.dtype = dtype
+        if init_strategy is not None:
+            for cc in self.ccs.values():
+                init_strategy.init_weights(cast(ModelHookpointAcausalCrosscoder[TActivation], cc))
+
+    @property
+    def device(self) -> torch.device:
+        return next(iter(self.ccs.values())).device  # type: ignore
+
+    @dataclass
+    class ForwardResult:
+        pre_activations_BL: torch.Tensor
+        latents_BL: torch.Tensor
+        recon_acts: dict[str, torch.Tensor]
+
+    def forward_train(self, activations_dict: dict[str, torch.Tensor]) -> ForwardResult:
+        assert list(activations_dict.keys()) == list(self.ccs.keys())
+        ccs = cast(dict[str, ModelHookpointAcausalCrosscoder[TActivation]], self.ccs)
+
+        preacts_BL = torch.zeros(self.n_latents, dtype=self.dtype, device=self.device)
+        for group_name, activations in activations_dict.items():
+            preacts_BL += ccs[group_name].get_preacts_BL(activations)
+
+        latents_BL = self.activation_fn.forward(preacts_BL)
+
+        recon_acts = {group_name: ccs[group_name].decode_BMPD(latents_BL) for group_name in activations_dict}
+
+        return self.ForwardResult(
+            pre_activations_BL=preacts_BL,
+            latents_BL=latents_BL,
+            recon_acts=recon_acts,
+        )
+
+    def forward(self, activations_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        return self.forward_train(activations_dict).recon_acts

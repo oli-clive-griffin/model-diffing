@@ -88,6 +88,14 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
     def get_pre_bias_BL(self, activation_BXiDi: torch.Tensor) -> torch.Tensor:
         return einsum(activation_BXiDi, self._W_enc_XiDiL, "b ..., ... l -> b l")
 
+    def get_preacts_BL(self, activation_BXiDi: torch.Tensor) -> torch.Tensor:
+        pre_activations_BL = self.get_pre_bias_BL(activation_BXiDi)
+
+        if self.b_enc_L is not None:
+            pre_activations_BL += self.b_enc_L
+        return pre_activations_BL
+
+
     def decode_BXoDo(self, latents_BL: torch.Tensor) -> torch.Tensor:
         pre_bias_BXoDo = einsum(latents_BL, self._W_dec_LXoDo, "b l, l ... -> b ...")
         if self._b_dec_XoDo is not None:
@@ -101,10 +109,7 @@ class BaseCrosscoder(Generic[TActivation], SaveableModule):
         """returns the activations, the latents, and the reconstructed activations"""
         assert activation_BXiDi.shape[1:-1] == self._in_crosscoding_dims
 
-        pre_activations_BL = self.get_pre_bias_BL(activation_BXiDi)
-
-        if self.b_enc_L is not None:
-            pre_activations_BL += self.b_enc_L
+        pre_activations_BL = self.get_preacts_BL(activation_BXiDi)
 
         latents_BL = self.activation_fn.forward(pre_activations_BL)
 
