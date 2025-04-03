@@ -4,7 +4,7 @@ from crosscode.data.activations_dataloader import build_model_hookpoint_dataload
 from crosscode.llms import build_llms
 from crosscode.log import logger
 from crosscode.models import ReLUActivation
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
 from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.l1_crosslayer_trancoder.config import L1CrossLayerTranscoderExperimentConfig

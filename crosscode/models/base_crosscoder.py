@@ -2,13 +2,12 @@ from dataclasses import dataclass
 from typing import Generic, Self, TypeVar
 
 import torch
-from einops import einsum, reduce
+from einops import einsum
 from torch import nn
 
 from crosscode.models.activations import ActivationFunction
 from crosscode.models.initialization.init_strategy import InitStrategy
 from crosscode.saveable_module import SaveableModule
-from crosscode.utils import l2_norm
 
 """
 Dimensions:

@@ -8,7 +8,7 @@ from crosscode.models.initialization.init_strategy import InitStrategy
 
 class IdenticalLatentsInit(InitStrategy[ModelHookpointAcausalCrosscoder[Any]]):
     """
-    Init strategy that first applies a regular init, and then sets the decoder weight such that each model
+    Init strategy that first applies an arbitrary regular init, and then sets the decoder weight such that each model
     has the same shared decoder weights for the first n_shared_latents.
     """
 

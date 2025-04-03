@@ -7,12 +7,12 @@ from crosscode.models import AnthropicTransposeInit, ModelHookpointAcausalCrossc
 from crosscode.models.activations.topk import BatchTopkActivation, GroupMaxActivation
 from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.topk_crosscoder.config import TopKAcausalCrosscoderExperimentConfig
-from crosscode.trainers.topk_crosscoder.trainer import TopKStyleTrainer
+from crosscode.trainers.topk_crosscoder.trainer import TopKStyleAcausalCrosscoderTrainer
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 
 
-def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleTrainer:
+def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausalCrosscoderTrainer:
     device = get_device()
 
     llms = build_llms(
@@ -59,7 +59,7 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleTraine
         cfg.train.k_aux = d_model // 2
         logger.info(f"defaulting to k_aux={cfg.train.k_aux} for crosscoder (({d_model=}) // 2)")
 
-    return TopKStyleTrainer(
+    return TopKStyleAcausalCrosscoderTrainer(
         cfg=cfg.train,
         activations_dataloader=dataloader,
         model=crosscoder,

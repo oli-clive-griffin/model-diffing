@@ -6,7 +6,7 @@ from crosscode.models import (
     ModelHookpointAcausalCrosscoder,
     ReLUActivation,
 )
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
 
 

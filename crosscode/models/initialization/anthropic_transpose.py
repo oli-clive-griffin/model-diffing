@@ -4,7 +4,7 @@ import torch
 from einops import rearrange, repeat
 
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.init_strategy import InitStrategy
 from crosscode.models.initialization.utils import random_direction_init_
 

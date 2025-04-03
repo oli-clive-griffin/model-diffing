@@ -1,6 +1,6 @@
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.compound_clt import CompoundCrossLayerTranscoder
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 
 from .activations import (
     ACTIVATIONS_MAP,

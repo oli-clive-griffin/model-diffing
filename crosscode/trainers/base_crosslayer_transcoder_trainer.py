@@ -7,7 +7,7 @@ from wandb.sdk.wandb_run import Run
 
 from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch, ModelHookpointActivationsDataloader
 from crosscode.models.activations.activation_function import ActivationFunction
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 from crosscode.trainers.base_acausal_trainer import BaseTrainer
 from crosscode.trainers.config_common import BaseTrainConfig
 from crosscode.trainers.wandb_utils.main import create_checkpoint_artifact

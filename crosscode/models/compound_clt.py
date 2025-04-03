@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from crosscode.models.base_crosscoder import TActivation
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 
 
 class CompoundCrossLayerTranscoder(Generic[TActivation]):

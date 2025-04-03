@@ -4,16 +4,16 @@ from crosscode.data.activations_dataloader import build_model_hookpoint_dataload
 from crosscode.llms import build_llms
 from crosscode.log import logger
 from crosscode.models.activations.topk import TopkActivation
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.transcoder import ZeroDecSkipTranscoderInit
 from crosscode.trainers.base_trainer import run_exp
-from crosscode.trainers.skip_transcoder.config import TopkSkipTranscoderExperimentConfig
-from crosscode.trainers.skip_transcoder.trainer import TopkSkipTransCrosscoderTrainer
+from crosscode.trainers.topk_cross_layer_transcoder.config import TopkCrossLayerTranscoderExperimentConfig
+from crosscode.trainers.topk_cross_layer_transcoder.trainer import TopkCrossLayerTranscoderTrainer
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 
 
-def build_trainer(cfg: TopkSkipTranscoderExperimentConfig) -> TopkSkipTransCrosscoderTrainer:
+def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> TopkCrossLayerTranscoderTrainer:
     device = get_device()
 
     llms = build_llms(
@@ -57,7 +57,7 @@ def build_trainer(cfg: TopkSkipTranscoderExperimentConfig) -> TopkSkipTransCross
 
     wandb_run = build_wandb_run(cfg)
 
-    return TopkSkipTransCrosscoderTrainer(
+    return TopkCrossLayerTranscoderTrainer(
         cfg=cfg.train,
         out_hookpoints=out_hookpoints,
         activations_dataloader=dataloader,
@@ -70,4 +70,4 @@ def build_trainer(cfg: TopkSkipTranscoderExperimentConfig) -> TopkSkipTransCross
 
 if __name__ == "__main__":
     logger.info("Starting...")
-    fire.Fire(run_exp(build_trainer, TopkSkipTranscoderExperimentConfig))
+    fire.Fire(run_exp(build_trainer, TopkCrossLayerTranscoderExperimentConfig))

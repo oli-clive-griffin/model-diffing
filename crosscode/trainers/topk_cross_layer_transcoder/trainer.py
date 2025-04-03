@@ -3,14 +3,14 @@ from typing import Any
 import torch
 
 from crosscode.models.activations.topk import TopkActivation
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
-from crosscode.trainers.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
+from crosscode.trainers.base_crosslayer_transcoder_trainer import BaseCrossLayerTranscoderTrainer
 from crosscode.trainers.topk_crosscoder.config import TopKTrainConfig
 from crosscode.trainers.topk_crosscoder.trainer import aux_loss
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs, not_none
 
 
-class TopkSkipTransCrosscoderTrainer(BaseCrossLayerTranscoderTrainer[TopKTrainConfig, TopkActivation]):
+class TopkCrossLayerTranscoderTrainer(BaseCrossLayerTranscoderTrainer[TopKTrainConfig, TopkActivation]):
     def _calculate_loss_and_log(
         self,
         train_res: CrossLayerTranscoder.ForwardResult,

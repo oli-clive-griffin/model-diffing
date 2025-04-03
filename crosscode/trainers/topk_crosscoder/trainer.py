@@ -11,11 +11,11 @@ from crosscode.models.activations.topk import (
     topk_activation,
 )
 from crosscode.trainers.base_acausal_trainer import BaseModelHookpointAcausalTrainer
-from crosscode.trainers.train_topk_crosscoder.config import TopKTrainConfig
+from crosscode.trainers.topk_crosscoder.config import TopKTrainConfig
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs, not_none
 
 
-class TopKStyleTrainer(
+class TopKStyleAcausalCrosscoderTrainer(
     BaseModelHookpointAcausalTrainer[TopKTrainConfig, BatchTopkActivation | GroupMaxActivation | TopkActivation]
 ):
     def _calculate_loss_and_log(

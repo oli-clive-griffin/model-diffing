@@ -3,9 +3,9 @@ from typing import Any
 import torch
 
 from crosscode.models.activations.relu import ReLUActivation
-from crosscode.models.crosslayer_transcoder import CrossLayerTranscoder
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
+from crosscode.trainers.base_crosslayer_transcoder_trainer import BaseCrossLayerTranscoderTrainer
 from crosscode.trainers.l1_crosscoder.trainer import sparsity_loss_l1_of_l2s
-from crosscode.trainers.base_transcoder_trainer import BaseCrossLayerTranscoderTrainer
 from crosscode.trainers.l1_crosslayer_trancoder.config import L1TrainConfig
 from crosscode.trainers.utils import get_l0_stats
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs
