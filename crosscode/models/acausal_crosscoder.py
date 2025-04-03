@@ -231,7 +231,7 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
 class IrregularAcausalCrosscoder(Generic[TActivation], SaveableModule):
     def __init__(
         self,
-        hookpoint_dim_groups: dict[str, tuple[int, int]],
+        hookpoint_dim_groups_PD: dict[str, tuple[int, int]],
         n_latents: int,
         activation_fn: TActivation,
         use_encoder_bias: bool = True,
@@ -239,6 +239,7 @@ class IrregularAcausalCrosscoder(Generic[TActivation], SaveableModule):
         init_strategy: InitStrategy["ModelHookpointAcausalCrosscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):
+        super().__init__()
         self.ccs = nn.ModuleDict(
             {
                 name: ModelHookpointAcausalCrosscoder(
@@ -252,10 +253,10 @@ class IrregularAcausalCrosscoder(Generic[TActivation], SaveableModule):
                     init_strategy=init_strategy,
                     dtype=dtype,
                 )
-                for name, (n_hookpoints, d_hookpoint) in hookpoint_dim_groups.items()
+                for name, (n_hookpoints, d_hookpoint) in hookpoint_dim_groups_PD.items()
             }
         )
-        self.hookpoint_dim_groups = hookpoint_dim_groups
+        self.hookpoint_dim_groups_PD = hookpoint_dim_groups_PD
         self.n_latents = n_latents
         self.activation_fn = activation_fn
         self.dtype = dtype
@@ -279,8 +280,13 @@ class IrregularAcausalCrosscoder(Generic[TActivation], SaveableModule):
         batch_size = activations_dict[next(iter(activations_dict.keys()))].shape[0]
 
         preacts_BL = torch.zeros(batch_size, self.n_latents, dtype=self.dtype, device=self.device)
-        for group_name, activations in activations_dict.items():
-            preacts_BL += ccs[group_name].get_preacts_BL(activations)
+        for group_name, activations_BPD in activations_dict.items():
+            expected_shape_PD = self.hookpoint_dim_groups_PD[group_name]
+            activation_shape_PD = activations_BPD.shape[1:]
+            assert activation_shape_PD == expected_shape_PD, (
+                f"{group_name} shape: {activation_shape_PD}. Expected: {expected_shape_PD} (as (n_hookpoints, d_hookpoint))"
+            )
+            preacts_BL += ccs[group_name].get_preacts_BL(activations_BPD)
 
         latents_BL = self.activation_fn.forward(preacts_BL)
 
@@ -302,7 +308,7 @@ class IrregularAcausalCrosscoder(Generic[TActivation], SaveableModule):
         activation_fn = cast(TActivation, activation_fn_cls._scaffold_from_cfg(activation["cfg"]))
 
         return IrregularAcausalCrosscoder(
-            hookpoint_dim_groups=cfg["hookpoint_dim_groups"],
+            hookpoint_dim_groups_PD=cfg["hookpoint_dim_groups_PD"],
             n_latents=cfg["n_latents"],
             activation_fn=activation_fn,
             use_encoder_bias=cfg["use_encoder_bias"],
@@ -313,7 +319,7 @@ class IrregularAcausalCrosscoder(Generic[TActivation], SaveableModule):
     def _dump_cfg(self) -> dict[str, Any]:
         sample_cc = cast(ModelHookpointAcausalCrosscoder[TActivation], next(iter(self.ccs.values())))
         return {
-            "hookpoint_dim_groups": self.hookpoint_dim_groups,
+            "hookpoint_dim_groups_PD": self.hookpoint_dim_groups_PD,
             "n_latents": self.n_latents,
             "activation_fn": self.activation_fn._dump_cfg(),
             "use_encoder_bias": sample_cc.b_enc_L is not None,
@@ -335,15 +341,15 @@ if __name__ == "__main__":
     resid_dim = 4
 
     cc = IrregularAcausalCrosscoder(
-        hookpoint_dim_groups={"attn": (n_attn_heads, attn_head_dim), "resid": (n_resid_layers, resid_dim)},
+        hookpoint_dim_groups_PD={"attn": (n_attn_heads, attn_head_dim), "resid": (n_resid_layers, resid_dim)},
         n_latents=100,
         activation_fn=ReLUActivation(),
         init_strategy=AnthropicTransposeInit(dec_init_norm=0.1),
     )
     res = cc.forward_train(
         {
-            "attn": torch.randn(B, attn_head_dim),
-            "resid": torch.randn(B, resid_dim),
+            "attn": torch.randn(B, n_attn_heads, attn_head_dim),
+            "resid": torch.randn(B, n_resid_layers, resid_dim),
         }
     )
     for k, v in res.recon_acts.items():
