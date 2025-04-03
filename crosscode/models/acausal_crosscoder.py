@@ -7,6 +7,7 @@ from torch import nn
 from crosscode.models.activations import ACTIVATIONS_MAP
 from crosscode.models.base_crosscoder import BaseCrosscoder, TActivation
 from crosscode.models.initialization.init_strategy import InitStrategy
+from crosscode.saveable_module import SaveableModule
 
 
 class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
@@ -227,7 +228,7 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
         )
 
 
-class IrregularAcausalCrosscoder(Generic[TActivation]):
+class IrregularAcausalCrosscoder(Generic[TActivation], SaveableModule):
     def __init__(
         self,
         hookpoint_dim_groups: dict[str, tuple[int, int]],
@@ -254,6 +255,7 @@ class IrregularAcausalCrosscoder(Generic[TActivation]):
                 for name, (n_hookpoints, d_hookpoint) in hookpoint_dim_groups.items()
             }
         )
+        self.hookpoint_dim_groups = hookpoint_dim_groups
         self.n_latents = n_latents
         self.activation_fn = activation_fn
         self.dtype = dtype
@@ -292,6 +294,32 @@ class IrregularAcausalCrosscoder(Generic[TActivation]):
 
     def forward(self, activations_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return self.forward_train(activations_dict).recon_acts
+
+    @classmethod
+    def _scaffold_from_cfg(cls: type[Self], cfg: dict[str, Any]) -> "IrregularAcausalCrosscoder[TActivation]":
+        activation = cfg["activation_fn"]
+        activation_fn_cls = ACTIVATIONS_MAP[activation["classname"]]
+        activation_fn = cast(TActivation, activation_fn_cls._scaffold_from_cfg(activation["cfg"]))
+
+        return IrregularAcausalCrosscoder(
+            hookpoint_dim_groups=cfg["hookpoint_dim_groups"],
+            n_latents=cfg["n_latents"],
+            activation_fn=activation_fn,
+            use_encoder_bias=cfg["use_encoder_bias"],
+            use_decoder_bias=cfg["use_decoder_bias"],
+            dtype=cfg["dtype"],
+        )
+
+    def _dump_cfg(self) -> dict[str, Any]:
+        sample_cc = cast(ModelHookpointAcausalCrosscoder[TActivation], next(iter(self.ccs.values())))
+        return {
+            "hookpoint_dim_groups": self.hookpoint_dim_groups,
+            "n_latents": self.n_latents,
+            "activation_fn": self.activation_fn._dump_cfg(),
+            "use_encoder_bias": sample_cc.b_enc_L is not None,
+            "use_decoder_bias": sample_cc._b_dec_XoDo is not None,
+            "dtype": self.dtype,
+        }
 
 
 # example:
