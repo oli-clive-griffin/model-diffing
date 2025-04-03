@@ -5,6 +5,7 @@ import torch
 from torch import nn
 
 from crosscode.models.activations import ACTIVATIONS_MAP
+from crosscode.models.activations.relu import ReLUActivation
 from crosscode.models.base_crosscoder import BaseCrosscoder, TActivation
 from crosscode.models.initialization.init_strategy import InitStrategy
 
@@ -117,12 +118,8 @@ class ModelHookpointAcausalCrosscoder(Generic[TActivation], BaseCrosscoder[TActi
 
 
 @dataclass
-class HookpointShape:
-    dim: int
-
-
 class ModelShape:
-    hookpoints: list[HookpointShape]
+    hookpoint_dims: list[int]
 
 
 @dataclass
@@ -141,10 +138,10 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
         init_strategy: InitStrategy["ModelHookpointAcausalCrosscoder[TActivation]"] | None = None,
         dtype: torch.dtype = torch.float32,
     ):
-        max_d_model = max(hp.dim for model in shape.models for hp in model.hookpoints)
-        max_n_hookpoints = max(len(model.hookpoints) for model in shape.models)
+        max_d_model = max(hp_dim for model in shape.models for hp_dim in model.hookpoint_dims)
+        max_n_hookpoints = max(len(model.hookpoint_dims) for model in shape.models)
 
-        self.in_shape_MPD = (len(shape.models), max_n_hookpoints, max_d_model)
+        self.in_shape_padded_MPD = (len(shape.models), max_n_hookpoints, max_d_model)
 
         self.cc = ModelHookpointAcausalCrosscoder(
             n_models=len(shape.models),
@@ -162,12 +159,6 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
             init_strategy.init_weights(self.cc)
 
     @dataclass
-    class ForwardResult:
-        pre_activations_BL: torch.Tensor
-        latents_BL: torch.Tensor
-        recon_acts_BMPD: torch.Tensor
-
-    @dataclass
     class HookpointActivations:
         activations_BD: torch.Tensor
 
@@ -180,29 +171,44 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
         models: list["IrregularModelHookpointAcausalCrosscoder.ModelActivations"]
         batch_size: int
 
-    def forward_train(self, activations: Activations) -> Activations:
-        in_BMPD = torch.zeros(activations.batch_size, *self.in_shape_MPD, dtype=self.cc._dtype, device=self.cc.device)
-        for model_idx, model in enumerate(activations.models):
-            for hookpoint_idx, hookpoint in enumerate(model.hookpoints):
-                d = hookpoint.activations_BD.shape[1]
-                in_BMPD[:, model_idx, hookpoint_idx, :d] = hookpoint.activations_BD
+    @dataclass
+    class ForwardResult:
+        pre_activations_BL: torch.Tensor
+        latents_BL: torch.Tensor
+        recon_acts: "IrregularModelHookpointAcausalCrosscoder.Activations"
 
-        res = self.cc._forward_train(in_BMPD)
+    def forward_train(self, activations: Activations) -> ForwardResult:
+        padded_shape = (activations.batch_size, *self.in_shape_padded_MPD)
+        in_BMPD = torch.zeros(padded_shape, dtype=self.cc._dtype, device=self.cc.device)
+        assert len(activations.models) == len(self.shape.models)
+        for model_idx, (model_acts, model_shape) in enumerate(zip(activations.models, self.shape.models, strict=True)):
+            assert len(model_acts.hookpoints) == len(model_shape.hookpoint_dims)
+            for hookpoint_idx, (hookpoint_acts, hookpoint_dim) in enumerate(
+                zip(model_acts.hookpoints, model_shape.hookpoint_dims, strict=True)
+            ):
+                assert hookpoint_acts.activations_BD.shape[1] == hookpoint_dim
+                in_BMPD[:, model_idx, hookpoint_idx, :hookpoint_dim] = hookpoint_acts.activations_BD
 
-        output = self.Activations(
+        res = self.cc.forward_train(in_BMPD)
+
+        reconstructed_acts = self.Activations(
             models=[
                 self.ModelActivations(
                     hookpoints=[
-                        self.HookpointActivations(activations_BD=res.output_BXoDo[:, model_idx, hookpoint_idx])
-                        for hookpoint_idx in range(len(model.hookpoints))
+                        self.HookpointActivations(activations_BD=res.recon_acts_BMPD[:, model_idx, hookpoint_idx, :hookpoint_dim])
+                        for hookpoint_idx, hookpoint_dim in enumerate(model_shape.hookpoint_dims)
                     ]
                 )
-                for model_idx, model in enumerate(activations.models)
+                for model_idx, model_shape in enumerate(self.shape.models)
             ],
             batch_size=activations.batch_size,
         )
 
-        return output
+        return self.ForwardResult(
+            pre_activations_BL=res.pre_activations_BL,
+            latents_BL=res.latents_BL,
+            recon_acts=reconstructed_acts,
+        )
 
     def forward(self, activations: Activations) -> torch.Tensor:
         # MPDB
@@ -211,10 +217,12 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
             [
                 torch.nested.nested_tensor(
                     [
-                        output.models[model_idx].hookpoints[hookpoint_idx].activations_BD
-                        for hookpoint_idx in range(len(model.hookpoints))
+                        output.recon_acts.models[model_idx].hookpoints[hookpoint_idx].activations_BD
+                        for hookpoint_idx in range(len(model.hookpoint_dims))
                     ]
                 )
                 for model_idx, model in enumerate(self.shape.models)
             ]
         )
+        raise NotImplementedError()
+
