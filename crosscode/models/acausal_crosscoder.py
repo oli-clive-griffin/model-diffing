@@ -5,7 +5,6 @@ import torch
 from torch import nn
 
 from crosscode.models.activations import ACTIVATIONS_MAP
-from crosscode.models.activations.relu import ReLUActivation
 from crosscode.models.base_crosscoder import BaseCrosscoder, TActivation
 from crosscode.models.initialization.init_strategy import InitStrategy
 
@@ -228,10 +227,10 @@ class IrregularModelHookpointAcausalCrosscoder(Generic[TActivation]):
         )
 
 
-class IrregularCrossModelAcausalCrosscoder(Generic[TActivation]):
+class IrregularAcausalCrosscoder(Generic[TActivation]):
     def __init__(
         self,
-        hookpoint_dim_groups: dict[str, int],
+        hookpoint_dim_groups: dict[str, tuple[int, int]],
         n_latents: int,
         activation_fn: TActivation,
         use_encoder_bias: bool = True,
@@ -243,7 +242,7 @@ class IrregularCrossModelAcausalCrosscoder(Generic[TActivation]):
             {
                 name: ModelHookpointAcausalCrosscoder(
                     n_models=1,
-                    n_hookpoints=1,
+                    n_hookpoints=n_hookpoints,
                     d_model=d_hookpoint,
                     n_latents=n_latents,
                     activation_fn=activation_fn,
@@ -252,7 +251,7 @@ class IrregularCrossModelAcausalCrosscoder(Generic[TActivation]):
                     init_strategy=init_strategy,
                     dtype=dtype,
                 )
-                for name, d_hookpoint in hookpoint_dim_groups.items()
+                for name, (n_hookpoints, d_hookpoint) in hookpoint_dim_groups.items()
             }
         )
         self.n_latents = n_latents
@@ -275,8 +274,9 @@ class IrregularCrossModelAcausalCrosscoder(Generic[TActivation]):
     def forward_train(self, activations_dict: dict[str, torch.Tensor]) -> ForwardResult:
         assert list(activations_dict.keys()) == list(self.ccs.keys())
         ccs = cast(dict[str, ModelHookpointAcausalCrosscoder[TActivation]], self.ccs)
+        batch_size = activations_dict[next(iter(activations_dict.keys()))].shape[0]
 
-        preacts_BL = torch.zeros(self.n_latents, dtype=self.dtype, device=self.device)
+        preacts_BL = torch.zeros(batch_size, self.n_latents, dtype=self.dtype, device=self.device)
         for group_name, activations in activations_dict.items():
             preacts_BL += ccs[group_name].get_preacts_BL(activations)
 
@@ -292,3 +292,31 @@ class IrregularCrossModelAcausalCrosscoder(Generic[TActivation]):
 
     def forward(self, activations_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return self.forward_train(activations_dict).recon_acts
+
+
+# example:
+if __name__ == "__main__":
+    from crosscode.models.activations.relu import ReLUActivation
+    from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInit
+
+    B = 2
+    n_attn_heads = 3
+    attn_head_dim = 10
+
+    n_resid_layers = 8
+    resid_dim = 4
+
+    cc = IrregularAcausalCrosscoder(
+        hookpoint_dim_groups={"attn": (n_attn_heads, attn_head_dim), "resid": (n_resid_layers, resid_dim)},
+        n_latents=100,
+        activation_fn=ReLUActivation(),
+        init_strategy=AnthropicTransposeInit(dec_init_norm=0.1),
+    )
+    res = cc.forward_train(
+        {
+            "attn": torch.randn(B, attn_head_dim),
+            "resid": torch.randn(B, resid_dim),
+        }
+    )
+    for k, v in res.recon_acts.items():
+        print(f"{k} shape: {v.shape}")
