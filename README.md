@@ -55,7 +55,7 @@ We currently harvest activations from the LLM(s) at training time. You can cache
 
 The library is structured roughly as follows:
 
-**[`crosscode.models`](./crosscode/models):**
+### Models ([`crosscode.models`](./crosscode/models))
 - [`BaseCrosscoder`](./crosscode/models/base_crosscoder.py): Generic base class for all crosscoding models. It's allowed to have different input and output [crosscoding dimensions](#key-terms) and `d_model`s, and meant to be subclassed in a way that concretifies the dimensions.
     - For example, [`CrossLayerTranscoder`](./crosscode/models/crosslayer_transcoder.py) is a subclass of BaseCrosscoder that concretifies the input crosscoding dimensions to be `(),` and the output dimensions to be `(n_layers,)`.
 - [`ModelHookpointAcausalCrosscoder`](./crosscode/models/acausal_crosscoder.py): An acausal crosscoder that can be applied across multiple models / layers.
@@ -65,11 +65,11 @@ The library is structured roughly as follows:
 - [`CrossLayerTranscoder`](./crosscode/models/cross_layer_transcoder.py): A cross-layer acausal transcoder 
     - [`CompoundCrossLayerTranscoder`](./crosscode/models/compound_clt.py): A wrapper around a list of CrossLayerTranscoder that applies them in parallel, as described in the "[Circuit Tracing](https://transformer-circuits.pub/2025/attribution-graphs/methods.html)" paper.
 
-**[`crosscode.models.activations`](./crosscode/models/activations):**
+### Activations ([`crosscode.models.activations`](./crosscode/models/activations))
 
 A collection of activation functions that can be used with the model classes.
 
-**[`crosscode.models.initialization`](./crosscode/models/initialization):**
+### Initialization ([`crosscode.models.initialization`](./crosscode/models/initialization))
 
 A collection of `InitStrategy`s for initializing crosscoder weights.
 - [`InitStrategy`](./crosscode/models/initialization/init_strategy.py): A base class for all initialization strategies.
@@ -78,7 +78,7 @@ A collection of `InitStrategy`s for initializing crosscoder weights.
 - [`JanUpdateInit`](./crosscode/models/initialization/jan_update_init.py): Initializes the weights of a ModelHookpointAcausalCrosscoder using the method described in the "[January 2025 update](https://transformer-circuits.pub/2025/january-update/index.html)" paper.
 - Theres's some other random initialization strategies in here that are more speculative.
 
-**[`crosscode.trainers`](./crosscode/trainers):**
+### Trainers ([`crosscode.trainers`](./crosscode/trainers))
 
 (The trainers make extensive use of Inheritance which I really don't like. I might refactor this to use composition instead)
 - [`BaseTrainer`](./crosscode/trainers/base_trainer.py): Training boilerplate. Gradient accumulation, logging, optimizer, lr scheduler, etc.
@@ -92,7 +92,7 @@ A collection of `InitStrategy`s for initializing crosscoder weights.
         - [`TopkFebUpdateDiffingTrainer`](./crosscode/trainers/feb_update_diffing_crosscoder/topk_trainer.py)
 
 
-**[`crosscode.data`](./crosscode/data):**
+### Data ([`crosscode.data`](./crosscode/data))
 
 data loading via harvesting LLM activations on text.
 - [`ActivationsDataloader`](./crosscode/data/activations_dataloader.py): Dataloader for activations. Supports harvesting for multiple models and multiple hookpoints.
