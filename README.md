@@ -28,6 +28,7 @@ A library for training crosscoders, and by extension, transcoders, SAEs, and oth
 - **Jan Update**: the "[January 2025 update](https://transformer-circuits.pub/2025/january-update/index.html)" describing a specific jumprelu loss.
 - **Feb Update**: the "[February 2025 model diffing update](https://transformer-circuits.pub/2025/crosscoder-diffing-update/index.html)" describing a technique for improving model-diffing crosscoder training with shared latents.
 
+
 ## Conventions:
 
 #### Models, Trainers, Loss Functions.
@@ -53,6 +54,7 @@ We currently harvest activations from the LLM(s) at training time. You can cache
 ## Structure
 
 The library is structured roughly as follows:
+
 **[`crosscode.models`](./crosscode/models):**
     - [`BaseCrosscoder`](./crosscode/models/base_crosscoder.py): Generic base class for all crosscoding models. It's allowed to have different input and output [crosscoding dimensions](#key-terms) and `d_model`s, and meant to be subclassed in a way that concretifies the dimensions.
         - For example, [`CrossLayerTranscoder`](./crosscode/models/crosslayer_transcoder.py) is a subclass of BaseCrosscoder that concretifies the input crosscoding dimensions to be `(),` and the output dimensions to be `(n_layers,)`.
@@ -64,9 +66,11 @@ The library is structured roughly as follows:
         - [`CompoundCrossLayerTranscoder`](./crosscode/models/compound_clt.py): A wrapper around a list of CrossLayerTranscoder that applies them in parallel, as described in the "[Circuit Tracing](https://transformer-circuits.pub/2025/attribution-graphs/methods.html)" paper.
 
 **[`crosscode.models.activations`](./crosscode/models/activations):**
+
 A collection of activation functions that can be used with the model classes.
 
 **[`crosscode.models.initialization`](./crosscode/models/initialization):**
+
 A collection of `InitStrategy`s for initializing crosscoder weights.
     - [`InitStrategy`](./crosscode/models/initialization/init_strategy.py): A base class for all initialization strategies.
     - [`AnthropicTransposeInit`](./crosscode/models/initialization/anthropic_transpose.py): Initializes the weights of a ModelHookpointAcausalCrosscoder using the "Anthropic Transpose" method.
@@ -75,6 +79,7 @@ A collection of `InitStrategy`s for initializing crosscoder weights.
     - Theres's some other random initialization strategies in here that are more speculative.
 
 **[`crosscode.trainers`](./crosscode/trainers):**
+
 (The trainers make extensive use of Inheritance which I really don't like. I might refactor this to use composition instead)
 - [`BaseTrainer`](./crosscode/trainers/base_trainer.py): Training boilerplate. Gradient accumulation, logging, optimizer, lr scheduler, etc.
     - [`BaseCrossLayerTranscoderTrainer`](./crosscode/trainers/base_crosslayer_transcoder_trainer.py): A trainer for CrossLayerTranscoder models, handles dataloading, splitting activations into input and output layers.
@@ -88,6 +93,7 @@ A collection of `InitStrategy`s for initializing crosscoder weights.
 
 
 **[`crosscode.data`](./crosscode/data):**
+
 data loading via harvesting LLM activations on text.
 - [`ActivationsDataloader`](./crosscode/data/activations_dataloader.py): Dataloader for activations. Supports harvesting for multiple models and multiple hookpoints.
     - [`TokenSequenceLoader`](./crosscode/data/token_loader.py): Used by ActivationsDataloader to load sequences of tokens from huggingface and chunk them into batches for activations harvesting. Can shuffle across sequences.
