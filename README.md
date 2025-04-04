@@ -35,7 +35,7 @@ A library for training crosscoders, and by extension, transcoders, SAEs, and oth
 All sparse coding models are abstracted over activation functions, and losses are handled by trainers. This is nice because different training schemes are usually a combination of (activation function, loss function, some hyperparameters, some scheduling) and this way we put all of that in the trainer class in a type-safe way.
 
 #### Tensor Shapes
-This library makes extensive use of "[shape suffixes](https://medium.com/@NoamShazeer/shape-suffixes-good-coding-style-f836e72e24fd)" and einops to attempt to make the quite complex and varying tensor shapes a bit more manageable. Usually shapes are usually: 
+This library makes extensive use of "[shape suffixes](https://medium.com/@NoamShazeer/shape-suffixes-good-coding-style-f836e72e24fd)" and einops to attempt to make the quite complex and varying tensor shapes a bit more manageable. The most common shapes are:
 - `B`: Batch
 - `M`: Models
 - `P`: Hookpoints (for example, different layers of the residual stream)
@@ -99,4 +99,3 @@ data loading via harvesting LLM activations on text.
     - [`TokenSequenceLoader`](./crosscode/data/token_loader.py): Used by ActivationsDataloader to load sequences of tokens from huggingface and chunk them into batches for activations harvesting. Can shuffle across sequences.
     - [`ActivationHarvester`](./crosscode/data/activation_harvester.py): Used by ActivationsDataloader to harvest LLM activations on those sequences.
         - [`ActivationCache`](./crosscode/data/activation_cache.py): Used by ActivationsHarvester to cache activations to disk (if enabled).
-
