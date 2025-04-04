@@ -56,14 +56,14 @@ We currently harvest activations from the LLM(s) at training time. You can cache
 The library is structured roughly as follows:
 
 **[`crosscode.models`](./crosscode/models):**
-    - [`BaseCrosscoder`](./crosscode/models/base_crosscoder.py): Generic base class for all crosscoding models. It's allowed to have different input and output [crosscoding dimensions](#key-terms) and `d_model`s, and meant to be subclassed in a way that concretifies the dimensions.
-        - For example, [`CrossLayerTranscoder`](./crosscode/models/crosslayer_transcoder.py) is a subclass of BaseCrosscoder that concretifies the input crosscoding dimensions to be `(),` and the output dimensions to be `(n_layers,)`.
-    - [`ModelHookpointAcausalCrosscoder`](./crosscode/models/acausal_crosscoder.py): An acausal crosscoder that can be applied across multiple models / layers.
-        - with `n_layers = 1` and `n_models=2`, it's a normal model diffing crosscoder.
-        - with `n_layers > 1` and `n_models=1`, it's a normal cross-layer acausal transcoder.
-        - with `n_layers > 1` and `n_models > 1`, it's a cross-layer cross-model acausal transcoder (???).
-    - [`CrossLayerTranscoder`](./crosscode/models/cross_layer_transcoder.py): A cross-layer acausal transcoder 
-        - [`CompoundCrossLayerTranscoder`](./crosscode/models/compound_clt.py): A wrapper around a list of CrossLayerTranscoder that applies them in parallel, as described in the "[Circuit Tracing](https://transformer-circuits.pub/2025/attribution-graphs/methods.html)" paper.
+- [`BaseCrosscoder`](./crosscode/models/base_crosscoder.py): Generic base class for all crosscoding models. It's allowed to have different input and output [crosscoding dimensions](#key-terms) and `d_model`s, and meant to be subclassed in a way that concretifies the dimensions.
+    - For example, [`CrossLayerTranscoder`](./crosscode/models/crosslayer_transcoder.py) is a subclass of BaseCrosscoder that concretifies the input crosscoding dimensions to be `(),` and the output dimensions to be `(n_layers,)`.
+- [`ModelHookpointAcausalCrosscoder`](./crosscode/models/acausal_crosscoder.py): An acausal crosscoder that can be applied across multiple models / layers.
+    - with `n_layers = 1` and `n_models=2`, it's a normal model diffing crosscoder.
+    - with `n_layers > 1` and `n_models=1`, it's a normal cross-layer acausal transcoder.
+    - with `n_layers > 1` and `n_models > 1`, it's a cross-layer cross-model acausal transcoder (???).
+- [`CrossLayerTranscoder`](./crosscode/models/cross_layer_transcoder.py): A cross-layer acausal transcoder 
+    - [`CompoundCrossLayerTranscoder`](./crosscode/models/compound_clt.py): A wrapper around a list of CrossLayerTranscoder that applies them in parallel, as described in the "[Circuit Tracing](https://transformer-circuits.pub/2025/attribution-graphs/methods.html)" paper.
 
 **[`crosscode.models.activations`](./crosscode/models/activations):**
 
@@ -72,11 +72,11 @@ A collection of activation functions that can be used with the model classes.
 **[`crosscode.models.initialization`](./crosscode/models/initialization):**
 
 A collection of `InitStrategy`s for initializing crosscoder weights.
-    - [`InitStrategy`](./crosscode/models/initialization/init_strategy.py): A base class for all initialization strategies.
-    - [`AnthropicTransposeInit`](./crosscode/models/initialization/anthropic_transpose.py): Initializes the weights of a ModelHookpointAcausalCrosscoder using the "Anthropic Transpose" method.
-    - [`IdenticalLatentsInit`](./crosscode/models/initialization/diffing_identical_latents.py): Initializes the weights of a ModelHookpointAcausalCrosscoder such that the first `n_shared_latents` are identical for all models.
-    - [`JanUpdateInit`](./crosscode/models/initialization/jan_update_init.py): Initializes the weights of a ModelHookpointAcausalCrosscoder using the method described in the "[January 2025 update](https://transformer-circuits.pub/2025/january-update/index.html)" paper.
-    - Theres's some other random initialization strategies in here that are more speculative.
+- [`InitStrategy`](./crosscode/models/initialization/init_strategy.py): A base class for all initialization strategies.
+- [`AnthropicTransposeInit`](./crosscode/models/initialization/anthropic_transpose.py): Initializes the weights of a ModelHookpointAcausalCrosscoder using the "Anthropic Transpose" method.
+- [`IdenticalLatentsInit`](./crosscode/models/initialization/diffing_identical_latents.py): Initializes the weights of a ModelHookpointAcausalCrosscoder such that the first `n_shared_latents` are identical for all models.
+- [`JanUpdateInit`](./crosscode/models/initialization/jan_update_init.py): Initializes the weights of a ModelHookpointAcausalCrosscoder using the method described in the "[January 2025 update](https://transformer-circuits.pub/2025/january-update/index.html)" paper.
+- Theres's some other random initialization strategies in here that are more speculative.
 
 **[`crosscode.trainers`](./crosscode/trainers):**
 
