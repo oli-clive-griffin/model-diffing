@@ -8,6 +8,7 @@ from torch import nn
 from crosscode.models.activations import ACTIVATIONS_MAP
 from crosscode.models.base_crosscoder import BaseCrosscoder, TActivation
 from crosscode.models.initialization.init_strategy import InitStrategy
+from crosscode.saveable_module import DTYPE_TO_STRING, STRING_TO_DTYPE
 
 
 class SAEOrTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
@@ -92,7 +93,7 @@ class SAEOrTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             },
             "use_encoder_bias": self.b_enc_L is not None,
             "use_decoder_bias": self._b_dec_XoDo is not None,
-            "dtype": self._dtype,
+            "dtype": DTYPE_TO_STRING[self._dtype],
         }
 
     @classmethod
@@ -107,7 +108,7 @@ class SAEOrTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             activation_fn=activation_fn,
             use_encoder_bias=cfg["use_encoder_bias"],
             use_decoder_bias=cfg["use_decoder_bias"],
-            dtype=cfg["dtype"],
+            dtype=STRING_TO_DTYPE[cfg["dtype"]],
         )
 
     def fold_activation_scaling_into_weights_(self, scaling_factor: float) -> None:

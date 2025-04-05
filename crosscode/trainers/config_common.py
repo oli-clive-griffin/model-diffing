@@ -69,7 +69,7 @@ class BaseTrainConfig(BaseModel):
     # num_steps_per_epoch: int | None = None
     num_steps: int
     save_every_n_steps: int | None = None
-    upload_saves_to_wandb: bool = True
+    upload_saves_to_wandb: bool = False
     log_every_n_steps: int
     gradient_accumulation_steps_per_batch: int = 1
 

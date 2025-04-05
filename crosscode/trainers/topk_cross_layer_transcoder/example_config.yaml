@@ -1,22 +1,20 @@
 data:
-  token_sequence_loader:
-    type: HuggingfaceTextDatasetTokenSequenceLoader
-    hf_dataset_name: "monology/pile-uncopyrighted"
-    sequence_length: 256
   activations_harvester:
     llms:
       - name: EleutherAI/pythia-160M
-        revision: step142000
-      - name: EleutherAI/pythia-160M
-        revision: step143000 # last checkpoint
+        revision: step143000
     harvesting_batch_size: 1
-crosscoder:
-  n_latents: 4096
-  k: 64
+transcoder:
+  n_latents: 8192
+  k: 32
 train:
-  num_steps: 10_000
+  topk_style: "topk"
+  num_steps: 100
   batch_size: 32
-  save_every_n_steps: 2500
-  log_every_n_steps: 50
-experiment_name: skip_trans_crosscoder_example
-mlp_indices: [7]
+  log_every_n_steps: 10
+experiment_name: topk_cross_layer_transcoder_example
+in_hookpoint: "blocks.7.mlp.hook_pre"
+out_hookpoints: [
+  "blocks.7.mlp.hook_post",
+  "blocks.8.mlp.hook_post",
+]

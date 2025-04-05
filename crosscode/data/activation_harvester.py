@@ -1,6 +1,7 @@
 from typing import Literal
 
 import torch
+from einops import pack
 from transformer_lens import HookedTransformer  # type: ignore
 
 from crosscode.data.activation_cache import ActivationsCache
@@ -53,15 +54,17 @@ class ActivationsHarvester:
             if activations_HSPD is not None:
                 return activations_HSPD
 
-        acts_HSPD = torch.empty((*sequence_HS.shape, self.num_hookpoints, llm.cfg.d_model), device=self._device)
+        acts_HSD = []  # each element is (harvest_batch_size, sequence_length, n_hookpoints)
         with torch.inference_mode():
             _, cache = llm.run_with_cache(
                 sequence_HS.to(self._device),
                 names_filter=lambda name: name in self._hookpoints,
                 stop_at_layer=self._layer_to_stop_at,
             )
-        for p, hookpoint in enumerate(self._hookpoints):
-            acts_HSPD[:, :, p, :] = cache[hookpoint]  # cache[hookpoint] is shape (H, S, D)
+        for hookpoint in self._hookpoints:
+            acts_HSD.append(cache[hookpoint])
+
+        acts_HSPD, _ = pack(acts_HSD, "h s * d")
 
         if self._activation_cache is not None:
             cache_key = self._activation_cache.get_cache_key(llm, sequence_HS, self._hookpoints)
@@ -73,10 +76,13 @@ class ActivationsHarvester:
         self,
         sequence_HS: torch.Tensor,
     ) -> torch.Tensor:
-        MPD = (len(self._llms), len(self._hookpoints), self._llms[0].cfg.d_model)
-        activations_HSMPD = torch.empty(*sequence_HS.shape, *MPD, device=self._device)
-        for m, model in enumerate(self._llms):
-            activations_HSMPD[:, :, m, :, :] = self._get_acts_HSPD(model, sequence_HS)
+        # MPD = (len(self._llms), len(self._hookpoints), self._llms[0].cfg.d_model)
+        # activations_HSMPD = torch.empty(*sequence_HS.shape, *MPD, device=self._device)
+        activations_HSPD = []  # each element is (harvest_batch_size, sequence_length, n_hookpoints)
+        for model in self._llms:
+            activations_HSPD.append(self._get_acts_HSPD(model, sequence_HS))
+        
+        activations_HSMPD, _ = pack(activations_HSPD, "h s * p d")
         return activations_HSMPD
 
 
@@ -87,3 +93,10 @@ def _get_layer(hookpoint: str) -> int:
         )
     assert hookpoint.startswith("blocks.")
     return int(hookpoint.split(".")[1])
+
+if __name__ == "__main__":
+    a = torch.randn(3, 4)
+    b = torch.randn(3, 4)
+
+    # c, _ = pack([a, b], "x * y")
+    # print(c.shape)

@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterator
 from itertools import islice
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 import numpy as np
 import torch
@@ -12,6 +12,7 @@ from torch.optim import Optimizer
 from tqdm import tqdm  # type: ignore
 from wandb.sdk.wandb_run import Run
 
+from crosscode.log import logger
 from crosscode.trainers.config_common import (
     AdamConfig,
     BaseExperimentConfig,
@@ -40,7 +41,9 @@ def get_l0_stats(hidden_BL: torch.Tensor, name: str = "l0") -> dict[str, float]:
     }
 
 
-def create_cosine_sim_and_relative_norm_histograms(W_dec_LMD: torch.Tensor) -> tuple[wandb.Histogram, wandb.Histogram]:
+def create_cosine_sim_and_relative_norm_histograms(
+    W_dec_LMD: torch.Tensor,
+) -> tuple[wandb.Histogram | None, wandb.Histogram | None]:
     _, n_models, _ = W_dec_LMD.shape
     assert n_models == 2, "only works for 2 models"
 
@@ -57,32 +60,42 @@ def create_cosine_sim_and_relative_norm_histograms(W_dec_LMD: torch.Tensor) -> t
     return relative_decoder_norms_plot, shared_features_cosine_sims_plot
 
 
-def create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_LMD: torch.Tensor) -> dict[str, wandb.Histogram]:
+def create_cosine_sim_and_relative_norm_histograms_diffing(
+    W_dec_LMD: torch.Tensor,
+) -> tuple[wandb.Histogram | None, wandb.Histogram | None]:
     _, n_models, _ = W_dec_LMD.shape
     assert n_models == 2, "only works for 2 models"
 
-    plots: dict[str, wandb.Histogram] = {}
     W_dec_a_LD = W_dec_LMD[:, 0]
     W_dec_b_LD = W_dec_LMD[:, 1]
 
     relative_norms = compute_relative_norms_N(W_dec_a_LD, W_dec_b_LD)
-    plots["media/relative_decoder_norms"] = wandb_histogram(relative_norms)
+    relative_decoder_norms_plot = wandb_histogram(relative_norms)
 
     shared_latent_mask = get_shared_latent_mask(relative_norms)
     cosine_sims = compute_cosine_similarities_N(W_dec_a_LD, W_dec_b_LD)
     shared_features_cosine_sims = cosine_sims[shared_latent_mask]
-    plots["media/cosine_sim"] = wandb_histogram(shared_features_cosine_sims)
+    shared_features_cosine_sims_plot = wandb_histogram(shared_features_cosine_sims)
 
-    return plots
+    return relative_decoder_norms_plot, shared_features_cosine_sims_plot
 
 
-def wandb_histogram(data_X: torch.Tensor, bins: int = 100) -> wandb.Histogram:
-    return wandb.Histogram(
-        np_histogram=np.histogram(
-            data_X.detach().cpu().numpy(),
-            bins=bins,
+def wandb_histogram(data_X: torch.Tensor, bins: int = 100) -> wandb.Histogram | None:
+    try:
+        return wandb.Histogram(
+            np_histogram=np.histogram(
+                data_X.detach().cpu().numpy(),
+                bins=bins,
+            )
         )
-    )
+    except Exception as e:
+        # Gross I know
+        if "Too many bins" in str(e):
+            logger.warning(
+                "couldn't plot histogram, probably cos there was very little variation in the data, skipping"
+            )
+            return None
+        raise e
 
 
 def build_wandb_run(config: BaseExperimentConfig) -> Run:
@@ -206,3 +219,11 @@ T = TypeVar("T")
 
 def dict_join(dicts: list[dict[str, T]]) -> dict[str, list[T]]:
     return {k: [d[k] for d in dicts] for k in dicts[0]}
+
+
+def get_activation_type(hookpoints: list[str]) -> Literal["resid", "mlp"]:
+    if all("resid" in hookpoint for hookpoint in hookpoints):
+        return "resid"
+    elif all("mlp" in hookpoint for hookpoint in hookpoints):
+        return "mlp"
+    raise ValueError(f"either all hookpoints should be resid or all should be mlp, got {hookpoints}")

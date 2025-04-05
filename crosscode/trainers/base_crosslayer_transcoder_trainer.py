@@ -76,7 +76,7 @@ class BaseCrossLayerTranscoderTrainer(
 
             # We know this is (model, hookpoint) because it's a ModelHookpointActivationsDataloader
             scaling_factors_MP = self.activations_dataloader.get_scaling_factors()
-            assert scaling_factors_MP.shape[1] == 2, "expected the scaling factors to have one model only"
+            assert scaling_factors_MP.shape[0] == 1, "expected the scaling factors to have one model only"
             scaling_factors_P = scaling_factors_MP[0]
             self.model.with_folded_scaling_factors(scaling_factors_P).save(checkpoint_path)
 

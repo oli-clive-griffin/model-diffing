@@ -5,6 +5,7 @@ from transformer_lens import HookedTransformer  # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizerBase  # type: ignore
 
 from crosscode.log import logger
+from crosscode.saveable_module import STRING_TO_DTYPE
 from crosscode.trainers.config_common import LLMConfig
 
 
@@ -24,7 +25,7 @@ def build_llm(
     device: torch.device,
     inference_dtype: str,
 ) -> tuple[HookedTransformer, PreTrainedTokenizerBase]:
-    dtype = DTYPE_FROM_STRING[inference_dtype]
+    dtype = STRING_TO_DTYPE[inference_dtype]
 
     if llm.name is not None:
         model_key = f"tl-{llm.name}"
@@ -69,16 +70,3 @@ def build_llm(
     logger.info(f"Assigned model key: {model_key} to model {llm_out.cfg.model_name}")
 
     return cast(HookedTransformer, llm_out.to(device)), tokenizer
-
-
-DTYPE_FROM_STRING = {
-    "float32": torch.float32,
-    "fp32": torch.float32,
-    "float16": torch.float16,
-    "fp16": torch.float16,
-    "bfloat16": torch.bfloat16,
-    "bf16": torch.bfloat16,
-}
-
-
-

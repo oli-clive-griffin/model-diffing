@@ -5,11 +5,11 @@ from crosscode.llms import build_llms
 from crosscode.log import logger
 from crosscode.models.activations.topk import TopkActivation
 from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
-from crosscode.models.initialization.transcoder import ZeroDecSkipTranscoderInit
+from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
 from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.topk_cross_layer_transcoder.config import TopkCrossLayerTranscoderExperimentConfig
 from crosscode.trainers.topk_cross_layer_transcoder.trainer import TopkCrossLayerTranscoderTrainer
-from crosscode.trainers.utils import build_wandb_run
+from crosscode.trainers.utils import build_wandb_run, get_activation_type
 from crosscode.utils import get_device
 
 
@@ -23,31 +23,23 @@ def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> TopkCrossLay
         inferenced_type=cfg.data.activations_harvester.inference_dtype,
     )
 
-    in_hookpoint = f"blocks.{cfg.mlp_index_in}.mlp.hook_pre"
-    out_hookpoints = [f"blocks.{idx}.mlp.hook_post" for idx in cfg.mlp_indices_out]
-
-    harvesting_hookpoints = [in_hookpoint, *out_hookpoints]
-
     dataloader = build_model_hookpoint_dataloader(
         cfg=cfg.data,
         llms=llms,
-        hookpoints=harvesting_hookpoints,
+        hookpoints=[cfg.in_hookpoint, *cfg.out_hookpoints],
         batch_size=cfg.train.minibatch_size(),
         cache_dir=cfg.cache_dir,
     )
 
-    d_mlp = llms[0].cfg.d_mlp  # this doesn't seem right?
+    activation_type = get_activation_type([cfg.in_hookpoint, *cfg.out_hookpoints])
+    act_dim = llms[0].cfg.d_mlp if activation_type == "mlp" else llms[0].cfg.d_model
 
     transcoder = CrossLayerTranscoder(
-        d_model=d_mlp,
-        n_layers_out=len(cfg.mlp_indices_out),
+        d_model=act_dim,
+        n_layers_out=len(cfg.out_hookpoints),
         n_latents=cfg.transcoder.n_latents,
         linear_skip=cfg.transcoder.linear_skip,
-        init_strategy=ZeroDecSkipTranscoderInit(
-            activation_iterator=dataloader.get_activations_iterator(),
-            n_samples_for_dec_mean=100_000,
-            enc_init_norm=0.1,  # cfg.crosscoder.enc_init_norm,
-        ),
+        init_strategy=AnthropicTransposeInitCrossLayerTC(dec_init_norm=cfg.transcoder.dec_init_norm),
         activation_fn=TopkActivation(k=cfg.transcoder.k),
         use_encoder_bias=cfg.transcoder.use_encoder_bias,
         use_decoder_bias=cfg.transcoder.use_decoder_bias,
@@ -57,9 +49,13 @@ def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> TopkCrossLay
 
     wandb_run = build_wandb_run(cfg)
 
+    if cfg.train.k_aux is None:
+        cfg.train.k_aux = act_dim // 2
+        logger.info(f"defaulting to k_aux={cfg.train.k_aux} for crosscoder (({act_dim=}) // 2)")
+
     return TopkCrossLayerTranscoderTrainer(
         cfg=cfg.train,
-        out_hookpoints=out_hookpoints,
+        out_hookpoints=cfg.out_hookpoints,
         activations_dataloader=dataloader,
         model=transcoder,
         wandb_run=wandb_run,

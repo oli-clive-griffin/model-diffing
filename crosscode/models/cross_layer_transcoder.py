@@ -8,6 +8,7 @@ from torch import nn
 from crosscode.models.activations import ACTIVATIONS_MAP
 from crosscode.models.base_crosscoder import BaseCrosscoder, TActivation
 from crosscode.models.initialization.init_strategy import InitStrategy
+from crosscode.saveable_module import DTYPE_TO_STRING, STRING_TO_DTYPE
 
 
 class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
@@ -45,7 +46,7 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
 
         self.W_skip_DPD = None
         if linear_skip:
-            self.W_skip_DPD = nn.Parameter(torch.empty((d_model, d_model), dtype=dtype))
+            self.W_skip_DPD = nn.Parameter(torch.empty((d_model, n_layers_out, d_model), dtype=dtype))
 
         if init_strategy is not None:
             init_strategy.init_weights(self)
@@ -96,7 +97,8 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             },
             "use_encoder_bias": self.b_enc_L is not None,
             "use_decoder_bias": self._b_dec_XoDo is not None,
-            "dtype": self._dtype,
+            "linear_skip": self.W_skip_DPD is not None,
+            "dtype": DTYPE_TO_STRING[self._dtype],
         }
 
     @classmethod
@@ -112,7 +114,8 @@ class CrossLayerTranscoder(Generic[TActivation], BaseCrosscoder[TActivation]):
             activation_fn=activation_fn,
             use_encoder_bias=cfg["use_encoder_bias"],
             use_decoder_bias=cfg["use_decoder_bias"],
-            dtype=cfg["dtype"],
+            linear_skip=cfg["linear_skip"],
+            dtype=STRING_TO_DTYPE[cfg["dtype"]],
         )
 
     def with_folded_scaling_factors(self, scaling_factors_P: torch.Tensor) -> Self:

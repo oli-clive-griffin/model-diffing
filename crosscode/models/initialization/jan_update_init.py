@@ -52,7 +52,7 @@ class DataDependentJumpReLUInitStrategy(InitStrategy[ModelHookpointAcausalCrossc
         )
 
         assert cc.b_enc_L is not None, "this strategy requires an encoder bias"
-        pre_bias_iterator_BL = (cc.get_pre_bias_BL(batch.activations_BMPD) for batch in self.activations_iterator)
+        pre_bias_iterator_BL = (cc.get_pre_bias_BL(batch.activations_BMPD.to(cc.device)) for batch in self.activations_iterator)
 
         calibrated_b_enc_L = compute_b_enc_L(
             pre_bias_iterator_BL,

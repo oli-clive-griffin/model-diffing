@@ -87,12 +87,18 @@ class BaseModelHookpointAcausalTrainer(
                     relative_decoder_norms_plot, shared_features_cosine_sims_plot = (
                         create_cosine_sim_and_relative_norm_histograms(W_dec_LMD)
                     )
-                    log_dict.update(
-                        {
-                            f"media/relative_decoder_norms_{hookpoint}": relative_decoder_norms_plot,
-                            f"media/shared_features_cosine_sims_{hookpoint}": shared_features_cosine_sims_plot,
-                        }
-                    )
+                    if relative_decoder_norms_plot is not None:
+                        log_dict.update(
+                            {
+                                f"media/relative_decoder_norms_{hookpoint}": relative_decoder_norms_plot,
+                            }
+                        )
+                    if shared_features_cosine_sims_plot is not None:
+                        log_dict.update(
+                            {
+                                f"media/shared_features_cosine_sims_{hookpoint}": shared_features_cosine_sims_plot,
+                            }
+                        )
 
         return log_dict
 

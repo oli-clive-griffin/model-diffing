@@ -64,3 +64,12 @@ def _tuple_constructor(loader: yaml.SafeLoader, node: yaml.nodes.SequenceNode) -
 
 
 yaml.SafeLoader.add_constructor("tag:yaml.org,2002:python/tuple", _tuple_constructor)
+
+
+STRING_TO_DTYPE = {
+    "float32": torch.float32,
+    "float16": torch.float16,
+    "bfloat16": torch.bfloat16,
+}
+
+DTYPE_TO_STRING = {v: k for k, v in STRING_TO_DTYPE.items()}

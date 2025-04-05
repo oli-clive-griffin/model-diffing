@@ -57,7 +57,23 @@ class BaseFebUpdateDiffingTrainer(Generic[TConfig, TAct], BaseModelHookpointAcau
         log_dict = super()._step_logs()
 
         if self.step % (self.cfg.log_every_n_steps * self.LOG_HISTOGRAMS_EVERY_N_LOGS) == 0:
-            W_dec_LiMD = self.model.W_dec_LMPD[self.n_shared_latents :].detach()
-            log_dict.update(create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_LMD=W_dec_LiMD))
+            W_dec_LiMPD = self.model.W_dec_LMPD[self.n_shared_latents :].detach()
+            for p, hookpoint_name in enumerate(self.activations_dataloader.hookpoints):
+                W_dec_LiMD = W_dec_LiMPD[:, :, p]
+                relative_decoder_norms_plot, shared_features_cosine_sims_plot = (
+                    create_cosine_sim_and_relative_norm_histograms_diffing(W_dec_LMD=W_dec_LiMD)
+                )
+                if relative_decoder_norms_plot is not None:
+                    log_dict.update(
+                        {
+                            f"{hookpoint_name}_relative_decoder_norms": relative_decoder_norms_plot,
+                        }
+                    )
+                if shared_features_cosine_sims_plot is not None:
+                    log_dict.update(
+                        {
+                            f"{hookpoint_name}_shared_features_cosine_sims": shared_features_cosine_sims_plot,
+                        }
+                    )
 
         return log_dict

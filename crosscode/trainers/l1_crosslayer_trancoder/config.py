@@ -9,4 +9,5 @@ class L1CrossLayerTranscoderConfig(BaseSparseCoder):
 class L1CrossLayerTranscoderExperimentConfig(BaseExperimentConfig):
     transcoder: L1CrossLayerTranscoderConfig
     train: L1TrainConfig
-    hookpoints: list[str]
+    in_hookpoint: str
+    out_hookpoints: list[str]
