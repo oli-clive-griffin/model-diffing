@@ -1,8 +1,9 @@
+import os
 from operator import xor
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from crosscode.data.activation_harvester import CacheMode
 from crosscode.utils import BaseModel
@@ -89,9 +90,27 @@ class BaseSparseCoder(BaseModel):
 
 
 class WandbConfig(BaseModel):
-    entity: str = "mars-model-diffing"
-    project: str = "model-diffing"
+    entity: str | None = None
+    project: str | None = None
     mode: Literal["disabled", "online", "offline"] = "online"
+
+    @field_validator("entity")
+    @classmethod
+    def validate_entity(cls, v: str | None) -> str:
+        if v is None:
+            v = os.environ.get("WANDB_ENTITY")
+        if v is None:
+            raise ValueError("WANDB_ENTITY must be set if 'entity' is not provided")
+        return v
+
+    @field_validator("project")
+    @classmethod
+    def validate_project(cls, v: str | None) -> str:
+        if v is None:
+            v = os.environ.get("WANDB_PROJECT")
+        if v is None:
+            raise ValueError("WANDB_PROJECT must be set if 'project' is not provided")
+        return v
 
 
 class BaseExperimentConfig(BaseModel):
