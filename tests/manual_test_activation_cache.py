@@ -1,7 +1,6 @@
 """Test script for the ActivationsCache functionality. Needs to be run manually."""
 
 import shutil
-import tempfile
 import time
 from itertools import islice
 from pathlib import Path
@@ -20,12 +19,11 @@ from crosscode.trainers.config_common import (
 )
 from crosscode.utils import get_device
 
+CACHE_DIR = ".cache"
 
-def test(temp_dir: Path):
-    print(f"Using temporary cache directory: {temp_dir}")
 
-    # Create activation cache
-    cache_dir = temp_dir / "activation_cache"
+def test():
+    print(f"Using cache directory: {CACHE_DIR}")
 
     # Create toy model configs
     llm_config1 = LLMConfig(name="EleutherAI/pythia-160m", revision="step142000")
@@ -38,7 +36,7 @@ def test(temp_dir: Path):
     device = get_device()
     models = build_llms(
         [llm_config1, llm_config2],
-        cache_dir=str(cache_dir),
+        cache_dir=CACHE_DIR,
         device=device,
         inferenced_type=DTYPE_TO_STRING[torch.float32],
     )
@@ -60,7 +58,7 @@ def test(temp_dir: Path):
 
         return build_model_hookpoint_dataloader(
             batch_size=1,
-            cache_dir=str(temp_dir),
+            cache_dir=CACHE_DIR,
             hookpoints=hook_points,
             llms=models,
             cfg=data_cfg,
@@ -94,12 +92,12 @@ def test(temp_dir: Path):
 
 
 def main():
-    temp_dir = Path(tempfile.mkdtemp())
     try:
-        return test(temp_dir)
+        return test()
     finally:
-        shutil.rmtree(temp_dir)
-        print(f"\nCleaned up temporary directory: {temp_dir}")
+        activations_cache_dir = Path(CACHE_DIR) / "activations_cache"
+        shutil.rmtree(activations_cache_dir)
+        print(f"\nCleaned up activations cache directory: {activations_cache_dir}")
 
 
 if __name__ == "__main__":

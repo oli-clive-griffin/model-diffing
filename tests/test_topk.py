@@ -1,6 +1,6 @@
 import torch
 
-from crosscode.trainers.train_topk_crosscoder.trainer import aux_loss, topk_dead_latents
+from crosscode.trainers.topk_crosscoder.trainer import aux_loss, topk_dead_latents
 from crosscode.utils import l2_norm, not_none
 
 

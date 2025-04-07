@@ -13,7 +13,9 @@ from crosscode.trainers.utils import build_wandb_run, get_activation_type
 from crosscode.utils import get_device
 
 
-def build_l1_cross_layer_transcoder_trainer(cfg: L1CrossLayerTranscoderExperimentConfig) -> L1CrossLayerTranscoderTrainer:
+def build_l1_cross_layer_transcoder_trainer(
+    cfg: L1CrossLayerTranscoderExperimentConfig,
+) -> L1CrossLayerTranscoderTrainer:
     device = get_device()
 
     assert len(cfg.data.activations_harvester.llms) == 1, "the trainer assumes we have one model"

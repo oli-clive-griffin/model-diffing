@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 import torch
@@ -13,7 +14,7 @@ from crosscode.log import logger
 # P: hookpoints
 # D: model d_model
 
-CacheMode = Literal["no_cache", "cache", "cache_with_mmap"]
+CacheMode = Literal["no_cache", "cache"]  # , "cache_with_mmap"] # TODO validate mmap works, not confient atm
 
 
 class ActivationsHarvester:
@@ -21,7 +22,7 @@ class ActivationsHarvester:
         self,
         llms: list[HookedTransformer],
         hookpoints: list[str],
-        cache_dir: str | None = None,
+        activations_cache_dir: Path | None = None,
         cache_mode: CacheMode = "no_cache",
     ):
         if len({llm.cfg.d_model for llm in llms}) != 1:
@@ -33,9 +34,11 @@ class ActivationsHarvester:
         # Set up the activations cache
         self._activation_cache = None
         if cache_mode != "no_cache":
-            if not cache_dir:
+            if not activations_cache_dir:
                 raise ValueError("cache_mode is enabled but no cache_dir provided; caching will be disabled")
-            self._activation_cache = ActivationsCache(cache_dir=cache_dir, use_mmap=cache_mode == "cache_with_mmap")
+            self._activation_cache = ActivationsCache(
+                cache_dir=activations_cache_dir  # , use_mmap=cache_mode == "cache_with_mmap" # TODO validate mmap works, not confient atm
+            )
 
         self.num_models = len(llms)
         self.num_hookpoints = len(hookpoints)
@@ -81,7 +84,7 @@ class ActivationsHarvester:
         activations_HSPD = []  # each element is (harvest_batch_size, sequence_length, n_hookpoints)
         for model in self._llms:
             activations_HSPD.append(self._get_acts_HSPD(model, sequence_HS))
-        
+
         activations_HSMPD, _ = pack(activations_HSPD, "h s * p d")
         return activations_HSMPD
 
@@ -93,10 +96,3 @@ def _get_layer(hookpoint: str) -> int:
         )
     assert hookpoint.startswith("blocks.")
     return int(hookpoint.split(".")[1])
-
-if __name__ == "__main__":
-    a = torch.randn(3, 4)
-    b = torch.randn(3, 4)
-
-    # c, _ = pack([a, b], "x * y")
-    # print(c.shape)

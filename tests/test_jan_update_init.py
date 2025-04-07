@@ -23,17 +23,16 @@ def test_compute_b_enc_L():
         ]
     ).float()
 
-    activations_iterator_BD = iter([batch_BD, batch_BD.clone(), batch_BD.clone()])
+    pre_biases = [get_pre_bias_BL(batch_BD), get_pre_bias_BL(batch_BD.clone()), get_pre_bias_BL(batch_BD.clone())]
 
     # use a jumprelu threshold of 2 for simplicity
     initial_jumprelu_threshold = 2
     initial_jumprelu_threshold_L = torch.ones(n_latents).float() * initial_jumprelu_threshold
 
     b_enc_L = compute_b_enc_L(
-        get_pre_bias_BL,
-        activations_iterator_BD,
-        initial_jumprelu_threshold_L,
-        initial_approx_firing_pct,
+        pre_bias_iterator_BL=iter(pre_biases),
+        initial_jumprelu_threshold_L=initial_jumprelu_threshold_L,
+        initial_approx_firing_pct=initial_approx_firing_pct,
         n_tokens_for_threshold_setting=12,  # just the size of the dataset (3 batches of 2 examples each)
     )
 
@@ -65,15 +64,14 @@ def test_compute_b_enc_L_batches_rounding():
     batch_1_BD = torch.tensor([[0], [1], [2]]).float()
     batch_2_BD = torch.tensor([[3], [4], [5]]).float()
 
-    activations_iterator_BD = iter([batch_1_BD, batch_2_BD])
+    pre_biases = [get_pre_bias_BL(batch_1_BD), get_pre_bias_BL(batch_2_BD)]
 
     initial_jumprelu_threshold_L = torch.randn(n_latents).float()
 
     b_enc_L = compute_b_enc_L(
-        get_pre_bias_BL,
-        activations_iterator_BD,
-        initial_jumprelu_threshold_L,
-        initial_approx_firing_pct,
+        pre_bias_iterator_BL=iter(pre_biases),
+        initial_jumprelu_threshold_L=initial_jumprelu_threshold_L,
+        initial_approx_firing_pct=initial_approx_firing_pct,
         n_tokens_for_threshold_setting=5,  # should round up to 6 (taking in both batches)
     )
 

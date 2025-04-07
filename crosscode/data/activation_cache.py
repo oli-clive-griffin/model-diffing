@@ -12,7 +12,7 @@ from crosscode.log import logger
 class ActivationsCache:
     """Handles caching and loading of model activations to/from disk."""
 
-    def __init__(self, cache_dir: str, use_mmap: bool = False):
+    def __init__(self, cache_dir: Path):  # , use_mmap: bool = False): # TODO validate mmap works, not confient atm
         """
         Initialize the activations cache.
 
@@ -20,10 +20,10 @@ class ActivationsCache:
             cache_dir: Directory to store cached activations. If None, caching is disabled.
             use_mmap: Whether to use memory-mapped files for loading large cached activations.
         """
-        self.cache_dir = Path(cache_dir)
+        self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        self.use_mmap = use_mmap
+        # self.use_mmap = use_mmap
 
     def get_cache_key(self, model: HookedTransformer, sequence_BS: torch.Tensor, hookpoints: list[str]) -> str:
         """Generate a unique cache key based on model identifier and input hash."""
@@ -68,7 +68,7 @@ class ActivationsCache:
             return None
 
         try:
-            np_array = np.load(cache_path, mmap_mode="r" if self.use_mmap else None)
+            np_array = np.load(cache_path)  # , mmap_mode="r" if self.use_mmap else None)
 
             return torch.from_numpy(np_array).to(device)
         except Exception as e:

@@ -1,7 +1,7 @@
-import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Generic, TypeVar
 
 import torch
@@ -120,14 +120,14 @@ def build_model_hookpoint_dataloader(
     # Create activations cache directory if cache is enabled
     activations_cache_dir = None
     if cfg.activations_harvester.cache_mode != "no_cache":
-        activations_cache_dir = os.path.join(cache_dir, "activations_cache")
+        activations_cache_dir = Path(cache_dir) / "activations_cache"
         logger.info(f"Activations will be cached in: {activations_cache_dir}")
 
     # then, run these sequences through the model to get activations
     activations_harvester = ActivationsHarvester(
         llms=llms,
         hookpoints=hookpoints,
-        cache_dir=activations_cache_dir,
+        activations_cache_dir=activations_cache_dir,
         cache_mode=cfg.activations_harvester.cache_mode,
     )
 
