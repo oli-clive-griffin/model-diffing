@@ -65,7 +65,7 @@ def build_llm(
 
     # Register the model key as a buffer so it's properly accessible
     # Buffers are persistent state in nn.Module that's not parameters
-    llm_out.register_buffer("model_diffing_model_key", torch.tensor([ord(c) for c in model_key], dtype=torch.int64))
+    llm_out.register_buffer("crosscode_model_key", torch.tensor([ord(c) for c in model_key], dtype=torch.int64))
 
     logger.info(f"Assigned model key: {model_key} to model {llm_out.cfg.model_name}")
 
