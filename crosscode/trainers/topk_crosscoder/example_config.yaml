@@ -1,16 +1,17 @@
 data:
+  token_sequence_loader:
+    sequence_length: 1024
   activations_harvester:
     llms:
-      - name: EleutherAI/pythia-160M
-        revision: step142000
-      - name: EleutherAI/pythia-160M
-        revision: step143000 # last checkpoint
+      - name: gpt2
+      - base_architecture_name: gpt2
+        hf_model_name: submarat/model-without-ln
     harvesting_batch_size: 1
 crosscoder:
   n_latents: 8192
   k: 32
 train:
-  topk_style: "topk"
+  topk_style: "batch_topk"
   num_steps: 100
   batch_size: 32
   log_every_n_steps: 10

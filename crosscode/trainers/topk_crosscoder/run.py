@@ -26,9 +26,9 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausa
         case "topk":
             cc_act = TopkActivation(k=cfg.crosscoder.k)
         case "batch_topk":
-            cc_act = BatchTopkActivation(k_per_example=cfg.crosscoder.k)
+            cc_act = BatchTopkActivation(k=cfg.crosscoder.k)
         case "groupmax":
-            cc_act = GroupMaxActivation(k_groups=cfg.crosscoder.k, latents_size=cfg.crosscoder.n_latents)
+            cc_act = GroupMaxActivation(n_groups=cfg.crosscoder.k)
 
     d_model = llms[0].cfg.d_model
 

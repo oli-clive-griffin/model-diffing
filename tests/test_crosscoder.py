@@ -35,7 +35,7 @@ def test_return_shapes():
 
 
 def test_batch_topk_activation():
-    batch_topk_activation = BatchTopkActivation(k_per_example=2)
+    batch_topk_activation = BatchTopkActivation(k=2)
     hidden_preact_BL = torch.tensor([[1, 2, 3, 4, 10], [1, 2, 11, 12, 13]])
     hidden_BL = batch_topk_activation.forward(hidden_preact_BL)
     assert hidden_BL.shape == hidden_preact_BL.shape

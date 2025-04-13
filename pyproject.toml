@@ -22,7 +22,7 @@ dependencies = [
     "pandas",
     "matplotlib",
     "schedulefree",
-    "zstandard"
+    "zstandard",
 ]
 
 [project.optional-dependencies]

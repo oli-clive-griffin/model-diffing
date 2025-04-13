@@ -19,17 +19,17 @@ class LLMConfig(BaseModel):
     name: str | None = None
     revision: str | None = None
 
-    base_archicteture_name: str | None = None
+    base_architecture_name: str | None = None
     hf_model_name: str | None = None
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
         assert xor(
             (self.name is not None),
-            (self.base_archicteture_name is not None and self.hf_model_name is not None),
+            (self.base_architecture_name is not None and self.hf_model_name is not None),
         ), (
             "must provide either name (to load from official model list)"
-            " or base_archicteture_name and hf_model_name (to load from huggingface)"
+            " or base_architecture_name and hf_model_name (to load from huggingface)"
         )
 
 

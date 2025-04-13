@@ -18,21 +18,23 @@ def topk_activation(x_BL: torch.Tensor, k: int) -> torch.Tensor:
     return out_BL
 
 
-def groupmax_activation(x_BL: torch.Tensor, k: int) -> torch.Tensor:
+def groupmax_activation(x_BL: torch.Tensor, n_groups: int) -> torch.Tensor:
     latents_size = x_BL.shape[1]
+    assert latents_size % n_groups == 0, "latents_size must be divisible by n_groups"
+    latents_per_group = latents_size // n_groups
 
     x_BKLg = rearrange(
         x_BL,
-        "b (k_groups latents_per_group) -> b k_groups latents_per_group",
-        k_groups=k,
-        latents_per_group=latents_size // k,
+        "b (n_groups latents_per_group) -> b n_groups latents_per_group",
+        n_groups=n_groups,
+        latents_per_group=latents_per_group,
     )
 
     values_BK, indices_BK = x_BKLg.max(dim=-1)
 
     # torch.max gives us indices into each group, but we want indices into the
     # flattened tensor. Add the offsets to get the correct indices.
-    offsets_K = torch.arange(0, latents_size, latents_size // k)
+    offsets_K = torch.arange(0, latents_size, latents_per_group)
 
     indices_BK = indices_BK + offsets_K
 
@@ -69,37 +71,36 @@ class TopkActivation(ActivationFunction, TopkStyleActivation):
 
 
 class BatchTopkActivation(ActivationFunction):
-    def __init__(self, k_per_example: int):
+    def __init__(self, k: int):
         super().__init__()
-        self.k_per_example = k_per_example
+        self.k = k
 
     def forward(self, latent_preact_BL: torch.Tensor) -> torch.Tensor:
-        return batch_topk_activation(latent_preact_BL, self.k_per_example)
+        return batch_topk_activation(latent_preact_BL, self.k)
 
     def _dump_cfg(self) -> dict[str, int | str]:
-        return {"k_per_example": self.k_per_example}
+        return {"k": self.k}
 
     @classmethod
     def _scaffold_from_cfg(cls, cfg: dict[str, Any]) -> "BatchTopkActivation":
-        return cls(cfg["k_per_example"])
+        return cls(cfg["k"])
 
 
 class GroupMaxActivation(ActivationFunction):
-    def __init__(self, k_groups: int, latents_size: int):
+    def __init__(self, n_groups: int):
         super().__init__()
-        self.k_groups = k_groups
-        self.latents_size = latents_size
+        self.n_groups = n_groups
         logger.warn("using topk activation, BatchTopk is available and generally ≈better")
 
     def forward(self, latent_preact_BL: torch.Tensor) -> torch.Tensor:
-        return groupmax_activation(latent_preact_BL, self.k_groups)
+        return groupmax_activation(latent_preact_BL, self.n_groups)
 
     def _dump_cfg(self) -> dict[str, int | str]:
-        return {"k_groups": self.k_groups, "latents_size": self.latents_size}
+        return {"n_groups": self.n_groups}
 
     @classmethod
     def _scaffold_from_cfg(cls, cfg: dict[str, Any]) -> "GroupMaxActivation":
-        return cls(cfg["k_groups"], cfg["latents_size"])
+        return cls(cfg["n_groups"])
 
 
 TopKStyle = Literal["topk", "batch_topk", "groupmax"]

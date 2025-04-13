@@ -16,14 +16,14 @@ def build_llms(
     inferenced_type: str,
     # ) -> list[tuple[HookedTransformer, PreTrainedTokenizerBase]]:
 ) -> list[HookedTransformer]:
-    return [build_llm(llm, cache_dir, device, inferenced_type)[0] for llm in llms]
+    return [build_llm(llm, device, inferenced_type, cache_dir)[0] for llm in llms]
 
 
 def build_llm(
     llm: LLMConfig,
-    cache_dir: str,
     device: torch.device,
-    inference_dtype: str,
+    inference_dtype: str = "float32",
+    cache_dir: str | None = None,
 ) -> tuple[HookedTransformer, PreTrainedTokenizerBase]:
     dtype = STRING_TO_DTYPE[inference_dtype]
 
@@ -44,21 +44,22 @@ def build_llm(
             cache_dir=cache_dir,
         )
     else:
-        assert llm.base_archicteture_name is not None
+        assert llm.base_architecture_name is not None
         assert llm.hf_model_name is not None
 
-        model_key = f"tl-{llm.base_archicteture_name}_hf-{llm.hf_model_name}"
+        model_key = f"tl-{llm.base_architecture_name}_hf-{llm.hf_model_name}"
 
         logger.info(
-            f"Loading HuggingFace model {llm.hf_model_name} into transformer-lens model {llm.base_archicteture_name}"
+            f"Loading HuggingFace model {llm.hf_model_name} into transformer-lens model {llm.base_architecture_name}"
         )
 
         llm_out = HookedTransformer.from_pretrained_no_processing(
-            llm.base_archicteture_name,
+            llm.base_architecture_name,
             hf_model=AutoModelForCausalLM.from_pretrained(llm.hf_model_name, cache_dir=cache_dir),
             cache_dir=cache_dir,
             dtype=dtype,
         )
+        tokenizer = AutoTokenizer.from_pretrained(llm.hf_model_name, cache_dir=cache_dir)
 
     # Replace any slashes with underscores to avoid potential path issues
     model_key = model_key.replace("/", "_").replace("\\", "_")
