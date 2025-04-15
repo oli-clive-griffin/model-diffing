@@ -1,8 +1,10 @@
 import random
 from collections.abc import Iterator
+from itertools import islice
 from typing import TypeVar
 
 import torch
+from tqdm import tqdm
 
 # Shapes:
 # B = "batch"
@@ -21,7 +23,7 @@ def batch_shuffle_tensor_iterator_BX(
         shuffle_buffer_size=shuffle_buffer_size,
         seed=seed,
     )
-    return (torch.stack(batch) for batch in batches_iter)
+    return map(torch.stack, batches_iter)
 
 
 T = TypeVar("T")
@@ -42,10 +44,9 @@ def _batch_shuffle_iterator(
     buffer_BfX: list[T] = []
 
     def refill():
-        for item in iterator:
+        needed = shuffle_buffer_size - len(buffer_BfX)
+        for item in tqdm(islice(iterator, needed), total=needed, desc="refilling buffer"):
             buffer_BfX.append(item)
-            if len(buffer_BfX) >= shuffle_buffer_size:
-                break
         rng.shuffle(buffer_BfX)
 
     def yield_batch():

@@ -45,8 +45,6 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausa
 
     crosscoder = crosscoder.to(device)
 
-    wandb_run = build_wandb_run(cfg)
-
     dataloader = build_model_hookpoint_dataloader(
         cfg=cfg.data,
         llms=llms,
@@ -58,6 +56,8 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausa
     if cfg.train.k_aux is None:
         cfg.train.k_aux = d_model // 2
         logger.info(f"defaulting to k_aux={cfg.train.k_aux} for crosscoder (({d_model=}) // 2)")
+
+    wandb_run = build_wandb_run(cfg)
 
     return TopKStyleAcausalCrosscoderTrainer(
         cfg=cfg.train,

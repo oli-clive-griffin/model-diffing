@@ -10,11 +10,12 @@ from transformer_lens import HookedTransformer  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscode.data.activation_harvester import ActivationsHarvester
+from crosscode.data.shuffle import batch_shuffle_tensor_iterator_BX
 from crosscode.data.token_loader import TokenSequenceLoader
 from crosscode.log import logger
 from crosscode.trainers.config_common import DataConfig
 from crosscode.trainers.utils import estimate_norm_scaling_factor_X
-from crosscode.utils import change_batch_size_BX
+from crosscode.utils import fold_into_standard_length
 
 TBatch = TypeVar("TBatch")
 
@@ -39,18 +40,19 @@ class ModelHookpointActivationsDataloader(ActivationsDataloader[ModelHookpointAc
         activations_harvester: ActivationsHarvester,
         yield_batch_size_B: int,
         n_tokens_for_norm_estimate: int,
+        shuffle_buffer_size: int | None,
     ):
         self._token_sequence_loader = token_sequence_loader
         self._activations_harvester = activations_harvester
         self._yield_batch_size_B = yield_batch_size_B
         self._device = self._activations_harvester._llms[0].W_E.device
-
+        self._shuffle_buffer_size = shuffle_buffer_size
         norm_scaling_factors_MP = estimate_norm_scaling_factor_X(
-            self._activations_iterator_BMPD(),  # don't pass the scaling factors here (because we're computing them!)
+            self._iterate_activations_BMPD(),
             n_tokens_for_norm_estimate,
         )
         self._norm_scaling_factors_MP = norm_scaling_factors_MP
-        self._iterator = self._activations_iterator_BMPD(norm_scaling_factors_MP)
+        self._iterator = self._iterate_activations_BMPD(norm_scaling_factors_MP)
 
     @property
     def n_models(self) -> int:
@@ -70,16 +72,32 @@ class ModelHookpointActivationsDataloader(ActivationsDataloader[ModelHookpointAc
     def get_scaling_factors(self) -> torch.Tensor:
         return self._norm_scaling_factors_MP
 
-    def _activations_iterator_HsMPD(self) -> Iterator[torch.Tensor]:
+    def _iterate_activations_HsMPD(self) -> Iterator[torch.Tensor]:
         for seq in self._token_sequence_loader.get_sequences_batch_iterator():
             activations_HSMPD = self._activations_harvester.get_activations_HSMPD(seq.tokens_HS)
-            activations_HsMPD = rearrange(activations_HSMPD, "h s m p d -> (h s) m p d")
-            special_tokens_mask_Hs = rearrange(seq.special_tokens_mask_HS, "h s -> (h s)")
-            yield activations_HsMPD[~special_tokens_mask_Hs]
+            activations_HsMPD = activations_HSMPD[~seq.special_tokens_mask_HS]
+            yield activations_HsMPD
 
-    def _activations_iterator_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
-        iterator_HsMPD = self._activations_iterator_HsMPD()
-        batch_iter_BMPD = change_batch_size_BX(iterator_HX=iterator_HsMPD, new_batch_size_B=self._yield_batch_size_B)
+    def _iterate_activations_BMPD(self, scaling_factors_MP: torch.Tensor | None = None) -> Iterator[torch.Tensor]:
+        iterator_HsMPD = self._iterate_activations_HsMPD()
+
+        if self._shuffle_buffer_size is not None:
+
+            def example_iterator_MPD() -> Iterator[torch.Tensor]:
+                for hbatch_HsMPD in iterator_HsMPD:
+                    yield from hbatch_HsMPD.unbind(dim=0)
+
+            batch_iter_BMPD = batch_shuffle_tensor_iterator_BX(
+                tensor_iterator_X=example_iterator_MPD(),
+                yield_batch_size_B=self._yield_batch_size_B,
+                shuffle_buffer_size=self._shuffle_buffer_size,
+            )
+        else:
+            batch_iter_BMPD = fold_into_standard_length(
+                iterator_BiX=iterator_HsMPD,
+                new_batch_size_Bo=self._yield_batch_size_B,
+                yield_final_batch=False,
+            )
 
         if scaling_factors_MP is None:
             scaling_factors_MP1 = torch.ones((1, 1, 1), device=self._device)
@@ -115,6 +133,7 @@ def build_model_hookpoint_dataloader(
         cache_dir=cache_dir,
         tokenizer=tokenizer,
         batch_size=cfg.activations_harvester.harvesting_batch_size,
+        shuffle_buffer_size=cfg.token_sequence_loader.sequences_shuffle_buffer_size,
     )
 
     # Create activations cache directory if cache is enabled
@@ -136,6 +155,7 @@ def build_model_hookpoint_dataloader(
         activations_harvester=activations_harvester,
         yield_batch_size_B=batch_size,
         n_tokens_for_norm_estimate=cfg.n_tokens_for_norm_estimate,
+        shuffle_buffer_size=cfg.activations_shuffle_buffer_size,
     )
 
     return activations_dataloader

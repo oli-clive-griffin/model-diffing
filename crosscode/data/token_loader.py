@@ -8,6 +8,8 @@ from datasets import IterableDataset, load_dataset  # type: ignore
 from transformers import PreTrainedTokenizerBase  # type: ignore
 
 from crosscode.data.shuffle import batch_shuffle_tensor_iterator_BX
+from crosscode.log import logger
+from crosscode.utils import fold_into_standard_length
 
 
 @dataclass
@@ -17,8 +19,7 @@ class TokensSequenceBatch:
 
     def __post_init__(self):
         if self.special_tokens_mask_HS.sum() / self.special_tokens_mask_HS.numel() > 0.1:
-            pass
-            # logger.warning("more than 10% of tokens are special tokens, this is unexpected")
+            logger.warning("more than 10% of tokens are special tokens, this is unexpected")
 
         if self.tokens_HS.dtype != torch.long:
             raise ValueError(f"tokens_HS should be a long tensor, got {self.tokens_HS.dtype}")
@@ -76,37 +77,24 @@ class TokenSequenceLoader:
         self._shuffle_buffer_size = shuffle_buffer_size
         self._batch_size = batch_size
 
-    def _get_sequence_iterator_S(self) -> Iterator[torch.Tensor]:
-        example_S = torch.empty(self._sequence_length, dtype=torch.long)
-        example_pointer = 0
-
+    def _raw_tokens_sequence_iterator_S(self) -> Iterator[torch.Tensor]:
+        """Iterator over raw tokens sequences. Each item is a single tokenized sequence from the dataset."""
         for example in self._hf_dataset:
             text = cast(dict[str, Any], example)["text"]
             tokens = self._tokenizer(text, return_tensors="pt")["input_ids"]
             tokens = cast(torch.Tensor, tokens)
             assert len(tokens.shape) == 2, f"tokens.shape should be 2D but was {tokens.shape}"
             assert tokens.shape[0] == 1, f"tokens.shape should have a batch dimension of 1 but was {tokens.shape}"
+            yield tokens[0]
 
-            seq_tokens_S = tokens.squeeze(0)
-            seq_pointer = 0
-
-            while seq_pointer < seq_tokens_S.shape[0]:
-                tokens_left_to_fill_example = example_S.shape[0] - example_pointer
-                tokens_left_in_seq = seq_tokens_S.shape[0] - seq_pointer
-
-                tokens_to_copy = min(tokens_left_to_fill_example, tokens_left_in_seq)
-
-                example_S[example_pointer : example_pointer + tokens_to_copy] = (  #
-                    seq_tokens_S[seq_pointer : seq_pointer + tokens_to_copy]
-                )
-
-                # this is always valid because of the `min` above
-                example_pointer += tokens_to_copy
-                seq_pointer += tokens_to_copy
-
-                if example_pointer == self._sequence_length:
-                    example_pointer = 0
-                    yield example_S
+    # Override this to change the current sequence combination strategy. Could extend to truncation, padding, etc.
+    def _get_folded_sequence_iterator_S(self) -> Iterator[torch.Tensor]:
+        """Iterator over sequences as used by the model. Combined into standard length."""
+        return fold_into_standard_length(
+            iterator_BiX=self._raw_tokens_sequence_iterator_S(),
+            new_batch_size_Bo=self._sequence_length,
+            yield_final_batch=True,
+        )
 
     @cached_property
     def _get_sequences_batch_iterator(self) -> Iterator[TokensSequenceBatch]:
@@ -116,7 +104,7 @@ class TokenSequenceLoader:
         special_ids = torch.tensor(self._tokenizer.all_special_ids)
         if self._shuffle_buffer_size is not None:
             for tokens_HS in batch_shuffle_tensor_iterator_BX(
-                tensor_iterator_X=self._get_sequence_iterator_S(),
+                tensor_iterator_X=self._get_folded_sequence_iterator_S(),
                 shuffle_buffer_size=self._shuffle_buffer_size,
                 yield_batch_size_B=self._batch_size,
             ):
@@ -126,7 +114,7 @@ class TokenSequenceLoader:
                     special_tokens_mask_HS=special_tokens_mask_HS,
                 )
         else:
-            iterator_S = self._get_sequence_iterator_S()
+            iterator_S = self._get_folded_sequence_iterator_S()
             out_tokens_S: list[torch.Tensor] = []
             for sample_S in iterator_S:
                 if len(out_tokens_S) == self._batch_size:

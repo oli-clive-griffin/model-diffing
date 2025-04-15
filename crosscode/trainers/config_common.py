@@ -12,7 +12,7 @@ from crosscode.utils import BaseModel
 class HuggingfaceTextDatasetConfig(BaseModel):
     hf_dataset_name: str = "monology/pile-uncopyrighted"
     sequence_length: int = 2048
-    shuffle_buffer_size: int | None = None
+    sequences_shuffle_buffer_size: int | None = None
 
 
 class LLMConfig(BaseModel):
@@ -61,6 +61,7 @@ class DataConfig(BaseModel):
     token_sequence_loader: HuggingfaceTextDatasetConfig = HuggingfaceTextDatasetConfig()
     activations_harvester: ActivationsHarvesterConfig
     n_tokens_for_norm_estimate: int = 100_000
+    activations_shuffle_buffer_size: int | None = None
 
 
 class BaseTrainConfig(BaseModel):

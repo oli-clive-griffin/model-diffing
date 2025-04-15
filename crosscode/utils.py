@@ -198,34 +198,45 @@ def beep_macos():
         logger.error(f"Failed to play alarm sound: {e}")
 
 
-def change_batch_size_BX(
-    iterator_HX: Iterator[torch.Tensor],
-    new_batch_size_B: int,
+def fold_into_standard_length(
+    iterator_BiX: Iterator[torch.Tensor],
+    new_batch_size_Bo: int,
     yield_final_batch: bool = False,
 ) -> Iterator[torch.Tensor]:
-    queue = deque[torch.Tensor]()
+    """
+    Turns an iterator over variable length tensors of items into an iterator over standard length tensors of items.
+
+    Example:
+    input:  [[1], [2, 2], [3, 3, 3], [4, 4, 4, 4], [5, 5, 5, 5, 5]]
+    output: [[1, 2, 2], [3, 3, 3], [4, 4, 4], [4, 5, 5], [5, 5, 5]]
+
+    Shapes:
+    - Bi: _B_atch _I_n (Variable Length)
+    - Bo: _B_atch _O_ut (should always have length `new_batch_size_Bo`)
+    """
+
+    queue_BiX = deque[torch.Tensor]()
     cum_batch_size = 0
 
-    for tensor_HX in iterator_HX:
+    for tensor_BiX in iterator_BiX:
         # consume as much as possible from the current tensor, potentially yielding multiple batches
-        if cum_batch_size + tensor_HX.shape[0] >= new_batch_size_B:
-            needed = new_batch_size_B - cum_batch_size
-            taken_HX = tensor_HX[:needed]
-            yield torch.cat([*queue, taken_HX])
-            queue.clear()
+        if cum_batch_size + tensor_BiX.shape[0] >= new_batch_size_Bo:
+            needed = new_batch_size_Bo - cum_batch_size
+            yield torch.cat([*queue_BiX, tensor_BiX[:needed]])
+            queue_BiX.clear()
             cum_batch_size = 0
 
-            tensor_HX = tensor_HX[needed:]
-            while tensor_HX.shape[0] > new_batch_size_B:
-                yield tensor_HX[:new_batch_size_B]
-                tensor_HX = tensor_HX[new_batch_size_B:]
+            tensor_BiX = tensor_BiX[needed:]
+            while tensor_BiX.shape[0] > new_batch_size_Bo:
+                yield tensor_BiX[:new_batch_size_Bo]
+                tensor_BiX = tensor_BiX[new_batch_size_Bo:]
 
-        if tensor_HX.shape[0] > 0:
-            cum_batch_size += tensor_HX.shape[0]
-            queue.append(tensor_HX)
+        if tensor_BiX.shape[0] > 0:
+            cum_batch_size += tensor_BiX.shape[0]
+            queue_BiX.append(tensor_BiX)
 
-    if queue and yield_final_batch:
-        yield torch.cat(list(queue))
+    if queue_BiX and yield_final_batch:
+        yield torch.cat(list(queue_BiX))
 
 
 # useful for debugging
