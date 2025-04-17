@@ -11,12 +11,11 @@ def upload_experiment_checkpoint(
     previous_run_id: str,
     wandb_cfg: WandbConfig,
     step: int,
-    epoch: int,
 ) -> None:
     """
     Utility function to upload a local checkpoint to wandb.
     """
-    artifact = create_checkpoint_artifact(model_checkpoint_path, previous_run_id, step, epoch)
+    artifact = create_checkpoint_artifact(model_checkpoint_path, previous_run_id, step)
 
     previous_run = wandb.init(
         entity=wandb_cfg.entity,
@@ -33,7 +32,6 @@ def create_checkpoint_artifact(
     model_checkpoint_path: Path | str,
     run_id: str,
     step: int,
-    epoch: int,
 ) -> wandb.Artifact:
     model_pt_path = Path(model_checkpoint_path) / SaveableModule.STATE_DICT_FNAME
     model_config_path = Path(model_checkpoint_path) / SaveableModule.MODEL_CFG_FNAME
@@ -44,7 +42,7 @@ def create_checkpoint_artifact(
     assert exp_config_path.exists(), f"Experiment config file {exp_config_path} does not exist."
 
     name = f"{checkpoint_name(run_id)}"  # names must be unique within projects
-    artifact = wandb.Artifact(name=name, type="model", metadata={"step": step, "epoch": epoch})
+    artifact = wandb.Artifact(name=name, type="model", metadata={"step": step})
     artifact.add_dir(str(model_checkpoint_path), name="model")
     artifact.add_file(str(exp_config_path), name="experiment_config.yaml")
     return artifact
@@ -73,7 +71,7 @@ if __name__ == "__main__":
     # Example usage:
 
     # upload_experiment_checkpoint(
-    #     model_checkpoint_path=".checkpoints/jan_update_crosscoder_example_2025-02-19_18-39-32/epoch_0_step_2499",
+    #     model_checkpoint_path=".checkpoints/jan_update_crosscoder_example_2025-02-19_18-39-32/step_2499",
     #     previous_run_id="48rqbqcm",
     #     wandb_cfg=WandbConfig(entity="your_team", project="your_project"),
     # )

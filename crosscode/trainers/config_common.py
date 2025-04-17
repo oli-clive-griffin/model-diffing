@@ -67,8 +67,6 @@ class DataConfig(BaseModel):
 class BaseTrainConfig(BaseModel):
     batch_size: int
     optimizer: OptimizerCfg = Field(discriminator="type", default_factory=AdamConfig)
-    # epochs: int | None = None
-    # num_steps_per_epoch: int | None = None
     num_steps: int
     save_every_n_steps: int | None = None
     upload_saves_to_wandb: bool = False

@@ -5,14 +5,14 @@ from crosscode.llms import build_llms
 from crosscode.log import logger
 from crosscode.models import AnthropicTransposeInit, ModelHookpointAcausalCrosscoder, TopkActivation
 from crosscode.models.activations.topk import BatchTopkActivation, GroupMaxActivation
-from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.topk_crosscoder.config import TopKAcausalCrosscoderExperimentConfig
-from crosscode.trainers.topk_crosscoder.trainer import TopKStyleAcausalCrosscoderTrainer
-from crosscode.trainers.utils import build_wandb_run
+from crosscode.trainers.topk_crosscoder.trainer import TopKAcausalCrosscoderWrapper
+from crosscode.trainers.trainer import Trainer, run_exp
+from crosscode.trainers.utils import build_optimizer, build_wandb_run
 from crosscode.utils import get_device
 
 
-def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausalCrosscoderTrainer:
+def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> Trainer:
     device = get_device()
 
     llms = build_llms(
@@ -59,13 +59,30 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausa
 
     wandb_run = build_wandb_run(cfg)
 
-    return TopKStyleAcausalCrosscoderTrainer(
-        cfg=cfg.train,
-        activations_dataloader=dataloader,
+    optimizer = build_optimizer(cfg.train.optimizer, params=crosscoder.parameters())
+    lr_scheduler = None # build_lr_scheduler(cfg.train.optimizer, num_steps=cfg.train.num_steps)
+
+    model_wrapper = TopKAcausalCrosscoderWrapper(
         model=crosscoder,
-        wandb_run=wandb_run,
-        device=device,
+        hookpoints=cfg.hookpoints,
         save_dir=cfg.save_dir,
+        scaling_factors_MP=dataloader.get_scaling_factors(),
+        lambda_aux=cfg.train.lambda_aux,
+        k_aux=cfg.train.k_aux,
+        dead_latents_threshold_n_examples=cfg.train.dead_latents_threshold_n_examples,
+    )
+
+    return Trainer(
+        num_steps=cfg.train.num_steps,
+        gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
+        save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
+        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
+        activations_dataloader=dataloader,
+        model_wrapper=model_wrapper,
+        optimizer=optimizer,
+        lr_scheduler=lr_scheduler,
+        wandb_run=wandb_run,
     )
 
 
