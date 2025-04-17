@@ -7,7 +7,7 @@ class L1CrosscoderConfig(BaseSparseCoder):
 
 class L1TrainConfig(BaseTrainConfig):
     final_lambda_s: float = 5.0
-    lambda_s_n_steps: int = 1000
+    lambda_s_num_steps: int = 1000
 
 
 class L1ExperimentConfig(BaseExperimentConfig):

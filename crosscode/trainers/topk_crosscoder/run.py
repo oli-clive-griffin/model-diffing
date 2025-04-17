@@ -5,14 +5,14 @@ from crosscode.llms import build_llms
 from crosscode.log import logger
 from crosscode.models import AnthropicTransposeInit, ModelHookpointAcausalCrosscoder, TopkActivation
 from crosscode.models.activations.topk import BatchTopkActivation, GroupMaxActivation
-from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.topk_crosscoder.config import TopKAcausalCrosscoderExperimentConfig
-from crosscode.trainers.topk_crosscoder.trainer import TopKStyleAcausalCrosscoderTrainer
-from crosscode.trainers.utils import build_wandb_run
+from crosscode.trainers.topk_crosscoder.trainer import TopKAcausalCrosscoderWrapper
+from crosscode.trainers.trainer import Trainer, run_exp
+from crosscode.trainers.utils import build_optimizer, build_wandb_run
 from crosscode.utils import get_device
 
 
-def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausalCrosscoderTrainer:
+def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> Trainer:
     device = get_device()
 
     llms = build_llms(
@@ -57,15 +57,31 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> TopKStyleAcausa
         cfg.train.k_aux = d_model // 2
         logger.info(f"defaulting to k_aux={cfg.train.k_aux} for crosscoder (({d_model=}) // 2)")
 
+    model_wrapper = TopKAcausalCrosscoderWrapper(
+        model=crosscoder,
+        hookpoints=cfg.hookpoints,
+        model_names=[llm.name or "unknown" for llm in llms],
+        save_dir=cfg.save_dir,
+        scaling_factors_MP=dataloader.get_scaling_factors(),
+        lambda_aux=cfg.train.lambda_aux,
+        k_aux=cfg.train.k_aux,
+        dead_latents_threshold_n_examples=cfg.train.dead_latents_threshold_n_examples,
+    )
+
     wandb_run = build_wandb_run(cfg)
 
-    return TopKStyleAcausalCrosscoderTrainer(
-        cfg=cfg.train,
+    return Trainer(
         activations_dataloader=dataloader,
-        model=crosscoder,
+        model=model_wrapper,
+        optimizer_cfg=cfg.train.optimizer,
         wandb_run=wandb_run,
-        device=device,
-        save_dir=cfg.save_dir,
+
+        # make this into a "train loop cfg"?
+        num_steps=cfg.train.num_steps,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
+        save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
+        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
     )
 
 

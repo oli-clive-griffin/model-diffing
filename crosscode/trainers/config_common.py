@@ -67,20 +67,18 @@ class DataConfig(BaseModel):
 class BaseTrainConfig(BaseModel):
     batch_size: int
     optimizer: OptimizerCfg = Field(discriminator="type", default_factory=AdamConfig)
-    # epochs: int | None = None
-    # num_steps_per_epoch: int | None = None
     num_steps: int
     save_every_n_steps: int | None = None
     upload_saves_to_wandb: bool = False
     log_every_n_steps: int
-    gradient_accumulation_steps_per_batch: int = 1
+    gradient_accumulation_microbatches_per_step: int = 1
 
     def minibatch_size(self) -> int:
-        return self.batch_size // self.gradient_accumulation_steps_per_batch
+        return self.batch_size // self.gradient_accumulation_microbatches_per_step
 
     def model_post_init(self, __context: Any) -> None:
         super().model_post_init(__context)
-        if self.batch_size % self.gradient_accumulation_steps_per_batch != 0:
+        if self.batch_size % self.gradient_accumulation_microbatches_per_step != 0:
             raise ValueError("batch_size must be divisible by gradient_accumulation_steps_per_batch")
 
 

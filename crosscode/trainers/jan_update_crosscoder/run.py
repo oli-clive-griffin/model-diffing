@@ -8,16 +8,14 @@ from crosscode.models import (
     DataDependentJumpReLUInitStrategy,
     ModelHookpointAcausalCrosscoder,
 )
-from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.jan_update_crosscoder.config import JanUpdateExperimentConfig
-from crosscode.trainers.jan_update_crosscoder.trainer import JanUpdateModelHookpointAcausalCrosscoderTrainer
+from crosscode.trainers.jan_update_crosscoder.trainer import JanUpdateModelHookpointAcausalCrosscoderWrapper
+from crosscode.trainers.trainer import Trainer, run_exp
 from crosscode.trainers.utils import build_wandb_run
 from crosscode.utils import get_device
 
 
-def build_jan_update_crosscoder_trainer(
-    cfg: JanUpdateExperimentConfig,
-) -> JanUpdateModelHookpointAcausalCrosscoderTrainer:
+def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> Trainer:
     device = get_device()
 
     llms = build_llms(
@@ -59,13 +57,30 @@ def build_jan_update_crosscoder_trainer(
 
     wandb_run = build_wandb_run(cfg)
 
-    return JanUpdateModelHookpointAcausalCrosscoderTrainer(
-        cfg=cfg.train,
-        activations_dataloader=dataloader,
+    wrapper = JanUpdateModelHookpointAcausalCrosscoderWrapper(
         model=crosscoder,
-        wandb_run=wandb_run,
-        device=device,
+        scaling_factors_MP=dataloader.get_scaling_factors(),
+        lambda_p=cfg.train.lambda_p,
+        hookpoints=cfg.hookpoints,
+        model_names=[llm.name or "unknown" for llm in llms],
         save_dir=cfg.save_dir,
+        num_steps=cfg.train.num_steps,
+        final_lambda_s=cfg.train.final_lambda_s,
+        c=cfg.train.c,
+    )
+
+    return Trainer(
+        activations_dataloader=dataloader,
+        model=wrapper,
+        optimizer_cfg=cfg.train.optimizer,
+        wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
+        num_steps=cfg.train.num_steps,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
+        save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
+        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
     )
 
 

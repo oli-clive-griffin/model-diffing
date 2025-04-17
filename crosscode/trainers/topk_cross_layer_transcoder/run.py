@@ -6,14 +6,14 @@ from crosscode.log import logger
 from crosscode.models.activations.topk import TopkActivation
 from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
-from crosscode.trainers.base_trainer import run_exp
 from crosscode.trainers.topk_cross_layer_transcoder.config import TopkCrossLayerTranscoderExperimentConfig
-from crosscode.trainers.topk_cross_layer_transcoder.trainer import TopkCrossLayerTranscoderTrainer
+from crosscode.trainers.topk_cross_layer_transcoder.trainer import TopkCrossLayerTranscoderWrapper
+from crosscode.trainers.trainer import Trainer, run_exp
 from crosscode.trainers.utils import build_wandb_run, get_activation_type
 from crosscode.utils import get_device
 
 
-def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> TopkCrossLayerTranscoderTrainer:
+def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> Trainer:
     device = get_device()
 
     llms = build_llms(
@@ -53,14 +53,28 @@ def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> TopkCrossLay
         cfg.train.k_aux = act_dim // 2
         logger.info(f"defaulting to k_aux={cfg.train.k_aux} for crosscoder (({act_dim=}) // 2)")
 
-    return TopkCrossLayerTranscoderTrainer(
-        cfg=cfg.train,
-        out_hookpoints=cfg.out_hookpoints,
-        activations_dataloader=dataloader,
+    model_wrapper = TopkCrossLayerTranscoderWrapper(
         model=transcoder,
-        wandb_run=wandb_run,
-        device=device,
         save_dir=cfg.save_dir,
+        scaling_factors_P=dataloader.get_scaling_factors(),
+        lambda_aux=cfg.train.lambda_aux,
+        k_aux=cfg.train.k_aux,
+        dead_latents_threshold_n_examples=cfg.train.dead_latents_threshold_n_examples,
+        hookpoints_out=cfg.out_hookpoints,
+    )
+
+    return Trainer(
+        activations_dataloader=dataloader,
+        model=model_wrapper,
+        optimizer_cfg=cfg.train.optimizer,
+        wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
+        num_steps=cfg.train.num_steps,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
+        save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
+        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
     )
 
 

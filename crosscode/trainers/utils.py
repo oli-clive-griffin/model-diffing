@@ -218,7 +218,12 @@ T = TypeVar("T")
 
 
 def dict_join(dicts: list[dict[str, T]]) -> dict[str, list[T]]:
-    return {k: [d[k] for d in dicts] for k in dicts[0]}
+    keys = list(dicts[0].keys())
+    return {k: [d[k] for d in dicts] for k in keys}
+
+
+def dict_mean(dicts: list[dict[str, float]]) -> dict[str, float]:
+    return {k: sum(v) / len(v) for k, v in dict_join(dicts).items()}
 
 
 def get_activation_type(hookpoints: list[str]) -> Literal["resid", "mlp"]:
