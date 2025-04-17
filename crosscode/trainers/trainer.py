@@ -45,25 +45,25 @@ class Trainer:
     def __init__(
         self,
         num_steps: int,
-        gradient_accumulation_steps_per_batch: int,
+        gradient_accumulation_microbatches_per_step: int,
         log_every_n_steps: int,
         save_every_n_steps: int | None,
         upload_saves_to_wandb: bool,
         activations_dataloader: ModelHookpointActivationsDataloader,
-        model_wrapper: ModelWrapper,
+        model: ModelWrapper,
         optimizer_cfg: OptimizerCfg,
         wandb_run: Run,
     ):
         self.num_steps = num_steps
-        self.gradient_accumulation_steps_per_batch = gradient_accumulation_steps_per_batch
+        self.gradient_accumulation_steps_per_batch = gradient_accumulation_microbatches_per_step
         self.log_every_n_steps = log_every_n_steps
         self.save_every_n_steps = save_every_n_steps
         self.upload_saves_to_wandb = upload_saves_to_wandb
         self.activations_dataloader = activations_dataloader
-        self.model_wrapper = model_wrapper
+        self.model = model
         self.wandb_run = wandb_run
 
-        self.optimizer = build_optimizer(optimizer_cfg, self.model_wrapper.parameters())
+        self.optimizer = build_optimizer(optimizer_cfg, self.model.parameters())
         self.lr_scheduler = None
         if isinstance(optimizer_cfg, AdamConfig):
             self.lr_scheduler = build_lr_scheduler(optimizer_cfg, num_steps)
@@ -86,7 +86,7 @@ class Trainer:
             log = self.step % self.log_every_n_steps == 0
             for _ in range(self.gradient_accumulation_steps_per_batch):
                 batch = next(dataloader)
-                loss, log_dict = self.model_wrapper.run_batch(self.step, batch, log)
+                loss, log_dict = self.model.run_batch(self.step, batch, log)
                 self.unique_tokens_trained += batch.activations_BMPD.shape[0]
                 loss.div(self.gradient_accumulation_steps_per_batch).backward()
                 if log_dict is not None:
@@ -98,14 +98,14 @@ class Trainer:
                     **dict_mean(log_dicts),  # take the mean of values of each key
                 }
                 if self.step % (self.LOG_EXPENSIVE_EVERY_N_LOGS * self.log_every_n_steps) == 0:
-                    batch_log_dict_avgs.update(self.model_wrapper.expensive_logs())
+                    batch_log_dict_avgs.update(self.model.expensive_logs())
                 self.wandb_run.log(batch_log_dict_avgs, step=self.step)
             if self.save_every_n_steps is not None and self.step % self.save_every_n_steps == 0:
-                dir = self.model_wrapper.save(self.step)
+                dir = self.model.save(self.step)
                 if self.upload_saves_to_wandb:
                     artifact = create_checkpoint_artifact(dir, self.wandb_run.id, self.step)
                     self.wandb_run.log_artifact(artifact)
-            self.model_wrapper.before_backward_pass()
+            self.model.before_backward_pass()
             self.optimizer.step()
             self.step += 1
         self.wandb_run.finish()

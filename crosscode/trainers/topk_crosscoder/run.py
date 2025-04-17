@@ -57,14 +57,10 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> Trainer:
         cfg.train.k_aux = d_model // 2
         logger.info(f"defaulting to k_aux={cfg.train.k_aux} for crosscoder (({d_model=}) // 2)")
 
-    wandb_run = build_wandb_run(cfg)
-
-    optimizer = build_optimizer(cfg.train.optimizer, params=crosscoder.parameters())
-    lr_scheduler = None  # build_lr_scheduler(cfg.train.optimizer, num_steps=cfg.train.num_steps)
-
     model_wrapper = TopKAcausalCrosscoderWrapper(
         model=crosscoder,
         hookpoints=cfg.hookpoints,
+        model_names=[llm.name or "unknown" for llm in llms],
         save_dir=cfg.save_dir,
         scaling_factors_MP=dataloader.get_scaling_factors(),
         lambda_aux=cfg.train.lambda_aux,
@@ -72,17 +68,20 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> Trainer:
         dead_latents_threshold_n_examples=cfg.train.dead_latents_threshold_n_examples,
     )
 
+    wandb_run = build_wandb_run(cfg)
+
     return Trainer(
+        activations_dataloader=dataloader,
+        model=model_wrapper,
+        optimizer_cfg=cfg.train.optimizer,
+        wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
         num_steps=cfg.train.num_steps,
-        gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
         save_every_n_steps=cfg.train.save_every_n_steps,
         log_every_n_steps=cfg.train.log_every_n_steps,
         upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
-        activations_dataloader=dataloader,
-        model_wrapper=model_wrapper,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
-        wandb_run=wandb_run,
     )
 
 

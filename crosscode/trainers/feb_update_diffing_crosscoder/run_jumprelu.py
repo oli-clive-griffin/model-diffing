@@ -62,24 +62,30 @@ def build_feb_update_crosscoder_trainer(cfg: JumpReLUModelDiffingFebUpdateExperi
     wrapper = JumpReLUModelDiffingFebUpdateWrapper(
         model=crosscoder,
         n_shared_latents=cfg.crosscoder.n_shared_latents,
+        hookpoints=[cfg.hookpoint],
+        model_names=[llm.name or "unknown" for llm in llms],
+        save_dir=cfg.save_dir,
+        scaling_factors_MP=dataloader.get_scaling_factors(),
         lambda_p=cfg.train.lambda_p,
         num_steps=cfg.train.num_steps,
         final_lambda_s=cfg.train.final_lambda_s,
         final_lambda_f=cfg.train.final_lambda_f,
-        log_every_n_steps=cfg.train.log_every_n_steps,
         c=cfg.train.c,
     )
 
+    wandb_run = build_wandb_run(cfg)
+
     return Trainer(
         activations_dataloader=dataloader,
-        model_wrapper=wrapper,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
-        wandb_run=build_wandb_run(cfg),
+        model=wrapper,
+        optimizer_cfg=cfg.train.optimizer,
+        wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
         num_steps=cfg.train.num_steps,
-        gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
-        log_every_n_steps=cfg.train.log_every_n_steps,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
         save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
         upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
     )
 

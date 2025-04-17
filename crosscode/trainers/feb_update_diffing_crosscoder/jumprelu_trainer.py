@@ -54,7 +54,7 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
 
         self.firing_tracker = FiringTracker(activation_size=model.n_latents, device=self.crosscoder.device)
 
-    def before_backward_pass(self) -> None:
+    def _synchronise_shared_latents_gradients(self) -> None:
         """
         Synchronise the gradients of the shared latents across the two models.
         """
@@ -188,4 +188,5 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
         return self.crosscoder.parameters()
 
     def before_backward_pass(self) -> None:
+        self._synchronise_shared_latents_gradients()
         clip_grad_norm_(self.crosscoder.parameters(), 1.0)

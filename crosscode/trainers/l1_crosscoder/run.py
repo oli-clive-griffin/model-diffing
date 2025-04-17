@@ -41,13 +41,13 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> Trainer:
         init_strategy=AnthropicTransposeInit(dec_init_norm=cfg.crosscoder.dec_init_norm),
     )
 
-    wrapper = L1AcausalCrosscoderWrapper(
+    model = L1AcausalCrosscoderWrapper(
         model=crosscoder.to(device),
         scaling_factors_MP=dataloader.get_scaling_factors(),
         hookpoints=cfg.hookpoints,
         model_names=[llm.name or "" for llm in llms],  # fixme
         save_dir=cfg.save_dir,
-        lambda_s_num_steps=cfg.train.lambda_s_n_steps,
+        lambda_s_num_steps=cfg.train.lambda_s_num_steps,
         final_lambda_s=cfg.train.final_lambda_s,
     )
 
@@ -55,10 +55,13 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> Trainer:
 
     return Trainer(
         activations_dataloader=dataloader,
-        model_wrapper=wrapper,
+        model=model,
+        optimizer_cfg=cfg.train.optimizer,
         wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
         num_steps=cfg.train.num_steps,
-        gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
         log_every_n_steps=cfg.train.log_every_n_steps,
         save_every_n_steps=cfg.train.save_every_n_steps,
         upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,

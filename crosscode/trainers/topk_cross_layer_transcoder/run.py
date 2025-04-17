@@ -64,15 +64,17 @@ def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> Trainer:
     )
 
     return Trainer(
-        num_steps=cfg.train.num_steps,
         activations_dataloader=dataloader,
-        model_wrapper=model_wrapper,
+        model=model_wrapper,
         optimizer_cfg=cfg.train.optimizer,
-        gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
-        log_every_n_steps=cfg.train.log_every_n_steps,
-        save_every_n_steps=cfg.train.save_every_n_steps,
-        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
         wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
+        num_steps=cfg.train.num_steps,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
+        save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
+        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
     )
 
 

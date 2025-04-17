@@ -4,9 +4,10 @@ from crosscode.data.activations_dataloader import build_model_hookpoint_dataload
 from crosscode.llms import build_llms
 from crosscode.log import logger
 from crosscode.models import ReLUActivation
-from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder, L1CrossLayerTranscoderModelWrapper
+from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
 from crosscode.models.initialization.anthropic_transpose import AnthropicTransposeInitCrossLayerTC
 from crosscode.trainers.l1_crosslayer_trancoder.config import L1CrossLayerTranscoderExperimentConfig
+from crosscode.trainers.l1_crosslayer_trancoder.trainer import L1CrossLayerTranscoderWrapper
 from crosscode.trainers.trainer import Trainer, run_exp
 from crosscode.trainers.utils import build_wandb_run, get_activation_type
 from crosscode.utils import get_device
@@ -44,13 +45,12 @@ def build_l1_cross_layer_transcoder_trainer(cfg: L1CrossLayerTranscoderExperimen
         init_strategy=AnthropicTransposeInitCrossLayerTC(dec_init_norm=cfg.transcoder.dec_init_norm),
     )
 
-    model_wrapper = L1CrossLayerTranscoderModelWrapper(
+    model_wrapper = L1CrossLayerTranscoderWrapper(
         model=crosscoder,
-        in_hookpoint=cfg.in_hookpoint,
-        out_hookpoints=cfg.out_hookpoints,
+        scaling_factors_P=dataloader.get_scaling_factors(),
+        hookpoints_out=cfg.out_hookpoints,
         save_dir=cfg.save_dir,
-        scaling_factors_MP=dataloader.get_scaling_factors(),
-        lambda_s_n_steps=cfg.train.lambda_s_n_steps,
+        lambda_s_num_steps=cfg.train.lambda_s_num_steps,
         final_lambda_s=cfg.train.final_lambda_s,
     )
 
@@ -59,17 +59,19 @@ def build_l1_cross_layer_transcoder_trainer(cfg: L1CrossLayerTranscoderExperimen
     wandb_run = build_wandb_run(cfg)
 
     return Trainer(
-        num_steps=cfg.train.num_steps,
-        gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
-        log_every_n_steps=cfg.train.log_every_n_steps,
-        save_every_n_steps=cfg.train.save_every_n_steps,
-        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
         activations_dataloader=dataloader,
-        model_wrapper=model_wrapper,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
+        model=model_wrapper,
+        optimizer_cfg=cfg.train.optimizer,
         wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
+        num_steps=cfg.train.num_steps,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
+        save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
+        upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
     )
+
 
 
 if __name__ == "__main__":

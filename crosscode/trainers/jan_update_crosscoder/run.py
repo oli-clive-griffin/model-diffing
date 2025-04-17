@@ -62,7 +62,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> Train
         scaling_factors_MP=dataloader.get_scaling_factors(),
         lambda_p=cfg.train.lambda_p,
         hookpoints=cfg.hookpoints,
-        model_names=[llm.name or "" for llm in llms],  # fixme
+        model_names=[llm.name or "unknown" for llm in llms],
         save_dir=cfg.save_dir,
         num_steps=cfg.train.num_steps,
         final_lambda_s=cfg.train.final_lambda_s,
@@ -71,14 +71,15 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> Train
 
     return Trainer(
         activations_dataloader=dataloader,
-        model_wrapper=wrapper,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
+        model=wrapper,
+        optimizer_cfg=cfg.train.optimizer,
         wandb_run=wandb_run,
+
+        # make this into a "train loop cfg"?
         num_steps=cfg.train.num_steps,
-        gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
-        log_every_n_steps=cfg.train.log_every_n_steps,
+        gradient_accumulation_microbatches_per_step=cfg.train.gradient_accumulation_microbatches_per_step,
         save_every_n_steps=cfg.train.save_every_n_steps,
+        log_every_n_steps=cfg.train.log_every_n_steps,
         upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
     )
 
