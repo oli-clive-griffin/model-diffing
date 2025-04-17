@@ -53,7 +53,7 @@ class JanUpdateModelHookpointAcausalCrosscoderWrapper(CrosscoderWrapper[Anthropi
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(
             batch.activations_BMPD, train_res.recon_acts_BMPD
         )
-        decoder_norms_L = get_summed_decoder_norms_L(self.model.W_dec_LMPD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LMPD)
         tanh_sparsity_loss = self._tanh_sparsity_loss(train_res.latents_BL, decoder_norms_L)
         pre_act_loss = self._pre_act_loss(train_res.latents_BL, decoder_norms_L)
 
@@ -83,8 +83,8 @@ class JanUpdateModelHookpointAcausalCrosscoderWrapper(CrosscoderWrapper[Anthropi
     def expensive_logs(self) -> dict[str, Any]:
         return {
             **super().expensive_logs(),
-            "media/jr_threshold": wandb_histogram(self.model.activation_fn.log_threshold_L.exp()),
-            "media/jr_threshold_grad": wandb_histogram(not_none(self.model.activation_fn.log_threshold_L.grad)),
+            "media/jr_threshold": wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp()),
+            "media/jr_threshold_grad": wandb_histogram(not_none(self.crosscoder.activation_fn.log_threshold_L.grad)),
         }
 
     def _lambda_s_scheduler(self, step: int) -> float:
@@ -95,4 +95,4 @@ class JanUpdateModelHookpointAcausalCrosscoderWrapper(CrosscoderWrapper[Anthropi
         return tanh_sparsity_loss(self.c, hidden_BL, decoder_norms_L)
 
     def _pre_act_loss(self, hidden_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
-        return pre_act_loss(self.model.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
+        return pre_act_loss(self.crosscoder.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)

@@ -45,7 +45,7 @@ class L1AcausalCrosscoderWrapper(CrosscoderWrapper[ReLUActivation]):
             batch.activations_BMPD, train_res.recon_acts_BMPD
         )
 
-        sparsity_loss = sparsity_loss_l1_of_l2s(self.model.W_dec_LMPD, train_res.latents_BL)
+        sparsity_loss = sparsity_loss_l1_of_l2s(self.crosscoder.W_dec_LMPD, train_res.latents_BL)
 
         loss = reconstruction_loss + self._l1_coef_scheduler(step) * sparsity_loss
 

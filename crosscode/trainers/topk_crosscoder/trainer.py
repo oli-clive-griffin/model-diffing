@@ -3,15 +3,11 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from torch.nn.utils import clip_grad_norm_
 
-from crosscode.data.activations_dataloader import (
-    ModelHookpointActivationsBatch,
-)
+from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
 from crosscode.models.activations.topk import BatchTopkActivation, GroupMaxActivation, TopkActivation, topk_activation
 from crosscode.trainers.crosscoder_wrapper import CrosscoderWrapper
-from crosscode.trainers.utils import create_cosine_sim_and_relative_norm_histograms, wandb_histogram
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs
 
 
@@ -72,16 +68,13 @@ class TopKAcausalCrosscoderWrapper(CrosscoderWrapper[TopkActivation | BatchTopkA
             pre_activations_BL=train_res.pre_activations_BL,
             dead_features_mask_L=self.firing_tracker.tokens_since_fired_L > self.dead_latents_threshold_n_examples,
             k_aux=self.k_aux,
-            decode_BXD=self.model.decode_BMPD,
+            decode_BXD=self.crosscoder.decode_BMPD,
             error_BXD=batch_BMPD - train_res.recon_acts_BMPD,
         )
 
-    def before_backward_pass(self) -> None:
-        clip_grad_norm_(self.model.parameters(), 1.0)
-
     def save(self, step: int) -> Path:
         checkpoint_path = self.save_dir / f"step_{step}"
-        self.model.with_folded_scaling_factors(self.scaling_factors_MP).save(checkpoint_path)
+        self.crosscoder.with_folded_scaling_factors(self.scaling_factors_MP).save(checkpoint_path)
         return checkpoint_path
 
 

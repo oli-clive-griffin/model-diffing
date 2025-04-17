@@ -1,8 +1,9 @@
+from collections.abc import Iterator
 from pathlib import Path
-from re import I
 from typing import Any
 
 import torch
+from torch.nn.utils import clip_grad_norm_
 
 from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
@@ -37,7 +38,7 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
         assert model.n_models == 2, "we should have two models"
         assert len(model_names) == 2, "we should have two model names"
 
-        self.model = model
+        self.crosscoder = model
         self.n_shared_latents = n_shared_latents
         self.num_steps = num_steps
         self.lambda_p = lambda_p
@@ -51,14 +52,14 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
         assert scaling_factors_MP.shape[0] == 2, "we should have two models in the scaling factors"
         self.scaling_factors_MP = scaling_factors_MP
 
-        self.firing_tracker = FiringTracker(activation_size=model.n_latents, device=self.model.device)
+        self.firing_tracker = FiringTracker(activation_size=model.n_latents, device=self.crosscoder.device)
 
     def before_backward_pass(self) -> None:
         """
         Synchronise the gradients of the shared latents across the two models.
         """
-        assert self.model.W_dec_LMPD.grad is not None
-        W_dec_grad_LMPD = self.model.W_dec_LMPD.grad[: self.n_shared_latents]
+        assert self.crosscoder.W_dec_LMPD.grad is not None
+        W_dec_grad_LMPD = self.crosscoder.W_dec_LMPD.grad[: self.n_shared_latents]
 
         model_0_grad_LPD = W_dec_grad_LMPD[:, 0]
         model_1_grad_LPD = W_dec_grad_LMPD[:, 1]
@@ -67,10 +68,10 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
         model_0_grad_LPD.copy_(summed_grad)
         model_1_grad_LPD.copy_(summed_grad)
 
-        m0_grads, m1_grads = self.model.W_dec_LMPD.grad[: self.n_shared_latents].unbind(dim=1)
+        m0_grads, m1_grads = self.crosscoder.W_dec_LMPD.grad[: self.n_shared_latents].unbind(dim=1)
         assert (m0_grads == m1_grads).all()
 
-        m0_weights, m1_weights = self.model.W_dec_LMPD[: self.n_shared_latents].unbind(dim=1)
+        m0_weights, m1_weights = self.crosscoder.W_dec_LMPD[: self.n_shared_latents].unbind(dim=1)
         assert (m0_weights == m1_weights).all()
 
     def run_batch(
@@ -82,14 +83,14 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
         n_models = batch.activations_BMPD.shape[1]
         assert n_models == 2, "we should have two models"
 
-        train_res = self.model.forward_train(batch.activations_BMPD)
+        train_res = self.crosscoder.forward_train(batch.activations_BMPD)
         self.firing_tracker.add_batch(train_res.latents_BL)
 
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(
             batch.activations_BMPD, train_res.recon_acts_BMPD
         )
 
-        decoder_norms_L = get_summed_decoder_norms_L(self.model.W_dec_LMPD)
+        decoder_norms_L = get_summed_decoder_norms_L(self.crosscoder.W_dec_LMPD)
         decoder_norms_shared_Ls = decoder_norms_L[: self.n_shared_latents]
         decoder_norms_indep_Li = decoder_norms_L[self.n_shared_latents :]
 
@@ -138,7 +139,7 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
 
     def save(self, step: int) -> Path:
         checkpoint_path = self.save_dir / f"step_{step}"
-        self.model.with_folded_scaling_factors(self.scaling_factors_MP).save(checkpoint_path)
+        self.crosscoder.with_folded_scaling_factors(self.scaling_factors_MP).save(checkpoint_path)
         return checkpoint_path
 
     def _get_fvu_dict(self, y_BMPD: torch.Tensor, recon_y_BMPD: torch.Tensor) -> dict[str, float]:
@@ -153,11 +154,11 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
 
     def expensive_logs(self) -> dict[str, Any]:
         log_dict: dict[str, Any] = {
-            "media/jr_threshold": wandb_histogram(self.model.activation_fn.log_threshold_L.exp()),
+            "media/jr_threshold": wandb_histogram(self.crosscoder.activation_fn.log_threshold_L.exp()),
         }
 
-        if self.model.n_models == 2:
-            W_dec_LMPD = self.model.W_dec_LMPD[self.n_shared_latents :].detach()  # .cpu()
+        if self.crosscoder.n_models == 2:
+            W_dec_LMPD = self.crosscoder.W_dec_LMPD[self.n_shared_latents :].detach()  # .cpu()
             for p, hookpoint in enumerate(self.hookpoints):
                 relative_decoder_norms_plot, shared_features_cosine_sims_plot = (
                     create_cosine_sim_and_relative_norm_histograms(W_dec_LMD=W_dec_LMPD[:, :, p])
@@ -181,4 +182,10 @@ class JumpReLUModelDiffingFebUpdateWrapper(ModelWrapper):
         return tanh_sparsity_loss(self.c, hidden_BL, decoder_norms_L)
 
     def _pre_act_loss(self, hidden_BL: torch.Tensor, decoder_norms_L: torch.Tensor) -> torch.Tensor:
-        return pre_act_loss(self.model.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
+        return pre_act_loss(self.crosscoder.activation_fn.log_threshold_L, hidden_BL, decoder_norms_L)
+
+    def parameters(self) -> Iterator[torch.nn.Parameter]:
+        return self.crosscoder.parameters()
+
+    def before_backward_pass(self) -> None:
+        clip_grad_norm_(self.crosscoder.parameters(), 1.0)

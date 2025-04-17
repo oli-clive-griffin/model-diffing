@@ -1,8 +1,10 @@
 from abc import abstractmethod
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Generic, TypeVar
 
 import torch
+from torch.nn.utils import clip_grad_norm_
 
 from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch
 from crosscode.models.acausal_crosscoder import ModelHookpointAcausalCrosscoder
@@ -24,7 +26,7 @@ class CrosscoderWrapper(Generic[TActivation], ModelWrapper):
         model_names: list[str],
         save_dir: Path,
     ):
-        self.model = model
+        self.crosscoder = model
         self.scaling_factors_MP = scaling_factors_MP
         self.hookpoints = hookpoints
         self.model_names = model_names
@@ -39,7 +41,7 @@ class CrosscoderWrapper(Generic[TActivation], ModelWrapper):
         batch: ModelHookpointActivationsBatch,
         log: bool,
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
-        train_res = self.model.forward_train(batch.activations_BMPD)
+        train_res = self.crosscoder.forward_train(batch.activations_BMPD)
         self.firing_tracker.add_batch(train_res.latents_BL)
         return self._calculate_loss_and_log(step, batch, train_res, log)
 
@@ -57,11 +59,11 @@ class CrosscoderWrapper(Generic[TActivation], ModelWrapper):
             "media/tokens_since_fired": wandb_histogram(self.firing_tracker.tokens_since_fired_L)
         }
 
-        if self.model.b_enc_L is not None:
-            log_dict["b_enc_values"] = wandb_histogram(self.model.b_enc_L)
+        if self.crosscoder.b_enc_L is not None:
+            log_dict["b_enc_values"] = wandb_histogram(self.crosscoder.b_enc_L)
 
-        if self.model.n_models == 2:
-            W_dec_LMPD = self.model.W_dec_LMPD.detach()  # .cpu()
+        if self.crosscoder.n_models == 2:
+            W_dec_LMPD = self.crosscoder.W_dec_LMPD.detach()  # .cpu()
             for p, hookpoint in enumerate(self.hookpoints):
                 W_dec_LMD = W_dec_LMPD[:, :, p]
                 relative_decoder_norms_plot, shared_features_cosine_sims_plot = (
@@ -84,5 +86,11 @@ class CrosscoderWrapper(Generic[TActivation], ModelWrapper):
 
     def save(self, step: int) -> Path:
         checkpoint_path = self.save_dir / f"step_{step}"
-        self.model.with_folded_scaling_factors(self.scaling_factors_MP).save(checkpoint_path)
+        self.crosscoder.with_folded_scaling_factors(self.scaling_factors_MP).save(checkpoint_path)
         return checkpoint_path
+
+    def parameters(self) -> Iterator[torch.nn.Parameter]:
+        return self.crosscoder.parameters()
+
+    def before_backward_pass(self) -> None:
+        clip_grad_norm_(self.crosscoder.parameters(), 1.0)

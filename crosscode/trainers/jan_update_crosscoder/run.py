@@ -62,7 +62,7 @@ def build_jan_update_crosscoder_trainer(cfg: JanUpdateExperimentConfig) -> Train
         scaling_factors_MP=dataloader.get_scaling_factors(),
         lambda_p=cfg.train.lambda_p,
         hookpoints=cfg.hookpoints,
-        model_names=[llm.name or "" for llm in llms], # fixme
+        model_names=[llm.name or "" for llm in llms],  # fixme
         save_dir=cfg.save_dir,
         num_steps=cfg.train.num_steps,
         final_lambda_s=cfg.train.final_lambda_s,

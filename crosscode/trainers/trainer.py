@@ -1,6 +1,6 @@
 import os
-from abc import ABC, abstractmethod
-from collections.abc import Callable
+from abc import abstractmethod
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeVar
@@ -12,16 +12,9 @@ from wandb.sdk.wandb_run import Run
 
 from crosscode.data.activations_dataloader import ModelHookpointActivationsBatch, ModelHookpointActivationsDataloader
 from crosscode.log import logger
-from crosscode.trainers.config_common import BaseExperimentConfig
-from crosscode.trainers.utils import dict_mean
+from crosscode.trainers.config_common import AdamConfig, BaseExperimentConfig, OptimizerCfg
+from crosscode.trainers.utils import build_lr_scheduler, build_optimizer, dict_mean
 from crosscode.trainers.wandb_utils.main import create_checkpoint_artifact
-
-
-def save_config(config: BaseExperimentConfig) -> None:
-    config.save_dir.mkdir(parents=True, exist_ok=True)
-    with open(config.save_dir / "experiment_config.yaml", "w") as f:
-        yaml.dump(config.model_dump(), f)
-    logger.info(f"Saved config to {config.save_dir / 'experiment_config.yaml'}")
 
 
 class ModelWrapper:
@@ -42,8 +35,13 @@ class ModelWrapper:
     @abstractmethod
     def expensive_logs(self) -> dict[str, Any]: ...
 
+    @abstractmethod
+    def parameters(self) -> Iterator[torch.nn.Parameter]: ...
+
 
 class Trainer:
+    LOG_EXPENSIVE_EVERY_N_LOGS = 10
+
     def __init__(
         self,
         num_steps: int,
@@ -53,8 +51,7 @@ class Trainer:
         upload_saves_to_wandb: bool,
         activations_dataloader: ModelHookpointActivationsDataloader,
         model_wrapper: ModelWrapper,
-        optimizer: torch.optim.Optimizer,
-        lr_scheduler: torch.optim.lr_scheduler.LRScheduler,
+        optimizer_cfg: OptimizerCfg,
         wandb_run: Run,
     ):
         self.num_steps = num_steps
@@ -65,8 +62,12 @@ class Trainer:
         self.activations_dataloader = activations_dataloader
         self.model_wrapper = model_wrapper
         self.wandb_run = wandb_run
-        self.optimizer = optimizer
-        self.lr_scheduler = lr_scheduler
+
+        self.optimizer = build_optimizer(optimizer_cfg, self.model_wrapper.parameters())
+        self.lr_scheduler = None
+        if isinstance(optimizer_cfg, AdamConfig):
+            self.lr_scheduler = build_lr_scheduler(optimizer_cfg, num_steps)
+
         self.step = 0
         self.unique_tokens_trained = 0
 
@@ -77,7 +78,9 @@ class Trainer:
             desc="Train Steps",
             smoothing=0.15,  # this loop is bursty because of activation harvesting
         ):
-            self.lr_scheduler.step()
+            if self.lr_scheduler is not None:
+                self.optimizer.param_groups[0]["lr"] = self.lr_scheduler(self.step)
+
             self.optimizer.zero_grad()
             log_dicts: list[dict[str, float]] = []
             log = self.step % self.log_every_n_steps == 0
@@ -94,8 +97,8 @@ class Trainer:
                     "train/learning_rate": self.optimizer.param_groups[0]["lr"],
                     **dict_mean(log_dicts),  # take the mean of values of each key
                 }
-                if self.step % 100 == 0:
-                    batch_log_dict_avgs.update(self.model_wrapper.expensive_logs(self.step))
+                if self.step % (self.LOG_EXPENSIVE_EVERY_N_LOGS * self.log_every_n_steps) == 0:
+                    batch_log_dict_avgs.update(self.model_wrapper.expensive_logs())
                 self.wandb_run.log(batch_log_dict_avgs, step=self.step)
             if self.save_every_n_steps is not None and self.step % self.save_every_n_steps == 0:
                 dir = self.model_wrapper.save(self.step)
@@ -120,18 +123,27 @@ def run_exp(
         config_path = Path(config_path)
         assert config_path.suffix == ".yaml", f"Config file {config_path} must be a YAML file."
         assert Path(config_path).exists(), f"Config file {config_path} does not exist."
+
         logger.info("Loading config...")
         with open(config_path) as f:
             config_dict = yaml.safe_load(f)
         logger.info(f"Loaded config (raw):\n{config_dict}")
+
         config = cfg_cls(**config_dict)
         logger.info(f"Loaded config (parsed):\n{config.model_dump_json(indent=2)}")
+
         config.experiment_name += f"_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         logger.info(f"over-wrote experiment_name: {config.experiment_name}")
+
         logger.info(f"saving in save_dir: {config.save_dir}")
-        save_config(config)
+        config.save_dir.mkdir(parents=True, exist_ok=True)
+        with open(config.save_dir / "experiment_config.yaml", "w") as f:
+            yaml.dump(config.model_dump(), f)
+        logger.info(f"Saved config to {config.save_dir / 'experiment_config.yaml'}")
+
         logger.info("Building trainer")
         trainer = build_trainer(config)
+
         logger.info("Training")
         trainer.train()
 

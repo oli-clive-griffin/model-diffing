@@ -9,13 +9,11 @@ from crosscode.models.initialization.anthropic_transpose import AnthropicTranspo
 from crosscode.trainers.topk_cross_layer_transcoder.config import TopkCrossLayerTranscoderExperimentConfig
 from crosscode.trainers.topk_cross_layer_transcoder.trainer import TopkCrossLayerTranscoderWrapper
 from crosscode.trainers.trainer import Trainer, run_exp
-
-# from crosscode.trainers.topk_cross_layer_transcoder.trainer import TopkCrossLayerTranscoderTrainer
-from crosscode.trainers.utils import build_optimizer, build_wandb_run, get_activation_type
+from crosscode.trainers.utils import build_wandb_run, get_activation_type
 from crosscode.utils import get_device
 
 
-def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> Trainer:  # TopkCrossLayerTranscoderTrainer:
+def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> Trainer:
     device = get_device()
 
     llms = build_llms(
@@ -65,19 +63,15 @@ def build_trainer(cfg: TopkCrossLayerTranscoderExperimentConfig) -> Trainer:  # 
         hookpoints_out=cfg.out_hookpoints,
     )
 
-    optimizer = build_optimizer(cfg.train.optimizer, params=transcoder.parameters())
-    lr_scheduler = None  # build_lr_scheduler(cfg.train.optimizer, num_steps=cfg.train.num_steps)
-
     return Trainer(
         num_steps=cfg.train.num_steps,
         activations_dataloader=dataloader,
         model_wrapper=model_wrapper,
+        optimizer_cfg=cfg.train.optimizer,
         gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
         log_every_n_steps=cfg.train.log_every_n_steps,
         save_every_n_steps=cfg.train.save_every_n_steps,
         upload_saves_to_wandb=cfg.train.upload_saves_to_wandb,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
         wandb_run=wandb_run,
     )
 

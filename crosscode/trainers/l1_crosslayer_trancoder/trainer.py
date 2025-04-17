@@ -5,8 +5,8 @@ import torch
 
 from crosscode.models.activations.relu import ReLUActivation
 from crosscode.models.cross_layer_transcoder import CrossLayerTranscoder
+from crosscode.trainers.crosslayer_transcoder_wrapper import CrossLayerTranscoderWrapper
 from crosscode.trainers.l1_crosscoder.trainer import sparsity_loss_l1_of_l2s
-from crosscode.trainers.topk_cross_layer_transcoder.trainer import CrossLayerTranscoderWrapper
 from crosscode.trainers.utils import get_l0_stats
 from crosscode.utils import calculate_reconstruction_loss_summed_norm_MSEs
 
@@ -39,7 +39,7 @@ class L1CrossLayerTranscoderWrapper(CrossLayerTranscoderWrapper):
     ) -> tuple[torch.Tensor, dict[str, float] | None]:
         reconstruction_loss = calculate_reconstruction_loss_summed_norm_MSEs(train_res.output_BPD, target_BPD)
 
-        sparsity_loss = sparsity_loss_l1_of_l2s(self.model.W_dec_LPD, train_res.latents_BL)
+        sparsity_loss = sparsity_loss_l1_of_l2s(self.crosscoder.W_dec_LPD, train_res.latents_BL)
 
         lambda_s = self._l1_coef_scheduler(step)
         loss = reconstruction_loss + lambda_s * sparsity_loss

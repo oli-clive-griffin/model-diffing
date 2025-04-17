@@ -60,7 +60,7 @@ def build_trainer(cfg: TopKAcausalCrosscoderExperimentConfig) -> Trainer:
     wandb_run = build_wandb_run(cfg)
 
     optimizer = build_optimizer(cfg.train.optimizer, params=crosscoder.parameters())
-    lr_scheduler = None # build_lr_scheduler(cfg.train.optimizer, num_steps=cfg.train.num_steps)
+    lr_scheduler = None  # build_lr_scheduler(cfg.train.optimizer, num_steps=cfg.train.num_steps)
 
     model_wrapper = TopKAcausalCrosscoderWrapper(
         model=crosscoder,

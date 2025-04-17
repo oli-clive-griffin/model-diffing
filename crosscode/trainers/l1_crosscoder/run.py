@@ -45,7 +45,7 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> Trainer:
         model=crosscoder.to(device),
         scaling_factors_MP=dataloader.get_scaling_factors(),
         hookpoints=cfg.hookpoints,
-        model_names=[llm.name or "" for llm in llms], # fixme
+        model_names=[llm.name or "" for llm in llms],  # fixme
         save_dir=cfg.save_dir,
         lambda_s_num_steps=cfg.train.lambda_s_n_steps,
         final_lambda_s=cfg.train.final_lambda_s,
@@ -58,8 +58,6 @@ def build_l1_crosscoder_trainer(cfg: L1ExperimentConfig) -> Trainer:
         model_wrapper=wrapper,
         wandb_run=wandb_run,
         num_steps=cfg.train.num_steps,
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
         gradient_accumulation_steps_per_batch=cfg.train.gradient_accumulation_steps_per_batch,
         log_every_n_steps=cfg.train.log_every_n_steps,
         save_every_n_steps=cfg.train.save_every_n_steps,
